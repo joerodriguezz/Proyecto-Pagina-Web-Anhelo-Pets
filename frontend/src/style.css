@@ -11,9 +11,9 @@
 }
 
 :root {
-  --green-dark:   #2A5C42;
-  --green:        #3A7A56;
-  --green-light:  #4F9E70;
+  --green-dark:   #1F6B45;
+  --green:        #2E8B57;
+  --green-light:  #3FA26A;
   --green-pale:   #D4EDDA;
   --light:        #F1EFE8;
   --yellow:       #F3D9AD;
@@ -108,7 +108,7 @@ ul { list-style: none; }
   transition: background 0.2s, transform 0.15s;
 }
 .btn-outline-green:hover {
-  background: var(--green-pale);
+  background: rgba(46, 139, 87, 0.10);
   transform: translateY(-1px);
 }
 
@@ -116,9 +116,9 @@ ul { list-style: none; }
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: var(--yellow);
-  color: var(--text-dark);
-  border: 2px solid var(--yellow);
+  background: var(--green);
+  color: var(--white);
+  border: 2px solid var(--green);
   padding: 10px 22px;
   border-radius: var(--radius-full);
   font-size: 15px;
@@ -127,8 +127,8 @@ ul { list-style: none; }
   transition: background 0.2s, transform 0.15s;
 }
 .btn-yellow:hover {
-  background: var(--yellow-dark);
-  border-color: var(--yellow-dark);
+  background: var(--green-dark);
+  border-color: var(--green-dark);
   transform: translateY(-1px);
 }
 

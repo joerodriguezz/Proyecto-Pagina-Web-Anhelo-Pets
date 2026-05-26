@@ -2,177 +2,566 @@
 import NavBar from '../components/NavBar.vue'
 import FooterBar from '../components/FooterBar.vue'
 
-const rescates = [
-  { id:'R-001', fecha:'2026-03-15', ubicacion:'Desamparados, San José', descripcion:'Perro encontrado amarrado en poste, con signos de desnutrición.', mascota:'Luna', estado:'Activo', casaCuna:'Familia Mora' },
-  { id:'R-002', fecha:'2026-03-08', ubicacion:'Cartago Centro', descripcion:'Gata con cachorros abandonados en caja de cartón.', mascota:'Mochi', estado:'Activo', casaCuna:'Familia Vega' },
-  { id:'R-003', fecha:'2026-02-22', ubicacion:'Heredia, Barreal', descripcion:'Perro atropellado, tratamiento veterinario completado.', mascota:'Rocky', estado:'Activo', casaCuna:'Familia Salas' },
-  { id:'R-004', fecha:'2026-02-10', ubicacion:'Alajuela Centro', descripcion:'Cachorra encontrada en mercado, aparentemente saludable.', mascota:'Canela', estado:'Activo', casaCuna:'Familia Pérez' },
-  { id:'R-005', fecha:'2026-01-30', ubicacion:'Goicoechea, San José', descripcion:'Gato mayor rescatado de calle, requirió cirugía dental.', mascota:'Max', estado:'Cerrado', casaCuna:'—' },
-]
+const stories = [
 
-const statusClass = s => s === 'Activo' ? 'badge-green' : 'badge-gray'
+  {
+    image:'/img-rescates/Rosita.jpg',
+    title:'Rosita descubrió el amor',
+    text:'Rosita pasó gran parte de su vida siendo utilizada únicamente para tener crías. Vivía en condiciones de abandono, con desnutrición y sin conocer el cuidado ni la seguridad de un hogar. Permanecía amarrada porque la consideraban peligrosa, pero al ser rescatada demostró todo lo contrario: era noble, tranquila y solo necesitaba amor.'
+  },
+
+  {
+    image:'/img-rescates/estrella.jpg',
+    title:'Estrellita volvió a confiar',
+    text:'Estrellita fue rescatada en Quepos después de sufrir abuso y abandono. A pesar del miedo y las secuelas, poco a poco volvió a sentirse segura. Actualmente continúa rodeada de cuidado y amor dentro de la fundación.'
+  },
+
+  {
+    image:'/img-rescates/Kira.jpg',
+    title:'La historia de Kira',
+    text:'Kira fue rescatada en Puriscal después de sufrir abuso y llegar en condiciones críticas. Necesitó una compleja reconstrucción y meses de recuperación para volver a sanar. Hoy disfruta de una nueva vida junto a su familia adoptiva.'
+  }
+
+]
 </script>
 
 <template>
-  <NavBar />
 
-  <div class="page-hero">
-    <h1>🚨 Gestión de Rescates</h1>
-    <p>Historial de animales rescatados por la Fundación Anhelo Pets</p>
+  <div class="rescates-page">
+
+    <NavBar />
+
+    <!-- HERO -->
+
+    <section class="hero">
+
+      <img
+        src="/img-rescates/IMG_1494.JPG"
+        class="hero-image"
+      >
+
+      <div class="hero-overlay"></div>
+
+      <div class="hero-content">
+
+        <span class="hero-tag">
+          HISTORIAS REALES
+        </span>
+
+        <h1>
+          Cada rescate
+          merece una
+          <span>segunda oportunidad</span>
+        </h1>
+
+        <p>
+          Historias de empatía, recuperación
+          y nuevas oportunidades para seguir viviendo.
+        </p>
+
+      </div>
+
+    </section>
+
+    <!-- STORIES -->
+
+    <section class="stories-section">
+
+      <div class="container">
+
+        <div class="stories-header">
+
+          <span>
+            RESCATES
+          </span>
+
+          <h2>
+            Historias que
+            dejaron huella
+          </h2>
+
+          <p>
+            Cada rescate representa esperanza,
+            cuidado y un nuevo comienzo.
+          </p>
+
+        </div>
+
+        <div class="stories-grid">
+
+          <div
+            class="story-card"
+            v-for="story in stories"
+            :key="story.title"
+          >
+
+            <div class="story-image-wrap">
+
+              <img
+                :src="story.image"
+                class="story-image"
+              >
+
+            </div>
+
+            <div class="story-content">
+
+              <span class="story-label">
+                Rescate
+              </span>
+
+              <h3>
+                {{ story.title }}
+              </h3>
+
+              <p>
+                {{ story.text }}
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
+        <!-- IMPACT -->
+
+        <div class="impact-grid">
+
+          <div class="impact-item">
+
+            <h3>
+              +350
+            </h3>
+
+            <p>
+              Mascotas rescatadas
+            </p>
+
+          </div>
+
+          <div class="impact-item">
+
+            <h3>
+              +120
+            </h3>
+
+            <p>
+              Adopciones exitosas
+            </p>
+
+          </div>
+
+          <div class="impact-item">
+
+            <h3>
+              +80
+            </h3>
+
+            <p>
+              Voluntarios activos
+            </p>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <FooterBar />
+
   </div>
 
-  <section class="container rescates-section">
-    <!-- Summary cards -->
-    <div class="summary-grid">
-      <div class="summary-card">
-        <span class="s-icon">📋</span>
-        <div>
-          <div class="s-value">{{ rescates.length }}</div>
-          <div class="s-label">Total rescates</div>
-        </div>
-      </div>
-      <div class="summary-card">
-        <span class="s-icon">✅</span>
-        <div>
-          <div class="s-value">{{ rescates.filter(r => r.estado === 'Activo').length }}</div>
-          <div class="s-label">Activos</div>
-        </div>
-      </div>
-      <div class="summary-card">
-        <span class="s-icon">🏠</span>
-        <div>
-          <div class="s-value">{{ rescates.filter(r => r.casaCuna !== '—').length }}</div>
-          <div class="s-label">En casa cuna</div>
-        </div>
-      </div>
-      <div class="summary-card">
-        <span class="s-icon">🔒</span>
-        <div>
-          <div class="s-value">{{ rescates.filter(r => r.estado === 'Cerrado').length }}</div>
-          <div class="s-label">Cerrados</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- Table -->
-    <div class="table-wrapper">
-      <table class="data-table">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Fecha</th>
-            <th>Ubicación</th>
-            <th>Descripción</th>
-            <th>Mascota</th>
-            <th>Casa cuna</th>
-            <th>Estado</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="r in rescates" :key="r.id">
-            <td><code style="background:var(--cream);padding:2px 8px;border-radius:4px;font-size:12px;">{{ r.id }}</code></td>
-            <td>{{ r.fecha }}</td>
-            <td>📍 {{ r.ubicacion }}</td>
-            <td style="max-width:240px;font-size:13px;">{{ r.descripcion }}</td>
-            <td>🐾 {{ r.mascota }}</td>
-            <td>{{ r.casaCuna }}</td>
-            <td><span class="badge" :class="statusClass(r.estado)">{{ r.estado }}</span></td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-
-    <!-- Info section about houses -->
-    <div class="casas-section">
-      <h2 class="section-title" style="text-align:left;margin-bottom:20px;">🏡 Casas Cuna Activas</h2>
-      <div class="casas-grid">
-        <div v-for="casa in casasCuna" :key="casa.nombre" class="card casa-card">
-          <div class="casa-header">
-            <span class="casa-icon">🏠</span>
-            <div>
-              <h3>{{ casa.nombre }}</h3>
-              <p class="casa-location">📍 {{ casa.direccion }}</p>
-            </div>
-          </div>
-          <div class="casa-details">
-            <span>📞 {{ casa.telefono }}</span>
-            <span>👤 {{ casa.responsable }}</span>
-            <span class="badge badge-yellow">{{ casa.mascotas }} mascota{{ casa.mascotas !== 1 ? 's' : '' }}</span>
-          </div>
-        </div>
-      </div>
-    </div>
-  </section>
-
-  <FooterBar />
 </template>
 
-<script>
-export default {
-  data() {
-    return {
-      casasCuna: [
-        { nombre:'Familia Mora',  direccion:'Desamparados, San José', telefono:'8812-3456', responsable:'Ana Mora',    mascotas:1 },
-        { nombre:'Familia Vega',  direccion:'Cartago Centro',         telefono:'8765-4321', responsable:'Pedro Vega',  mascotas:2 },
-        { nombre:'Familia Salas', direccion:'Heredia, Barreal',       telefono:'8900-1122', responsable:'Lucía Salas', mascotas:1 },
-        { nombre:'Familia Pérez', direccion:'Alajuela Centro',        telefono:'8543-9900', responsable:'Mario Pérez', mascotas:1 },
-      ]
-    }
-  }
-}
-</script>
-
 <style scoped>
-.rescates-section { padding: 40px 24px 60px; }
 
-.summary-grid {
+/* PALETA */
+
+.rescates-page {
+
+  background: #FAFAFA;
+}
+
+/* HERO */
+
+.hero {
+
+  position: relative;
+
+  height: 560px;
+
+  overflow: hidden;
+}
+
+.hero-image {
+
+  width: 100%;
+
+  height: 100%;
+
+  object-fit: cover;
+
+  object-position: center 55%;
+
+  transform: scale(1.02);
+
+  filter:
+    brightness(0.72)
+    contrast(1.03);
+}
+
+.hero-overlay {
+
+  position: absolute;
+
+  inset: 0;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(58,71,60,0.82) 0%,
+      rgba(58,71,60,0.45) 45%,
+      rgba(58,71,60,0.10) 100%
+    );
+}
+
+.hero-content {
+
+  position: absolute;
+
+  left: 8%;
+
+  bottom: 55px;
+
+  max-width: 540px;
+
+  z-index: 2;
+}
+
+.hero-tag {
+
+  display: inline-flex;
+
+  padding: 10px 18px;
+
+  border-radius: 999px;
+
+  background: rgba(255,255,255,0.12);
+
+  backdrop-filter: blur(10px);
+
+  border:
+    1px solid rgba(255,255,255,0.16);
+
+  color: white;
+
+  font-size: 11px;
+
+  font-weight: 700;
+
+  letter-spacing: 1.5px;
+
+  margin-bottom: 28px;
+}
+
+.hero-content h1 {
+
+  font-size: 60px;
+
+  line-height: 0.95;
+
+  letter-spacing: -3px;
+
+  color: white;
+
+  font-weight: 800;
+
+  margin-bottom: 24px;
+}
+
+.hero-content h1 span {
+
+  color: #F9C17A;
+}
+
+.hero-content p {
+
+  font-size: 17px;
+
+  line-height: 1.9;
+
+  color: rgba(255,255,255,0.88);
+
+  max-width: 430px;
+}
+
+/* STORIES */
+
+.stories-section {
+
+  padding:
+    130px 24px
+    170px;
+}
+
+.container {
+
+  max-width: 1240px;
+
+  margin: auto;
+}
+
+.stories-header {
+
+  text-align: center;
+
+  margin-bottom: 72px;
+}
+
+.stories-header span {
+
+  color: #92A894;
+
+  font-size: 12px;
+
+  font-weight: 700;
+
+  letter-spacing: 1.5px;
+}
+
+.stories-header h2 {
+
+  font-size: 58px;
+
+  line-height: 0.96;
+
+  letter-spacing: -3px;
+
+  color: #3A473C;
+
+  font-weight: 800;
+
+  margin:
+    18px 0;
+}
+
+.stories-header p {
+
+  color: #6C756D;
+
+  font-size: 16px;
+
+  line-height: 1.9;
+
+  max-width: 620px;
+
+  margin: auto;
+}
+
+.stories-grid {
+
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 30px;
-}
-.summary-card {
-  background: var(--white);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  padding: 20px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  box-shadow: var(--shadow-sm);
-}
-.s-icon  { font-size: 32px; }
-.s-value { font-size: 28px; font-weight: 800; color: var(--green-dark); }
-.s-label { font-size: 12px; color: var(--text-light); font-weight: 500; }
 
-.casas-section { margin-top: 48px; }
-.casas-grid {
+  grid-template-columns:
+    repeat(3,1fr);
+
+  gap: 30px;
+}
+
+.story-card {
+
+  background: white;
+
+  border-radius: 30px;
+
+  overflow: hidden;
+
+  border:
+    1px solid rgba(146,168,148,0.10);
+
+  transition: 0.4s ease;
+
+  box-shadow:
+    0 10px 35px rgba(58,71,60,0.05);
+}
+
+.story-card:hover {
+
+  transform:
+    translateY(-8px);
+
+  box-shadow:
+    0 16px 42px rgba(58,71,60,0.10);
+}
+
+.story-image-wrap {
+
+  height: 290px;
+
+  overflow: hidden;
+}
+
+.story-image {
+
+  width: 100%;
+
+  height: 100%;
+
+  object-fit: cover;
+
+  transition: 0.8s ease;
+}
+
+.story-card:hover .story-image {
+
+  transform: scale(1.05);
+}
+
+.story-content {
+
+  padding: 32px;
+}
+
+.story-label {
+
+  display: inline-flex;
+
+  padding: 8px 15px;
+
+  border-radius: 999px;
+
+  background: #FFF1DD;
+
+  color: #D89A47;
+
+  font-size: 12px;
+
+  font-weight: 700;
+
+  margin-bottom: 18px;
+}
+
+.story-content h3 {
+
+  font-size: 30px;
+
+  line-height: 1.05;
+
+  color: #3A473C;
+
+  font-weight: 800;
+
+  margin-bottom: 18px;
+}
+
+.story-content p {
+
+  color: #687168;
+
+  font-size: 15px;
+
+  line-height: 1.9;
+}
+
+/* IMPACT */
+
+.impact-grid {
+
+  margin-top: 95px;
+
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-  gap: 20px;
-}
-.casa-card { padding: 20px; }
-.casa-header {
-  display: flex;
-  gap: 14px;
-  align-items: flex-start;
-  margin-bottom: 14px;
-}
-.casa-icon { font-size: 32px; }
-.casa-header h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
-.casa-location { font-size: 12px; color: var(--text-light); }
-.casa-details {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 13px;
-  color: var(--text-mid);
+
+  grid-template-columns:
+    repeat(3,1fr);
+
+  gap: 24px;
 }
 
-@media (max-width: 768px) {
-  .summary-grid { grid-template-columns: 1fr 1fr; }
+.impact-item {
+
+  background: white;
+
+  border-radius: 28px;
+
+  padding: 44px;
+
+  text-align: center;
+
+  border:
+    1px solid rgba(146,168,148,0.10);
+
+  box-shadow:
+    0 10px 35px rgba(58,71,60,0.04);
 }
-@media (max-width: 480px) {
-  .summary-grid { grid-template-columns: 1fr; }
+
+.impact-item h3 {
+
+  font-size: 54px;
+
+  color: #92A894;
+
+  font-weight: 800;
+
+  margin-bottom: 12px;
 }
+
+.impact-item p {
+
+  color: #6C756D;
+
+  font-size: 15px;
+
+  line-height: 1.7;
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 1000px) {
+
+  .stories-grid,
+  .impact-grid {
+
+    grid-template-columns: 1fr;
+  }
+
+}
+
+@media (max-width: 700px) {
+
+  .hero {
+
+    height: 500px;
+  }
+
+  .hero-content {
+
+    left: 24px;
+
+    right: 24px;
+
+    bottom: 40px;
+  }
+
+  .hero-content h1 {
+
+    font-size: 44px;
+  }
+
+  .stories-header h2 {
+
+    font-size: 40px;
+  }
+
+  .stories-section {
+
+    padding:
+      90px 20px
+      120px;
+  }
+
+}
+
 </style>

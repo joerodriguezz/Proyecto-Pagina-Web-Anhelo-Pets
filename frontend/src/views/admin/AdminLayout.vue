@@ -6,14 +6,14 @@ const route = useRoute()
 const sidebarOpen = ref(true)
 
 const navItems = [
-  { to:'/admin',             icon:'📊', label:'Dashboard' },
-  { to:'/admin/mascotas',    icon:'🐾', label:'Mascotas' },
-  { to:'/admin/adopciones',  icon:'💛', label:'Adopciones' },
-  { to:'/admin/rescates',    icon:'🚨', label:'Rescates' },
-  { to:'/admin/salud',       icon:'🏥', label:'Salud' },
-  { to:'/admin/usuarios',    icon:'👥', label:'Usuarios' },
-  { to:'/admin/donaciones',  icon:'💰', label:'Donaciones' },
-  { to:'/admin/voluntarios', icon:'🤝', label:'Voluntarios' },
+  { to:'/admin',             label:'Dashboard' },
+  { to:'/admin/mascotas',    label:'Mascotas' },
+  { to:'/admin/adopciones',  label:'Adopciones' },
+  { to:'/admin/rescates',    label:'Rescates' },
+  { to:'/admin/salud',       label:'Salud' },
+  { to:'/admin/usuarios',    label:'Usuarios' },
+  { to:'/admin/donaciones',  label:'Donaciones' },
+  { to:'/admin/voluntarios', label:'Voluntarios' },
 ]
 
 const isActive = (to) => {
@@ -24,14 +24,15 @@ const isActive = (to) => {
 
 <template>
   <div class="admin-shell" :class="{ collapsed: !sidebarOpen }">
-    <!-- Sidebar -->
     <aside class="sidebar">
       <div class="sidebar-header">
         <RouterLink to="/" class="sidebar-logo">
-          <span>🐾</span>
-          <span v-if="sidebarOpen" class="logo-text">Anhelo<strong>Pets</strong></span>
+          <span v-if="sidebarOpen" class="logo-text">Anhelo<span class="peach">Pets</span></span>
+          <span v-else class="logo-text-short">A</span>
         </RouterLink>
-        <button class="toggle-btn" @click="sidebarOpen = !sidebarOpen">{{ sidebarOpen ? '◀' : '▶' }}</button>
+        <button class="toggle-btn" @click="sidebarOpen = !sidebarOpen" :class="{ rotated: !sidebarOpen }">
+          <span class="arrow-char">‹</span>
+        </button>
       </div>
 
       <nav class="sidebar-nav">
@@ -42,32 +43,29 @@ const isActive = (to) => {
           class="nav-item"
           :class="{ active: isActive(item.to) }"
         >
-          <span class="nav-icon">{{ item.icon }}</span>
-          <span v-if="sidebarOpen" class="nav-label">{{ item.label }}</span>
+          <span class="nav-label">{{ item.label }}</span>
         </RouterLink>
       </nav>
 
-      <div class="sidebar-footer" v-if="sidebarOpen">
-        <RouterLink to="/" class="nav-item">
-          <span class="nav-icon">🌐</span>
-          <span class="nav-label">Ver sitio</span>
+      <div class="sidebar-footer">
+        <RouterLink to="/" class="nav-item-footer">
+          <span v-if="sidebarOpen">Ver sitio web</span>
+          <span v-else class="footer-dot">·</span>
         </RouterLink>
-        <RouterLink to="/login" class="nav-item logout">
-          <span class="nav-icon">🚪</span>
-          <span class="nav-label">Salir</span>
+        <RouterLink to="/login" class="nav-item-footer logout">
+          <span v-if="sidebarOpen">Cerrar sesión</span>
+          <span v-else class="footer-dot">×</span>
         </RouterLink>
       </div>
     </aside>
 
-    <!-- Main Content -->
     <div class="admin-main">
-      <!-- Top bar -->
       <header class="admin-topbar">
         <div class="topbar-left">
-          <h2 class="page-title">Panel de Administración</h2>
+          <h2 class="page-title">Panel de administración</h2>
         </div>
         <div class="topbar-right">
-          <span class="admin-badge">🔧 Administrador</span>
+          <span class="admin-badge">Administrador</span>
           <div class="admin-avatar">A</div>
         </div>
       </header>
@@ -80,97 +78,185 @@ const isActive = (to) => {
 </template>
 
 <style scoped>
+/* ── Estructura General ── */
 .admin-shell {
   display: flex;
   min-height: 100vh;
-  background: #F0F4F1;
+  background: #FAFAFA;
+  font-family: 'Inter', sans-serif;
 }
 
-/* ── SIDEBAR ── */
+/* ── SIDEBAR (Izquierdo) ── */
 .sidebar {
-  width: 240px;
-  background: var(--green-dark);
+  width: 260px;
+  background: #3A473C; /* Verde oscuro del tema principal */
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  transition: width 0.25s;
+  transition: width 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   position: sticky;
   top: 0;
   height: 100vh;
-  overflow-y: auto;
+  z-index: 101;
 }
-.admin-shell.collapsed .sidebar { width: 68px; }
+
+.admin-shell.collapsed .sidebar { 
+  width: 72px; 
+}
 
 .sidebar-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 18px 14px;
-  border-bottom: 1px solid rgba(255,255,255,0.1);
-  min-height: 68px;
-}
-.sidebar-logo {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 20px;
-  color: var(--white);
-  text-decoration: none;
-}
-.logo-text { font-size: 17px; font-weight: 700; white-space: nowrap; }
-.logo-text strong { color: var(--yellow); }
-.toggle-btn {
-  background: rgba(255,255,255,0.12);
-  border: none;
-  color: var(--white);
-  width: 28px; height: 28px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 12px;
-  flex-shrink: 0;
+  padding: 24px 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  min-height: 76px;
+  box-sizing: border-box;
 }
 
+.sidebar-logo {
+  text-decoration: none;
+}
+
+.logo-text {
+  font-size: 20px;
+  font-weight: 800;
+  color: white;
+  letter-spacing: -1px;
+}
+
+.logo-text-short {
+  font-size: 22px;
+  font-weight: 800;
+  color: #F9C17A;
+  padding-left: 6px;
+}
+
+.peach { 
+  color: #F9C17A; 
+}
+
+/* Botón colapsable minimalista */
+.toggle-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: none;
+  color: rgba(255, 255, 255, 0.7);
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+}
+
+.arrow-char {
+  font-size: 20px;
+  line-height: 1;
+  margin-top: -2px;
+  transition: transform 0.3s;
+}
+
+.toggle-btn.rotated .arrow-char {
+  transform: rotate(180deg);
+}
+
+/* Navegación Interna */
 .sidebar-nav {
   flex: 1;
-  padding: 12px 8px;
+  padding: 24px 14px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 6px;
+}
+
+.admin-shell.collapsed .sidebar-nav {
+  padding: 24px 10px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
-  border-radius: var(--radius-sm);
-  color: rgba(255,255,255,0.75);
+  padding: 12px 16px;
+  border-radius: 12px;
+  color: rgba(255, 255, 255, 0.65);
   font-size: 14px;
-  font-weight: 500;
+  font-weight: 600;
   text-decoration: none;
-  transition: background 0.2s, color 0.2s;
+  transition: all 0.25s ease;
   white-space: nowrap;
-  overflow: hidden;
 }
+
+.admin-shell.collapsed .nav-item {
+  justify-content: center;
+  padding: 12px 0;
+}
+
 .nav-item:hover {
-  background: rgba(255,255,255,0.1);
-  color: var(--white);
+  background: rgba(255, 255, 255, 0.05);
+  color: white;
 }
+
 .nav-item.active {
-  background: rgba(255,255,255,0.18);
-  color: var(--white);
+  background: #92A894; /* Color verde claro identitario */
+  color: white;
   font-weight: 700;
-  border-left: 3px solid var(--yellow);
 }
-.nav-icon { font-size: 18px; flex-shrink: 0; }
-.logout { color: rgba(255,200,200,0.8) !important; }
 
+.admin-shell.collapsed .nav-item.active {
+  background: transparent;
+  color: #F9C17A;
+  font-weight: 800;
+}
+
+/* Footer del Sidebar */
 .sidebar-footer {
-  padding: 8px;
-  border-top: 1px solid rgba(255,255,255,0.1);
+  padding: 14px;
+  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
-/* ── MAIN ── */
+.nav-item-footer {
+  display: flex;
+  align-items: center;
+  padding: 10px 16px;
+  border-radius: 10px;
+  color: rgba(255, 255, 255, 0.4);
+  font-size: 13px;
+  font-weight: 600;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.admin-shell.collapsed .nav-item-footer {
+  justify-content: center;
+  padding: 8px 0;
+}
+
+.nav-item-footer:hover {
+  color: white;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.logout:hover {
+  color: #EB7777;
+  background: rgba(235, 119, 119, 0.08);
+}
+
+.footer-dot {
+  font-size: 18px;
+  font-weight: 800;
+}
+
+/* ── MAIN CONTENT (Derecho) ── */
 .admin-main {
   flex: 1;
   display: flex;
@@ -179,42 +265,63 @@ const isActive = (to) => {
 }
 
 .admin-topbar {
-  background: var(--white);
-  border-bottom: 1px solid var(--border);
-  height: 68px;
+  background: white;
+  border-bottom: 2px solid #F4F6F4;
+  height: 76px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 0 28px;
+  padding: 0 40px;
   position: sticky;
   top: 0;
   z-index: 100;
 }
-.page-title { font-size: 18px; font-weight: 700; color: var(--text-dark); }
-.topbar-right { display: flex; align-items: center; gap: 14px; }
-.admin-badge {
-  background: var(--green-pale);
-  color: var(--green-dark);
-  padding: 5px 12px;
-  border-radius: var(--radius-full);
-  font-size: 13px;
-  font-weight: 600;
+
+.page-title {
+  font-size: 18px;
+  font-weight: 800;
+  color: #3A473C;
+  letter-spacing: -0.5px;
 }
+
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.admin-badge {
+  background: #F4F6F4;
+  color: #6C756D;
+  padding: 6px 14px;
+  border-radius: 99px;
+  font-size: 13px;
+  font-weight: 700;
+}
+
 .admin-avatar {
-  width: 36px; height: 36px;
-  background: var(--green);
-  color: var(--white);
-  border-radius: 50%;
+  width: 38px;
+  height: 38px;
+  background: #92A894;
+  color: white;
+  border-radius: 12px;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 15px;
-  font-weight: 700;
+  font-weight: 800;
 }
 
 .admin-content {
   flex: 1;
-  padding: 28px;
+  padding: 40px;
   overflow-y: auto;
+  box-sizing: border-box;
+}
+
+/* Ajustes finos para pantallas móviles */
+@media (max-width: 768px) {
+  .admin-topbar { padding: 0 20px; }
+  .admin-content { padding: 20px; }
 }
 </style>
