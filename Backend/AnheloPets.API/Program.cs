@@ -4,6 +4,12 @@ using AnheloPets.API.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
+var port = Environment.GetEnvironmentVariable("PORT");
+if (!string.IsNullOrWhiteSpace(port))
+{
+    builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
+}
+
 // Controllers
 builder.Services.AddControllers();
 builder.Services.AddScoped<IAnimalService, AnimalService>();
@@ -17,9 +23,16 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
 // Base de datos PostgreSQL
+var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(defaultConnection))
+{
+    throw new InvalidOperationException(
+        "Connection string 'DefaultConnection' is not configured. " +
+        "Set ConnectionStrings__DefaultConnection in the deployment environment.");
+}
+
 builder.Services.AddDbContext<AnheloPetsDbContext>(options =>
-    options.UseNpgsql(
-        builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(defaultConnection));
 
 // CORS para Vue
 builder.Services.AddCors(options =>
