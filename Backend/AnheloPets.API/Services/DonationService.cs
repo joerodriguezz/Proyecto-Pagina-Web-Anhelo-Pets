@@ -4,34 +4,26 @@ namespace AnheloPets.API.Services;
 
 public class DonationService : IDonationService
 {
-    private static List<DonationDto> _donations = new()
-    {
-        new()
-        {
-            DonationId = 1,
-            DonorName = "María Pérez",
-            Amount = 50m,
-            DonatedAt = DateTime.UtcNow.AddDays(-1),
-            Message = "Para el cuidado de los animales"
-        }
-    };
+    private static readonly List<DonationDto> Donations = new();
 
-    public IEnumerable<DonationDto> GetAll() => _donations;
+    public IEnumerable<DonationDto> GetAll() => Donations;
 
-    public DonationDto? GetById(long id) => _donations.FirstOrDefault(x => x.DonationId == id);
+    public DonationDto? GetById(long id) => Donations.FirstOrDefault(x => x.DonationId == id);
 
     public DonationDto Create(DonationDto donation)
     {
-        donation.DonationId = _donations.Any() ? _donations.Max(x => x.DonationId) + 1 : 1;
-        _donations.Add(donation);
+        donation.DonationId = Donations.Any() ? Donations.Max(x => x.DonationId) + 1 : 1;
+        Donations.Add(donation);
         return donation;
     }
 
     public DonationDto? Update(long id, DonationDto donation)
     {
-        var existing = _donations.FirstOrDefault(x => x.DonationId == id);
+        var existing = Donations.FirstOrDefault(x => x.DonationId == id);
         if (existing == null)
+        {
             return null;
+        }
 
         existing.DonorName = donation.DonorName;
         existing.Amount = donation.Amount;
@@ -43,11 +35,13 @@ public class DonationService : IDonationService
 
     public bool Delete(long id)
     {
-        var donation = _donations.FirstOrDefault(x => x.DonationId == id);
+        var donation = Donations.FirstOrDefault(x => x.DonationId == id);
         if (donation == null)
+        {
             return false;
+        }
 
-        _donations.Remove(donation);
+        Donations.Remove(donation);
         return true;
     }
 }
