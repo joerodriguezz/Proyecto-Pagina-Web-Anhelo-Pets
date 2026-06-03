@@ -1,0 +1,6 @@
+@AnheloPets.API_HostAddress = http://localhost:5272
+
+GET {{AnheloPets.API_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
