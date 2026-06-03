@@ -5,48 +5,48 @@ using Microsoft.EntityFrameworkCore;
 
 namespace AnheloPets.API.Services;
 
-public class RescateService : IRescateService
+public class FosterPlacementService : IFosterPlacementService
 {
     private readonly AnheloPetsDbContext _dbContext;
 
-    public RescateService(AnheloPetsDbContext dbContext)
+    public FosterPlacementService(AnheloPetsDbContext dbContext)
     {
         _dbContext = dbContext;
     }
 
-    public IEnumerable<RescateDto> GetAll()
+    public IEnumerable<FosterPlacementDto> GetAll()
     {
-        using var command = CreateCommand("SELECT * FROM anhelopets.fn_get_rescues_admin();");
-        return ExecuteRescueReader(command);
+        using var command = CreateCommand("SELECT * FROM anhelopets.fn_get_foster_placements_admin();");
+        return ExecuteReader(command);
     }
 
-    public RescateDto? GetById(long id)
+    public FosterPlacementDto? GetById(long id)
     {
-        using var command = CreateCommand("SELECT * FROM anhelopets.fn_get_rescues_admin() WHERE rescue_id = @id;");
+        using var command = CreateCommand(
+            "SELECT * FROM anhelopets.fn_get_foster_placements_admin() WHERE animal_foster_placement_id = @id;");
         AddParameter(command, "id", id);
-        return ExecuteRescueReader(command).FirstOrDefault();
+        return ExecuteReader(command).FirstOrDefault();
     }
 
-    public RescateDto Create(RescateDto rescate)
+    public FosterPlacementDto Create(FosterPlacementDto placement)
     {
         using var command = CreateCommand(
             """
-            SELECT anhelopets.fn_create_rescue(
+            SELECT anhelopets.fn_assign_animal_foster_home(
                 @animalId::bigint,
-                @rescueDate::date,
-                @location::text,
-                @description::text,
-                @status::varchar,
                 @fosterHomeId::bigint,
+                @startDate::date,
+                @endDate::date,
+                @notes::text,
                 @createdBy::varchar);
             """);
 
-        AddWriteParameters(command, rescate, includeModifiedBy: false);
-        var rescueId = Convert.ToInt64(ExecuteScalar(command));
-        return GetById(rescueId) ?? throw new InvalidOperationException("Rescue was created but could not be loaded.");
+        AddWriteParameters(command, placement, includeModifiedBy: false);
+        var placementId = Convert.ToInt64(ExecuteScalar(command));
+        return GetById(placementId) ?? throw new InvalidOperationException("Foster placement was created but could not be loaded.");
     }
 
-    public RescateDto? Update(long id, RescateDto rescate)
+    public FosterPlacementDto? Update(long id, FosterPlacementDto placement)
     {
         if (GetById(id) == null)
         {
@@ -55,19 +55,18 @@ public class RescateService : IRescateService
 
         using var command = CreateCommand(
             """
-            SELECT anhelopets.fn_update_rescue(
-                @rescueId::bigint,
+            SELECT anhelopets.fn_update_foster_placement(
+                @placementId::bigint,
                 @animalId::bigint,
-                @rescueDate::date,
-                @location::text,
-                @description::text,
-                @status::varchar,
                 @fosterHomeId::bigint,
+                @startDate::date,
+                @endDate::date,
+                @notes::text,
                 @modifiedBy::varchar);
             """);
 
-        AddParameter(command, "rescueId", id);
-        AddWriteParameters(command, rescate, includeModifiedBy: true);
+        AddParameter(command, "placementId", id);
+        AddWriteParameters(command, placement, includeModifiedBy: true);
         ExecuteNonQuery(command);
         return GetById(id);
     }
@@ -80,47 +79,45 @@ public class RescateService : IRescateService
             return false;
         }
 
-        existing.Status = "Cerrado";
+        existing.EndDate = DateOnly.FromDateTime(DateTime.UtcNow);
         existing.ModifiedBy = "api";
         Update(id, existing);
         return true;
     }
 
-    private void AddWriteParameters(IDbCommand command, RescateDto rescue, bool includeModifiedBy)
+    private static void AddWriteParameters(IDbCommand command, FosterPlacementDto placement, bool includeModifiedBy)
     {
-        AddParameter(command, "animalId", rescue.AnimalId);
-        AddParameter(command, "rescueDate", rescue.Fecha);
-        AddParameter(command, "location", rescue.Ubicacion);
-        AddParameter(command, "description", rescue.Descripcion);
-        AddParameter(command, "status", string.IsNullOrWhiteSpace(rescue.Status) ? "Activo" : rescue.Status);
-        AddParameter(command, "fosterHomeId", rescue.FosterHomeId);
-        AddParameter(command, includeModifiedBy ? "modifiedBy" : "createdBy", includeModifiedBy ? rescue.ModifiedBy : rescue.CreatedBy);
+        AddParameter(command, "animalId", placement.AnimalId);
+        AddParameter(command, "fosterHomeId", placement.FosterHomeId);
+        AddParameter(command, "startDate", placement.StartDate);
+        AddParameter(command, "endDate", placement.EndDate);
+        AddParameter(command, "notes", placement.Notes);
+        AddParameter(command, includeModifiedBy ? "modifiedBy" : "createdBy", includeModifiedBy ? placement.ModifiedBy : placement.CreatedBy);
     }
 
-    private List<RescateDto> ExecuteRescueReader(IDbCommand command)
+    private List<FosterPlacementDto> ExecuteReader(IDbCommand command)
     {
         try
         {
             using var reader = command.ExecuteReader();
-            var rescues = new List<RescateDto>();
+            var placements = new List<FosterPlacementDto>();
 
             while (reader.Read())
             {
-                rescues.Add(new RescateDto
+                placements.Add(new FosterPlacementDto
                 {
-                    RescateId = GetInt64(reader, "rescue_id"),
-                    AnimalId = GetNullableInt64(reader, "animal_id"),
+                    AnimalFosterPlacementId = GetInt64(reader, "animal_foster_placement_id"),
+                    AnimalId = GetInt64(reader, "animal_id"),
                     AnimalName = GetString(reader, "animal_name"),
-                    Fecha = GetDateOnly(reader, "rescue_date") ?? default,
-                    Ubicacion = GetString(reader, "location"),
-                    Descripcion = GetString(reader, "description"),
-                    Status = GetString(reader, "status"),
-                    FosterHomeId = GetNullableInt64(reader, "foster_home_id"),
-                    FosterHomeName = GetString(reader, "foster_home_name")
+                    FosterHomeId = GetInt64(reader, "foster_home_id"),
+                    FosterHomeName = GetString(reader, "foster_home_name"),
+                    StartDate = GetDateOnly(reader, "start_date") ?? default,
+                    EndDate = GetDateOnly(reader, "end_date"),
+                    Notes = GetString(reader, "notes")
                 });
             }
 
-            return rescues;
+            return placements;
         }
         finally
         {
@@ -189,12 +186,6 @@ public class RescateService : IRescateService
     {
         var ordinal = reader.GetOrdinal(name);
         return reader.GetInt64(ordinal);
-    }
-
-    private static long? GetNullableInt64(IDataRecord reader, string name)
-    {
-        var ordinal = reader.GetOrdinal(name);
-        return reader.IsDBNull(ordinal) ? null : reader.GetInt64(ordinal);
     }
 
     private static DateOnly? GetDateOnly(IDataRecord reader, string name)
