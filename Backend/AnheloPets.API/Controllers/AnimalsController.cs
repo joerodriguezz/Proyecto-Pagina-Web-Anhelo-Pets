@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using AnheloPets.API.DTOs;
 using AnheloPets.API.Services;
 
 namespace AnheloPets.API.Controllers;
@@ -15,9 +16,9 @@ public class AnimalsController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult GetAll()
+    public IActionResult GetAll([FromQuery] string? species, [FromQuery] string? status = "Disponible", [FromQuery] string? search = null)
     {
-        return Ok(_animalService.GetAll());
+        return Ok(_animalService.GetAll(species, status, search));
     }
 
     [HttpGet("{id}")]
@@ -29,5 +30,25 @@ public class AnimalsController : ControllerBase
             return NotFound();
 
         return Ok(animal);
+    }
+
+    [HttpPost]
+    public IActionResult Create([FromBody] AnimalDto animal)
+    {
+        if (animal == null) return BadRequest();
+
+        var created = _animalService.Create(animal);
+        return CreatedAtAction(nameof(GetById), new { id = created.AnimalId }, created);
+    }
+
+    [HttpPut("{id}")]
+    public IActionResult Update(long id, [FromBody] AnimalDto animal)
+    {
+        if (animal == null) return BadRequest();
+
+        var updated = _animalService.Update(id, animal);
+        if (updated == null) return NotFound();
+
+        return Ok(updated);
     }
 }
