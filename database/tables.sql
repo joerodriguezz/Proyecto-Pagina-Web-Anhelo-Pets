@@ -25,11 +25,13 @@ CREATE TABLE users (
 CREATE TABLE user_profiles (
     user_profile_id bigint GENERATED ALWAYS AS IDENTITY,
     user_id         bigint NOT NULL,
+    national_id     varchar(50),
     first_name      varchar(100) NOT NULL,
     middle_name     varchar(100),
     last_name       varchar(100) NOT NULL,
     second_last_name varchar(100),
     birth_date      date NOT NULL,
+    nationality     varchar(100),
 
     created_at      timestamptz,
     created_by      varchar(100),
@@ -44,6 +46,10 @@ CREATE TABLE user_profiles (
         ON UPDATE CASCADE
         ON DELETE CASCADE
 );
+
+CREATE UNIQUE INDEX ux_user_profiles_national_id
+    ON user_profiles (national_id)
+    WHERE national_id IS NOT NULL;
 
 CREATE TABLE user_contacts (
     user_contact_id bigint GENERATED ALWAYS AS IDENTITY,
@@ -187,6 +193,30 @@ CREATE TABLE animal_intakes (
         ON DELETE RESTRICT
 );
 
+CREATE TABLE rescue_records (
+    rescue_id      bigint GENERATED ALWAYS AS IDENTITY,
+    animal_id      bigint,
+    rescue_date    date NOT NULL,
+    location       text NOT NULL,
+    description    text NOT NULL,
+    status         varchar(30) NOT NULL DEFAULT 'Activo',
+    foster_home_id bigint,
+
+    created_at     timestamptz,
+    created_by     varchar(100),
+    modified_at    timestamptz,
+    modified_by    varchar(100),
+
+    CONSTRAINT pk_rescue_records PRIMARY KEY (rescue_id),
+    CONSTRAINT ck_rescue_records_date_not_future CHECK (rescue_date <= CURRENT_DATE),
+    CONSTRAINT ck_rescue_records_status CHECK (status IN ('Activo', 'Cerrado')),
+    CONSTRAINT fk_rescue_records_animal_id
+        FOREIGN KEY (animal_id)
+        REFERENCES animals (animal_id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
+);
+
 CREATE TABLE volunteers (
     volunteer_id bigint GENERATED ALWAYS AS IDENTITY,
     user_id      bigint NOT NULL,
@@ -297,8 +327,13 @@ CREATE TABLE animal_care_schedules (
 
 CREATE TABLE foster_homes (
     foster_home_id bigint GENERATED ALWAYS AS IDENTITY,
-    volunteer_id   bigint NOT NULL,
+    volunteer_id   bigint,
+    name           varchar(150) NOT NULL,
+    address        text NOT NULL,
+    phone          varchar(30) NOT NULL,
+    responsible    varchar(150) NOT NULL,
     capacity       integer NOT NULL,
+    active         boolean NOT NULL DEFAULT true,
 
     created_at     timestamptz,
     created_by     varchar(100),
@@ -342,6 +377,13 @@ CREATE TABLE animal_foster_placements (
         ON UPDATE CASCADE
         ON DELETE RESTRICT
 );
+
+ALTER TABLE rescue_records
+    ADD CONSTRAINT fk_rescue_records_foster_home_id
+    FOREIGN KEY (foster_home_id)
+    REFERENCES foster_homes (foster_home_id)
+    ON UPDATE CASCADE
+    ON DELETE SET NULL;
 
 
 
@@ -413,6 +455,9 @@ CREATE INDEX ix_animal_care_schedules_next_due_date
 
 CREATE INDEX ix_foster_homes_volunteer_id
     ON foster_homes (volunteer_id);
+
+CREATE INDEX ix_rescue_records_date
+    ON rescue_records (rescue_date);
 
 CREATE INDEX ix_animal_foster_placements_animal_id
     ON animal_foster_placements (animal_id);

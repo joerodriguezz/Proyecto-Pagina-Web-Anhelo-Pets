@@ -1,25 +1,153 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import Icon from '../../components/Icon.vue'
+import { animalsApi } from '../../services/api'
 
 const showForm = ref(false)
 const editMode = ref(false)
+const pets = ref([])
+const loading = ref(false)
+const errorMessage = ref('')
+const saving = ref(false)
 
-const pets = ref([
-  { id:1, name:'Luna',   type:'Perro', breed:'Mestiza',          age:'2 años',  sex:'Hembra', status:'Disponible', health:'Saludable' },
-  { id:2, name:'Mochi',  type:'Gato',  breed:'Siamés',           age:'1 año',   sex:'Hembra', status:'Disponible', health:'Saludable' },
-  { id:3, name:'Rocky',  type:'Perro', breed:'Labrador',         age:'3 años',  sex:'Macho',  status:'Disponible', health:'Saludable' },
-  { id:4, name:'Canela', type:'Perro', breed:'Shih Tzu',         age:'4 meses', sex:'Hembra', status:'En proceso', health:'Vacunada'  },
-  { id:5, name:'Tigre',  type:'Gato',  breed:'Doméstico',        age:'5 años',  sex:'Macho',  status:'Disponible', health:'Saludable' },
-  { id:6, name:'Bella',  type:'Perro', breed:'Poodle',           age:'2 años',  sex:'Hembra', status:'Disponible', health:'Saludable' },
-  { id:7, name:'Max',    type:'Perro', breed:'Golden Retriever', age:'1 año',   sex:'Macho',  status:'Adoptada',   health:'Saludable' },
-])
+const emptyForm = () => ({
+  animalId: null,
+  animalName: '',
+  species: 'Perro',
+  breed: '',
+  ageYears: null,
+  ageMonths: null,
+  sex: 'Macho',
+  animalStatus: 'Disponible',
+  healthStatus: '',
+  description: '',
+  photoUrl: '',
+  photoDescription: '',
+})
 
-const statusColor = s => ({ 
-  'Disponible': 'badge-green', 
-  'En proceso': 'badge-peach', 
-  'Adoptada': 'badge-blue' 
+const form = ref(emptyForm())
+
+const statusColor = s => ({
+  'Disponible': 'badge-green',
+  'En proceso': 'badge-peach',
+  'Adoptada': 'badge-blue',
+  'Adoptado': 'badge-blue',
 }[s] || 'badge-gray')
+
+function formatAge(pet) {
+  const years = Number(pet.ageYears || 0)
+  const months = Number(pet.ageMonths || 0)
+  const parts = []
+
+  if (years) parts.push(years + ' ' + (years === 1 ? 'ano' : 'anos'))
+  if (months) parts.push(months + ' ' + (months === 1 ? 'mes' : 'meses'))
+
+  return parts.length ? parts.join(' y ') : 'Sin edad'
+}
+
+function mapAnimal(animal) {
+  return {
+    ...animal,
+    id: animal.animalId,
+    name: animal.animalName,
+    type: animal.species,
+    breed: animal.breed,
+    age: formatAge(animal),
+    sex: animal.sex,
+    status: animal.animalStatus,
+    health: animal.healthStatus,
+  }
+}
+
+async function loadPets() {
+  loading.value = true
+  errorMessage.value = ''
+
+  try {
+    const animals = await animalsApi.getAll({ status: 'Todos' })
+    pets.value = animals.map(mapAnimal)
+  } catch (error) {
+    errorMessage.value = error.message
+    pets.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+function openCreate() {
+  form.value = emptyForm()
+  editMode.value = false
+  showForm.value = true
+}
+
+function openEdit(pet) {
+  form.value = {
+    animalId: pet.animalId,
+    animalName: pet.animalName,
+    species: pet.species,
+    breed: pet.breed,
+    ageYears: pet.ageYears,
+    ageMonths: pet.ageMonths,
+    sex: pet.sex,
+    animalStatus: pet.animalStatus,
+    healthStatus: pet.healthStatus,
+    description: pet.description,
+    photoUrl: pet.photoUrl,
+    photoDescription: pet.photoDescription,
+  }
+  editMode.value = true
+  showForm.value = true
+}
+
+function closeForm() {
+  showForm.value = false
+  editMode.value = false
+  form.value = emptyForm()
+}
+
+function buildPayload() {
+  return {
+    animalId: form.value.animalId || 0,
+    animalName: form.value.animalName,
+    species: form.value.species,
+    breed: form.value.breed,
+    birthDate: null,
+    ageYears: form.value.ageYears ? Number(form.value.ageYears) : null,
+    ageMonths: form.value.ageMonths ? Number(form.value.ageMonths) : null,
+    sex: form.value.sex,
+    animalStatus: form.value.animalStatus,
+    healthStatus: form.value.healthStatus,
+    description: form.value.description,
+    photoUrl: form.value.photoUrl,
+    photoDescription: form.value.photoDescription,
+    createdBy: 'frontend',
+    modifiedBy: 'frontend',
+  }
+}
+
+async function savePet() {
+  saving.value = true
+  errorMessage.value = ''
+
+  try {
+    const payload = buildPayload()
+
+    if (editMode.value && form.value.animalId) {
+      await animalsApi.update(form.value.animalId, payload)
+    } else {
+      await animalsApi.create(payload)
+    }
+
+    await loadPets()
+    closeForm()
+  } catch (error) {
+    errorMessage.value = error.message
+  } finally {
+    saving.value = false
+  }
+}
+
+onMounted(loadPets)
 </script>
 
 <template>
@@ -29,7 +157,7 @@ const statusColor = s => ({
         <h1 class="admin-page-title">Gestión de Mascotas</h1>
         <p class="admin-page-sub">Registro y control de animales de la fundación</p>
       </div>
-      <button class="btn-toggle-form" :class="{ 'btn-cancel': showForm }" @click="showForm = !showForm; editMode = false">
+      <button class="btn-toggle-form" :class="{ 'btn-cancel': showForm }" @click="showForm ? closeForm() : openCreate()">
         {{ showForm ? 'Cancelar' : 'Nueva mascota' }}
       </button>
     </header>
@@ -38,50 +166,64 @@ const statusColor = s => ({
       <div v-if="showForm" class="form-panel">
         <h3>{{ editMode ? 'Editar mascota' : 'Registrar nueva mascota' }}</h3>
         
-        <form class="form-grid" @submit.prevent>
+        <form class="form-grid" @submit.prevent="savePet">
           <div class="form-group">
             <label>Nombre *</label>
-            <input placeholder="Nombre de la mascota" class="custom-input" />
+            <input v-model="form.animalName" placeholder="Nombre de la mascota" class="custom-input" required />
           </div>
           <div class="form-group">
             <label>Tipo *</label>
-            <select class="custom-select">
+            <select v-model="form.species" class="custom-select">
               <option>Perro</option>
               <option>Gato</option>
             </select>
           </div>
           <div class="form-group">
             <label>Raza *</label>
-            <input placeholder="Raza" class="custom-input" />
+            <input v-model="form.breed" placeholder="Raza" class="custom-input" required />
           </div>
           <div class="form-group">
-            <label>Edad *</label>
-            <input placeholder="Ej. 2 años" class="custom-input" />
+            <label>Edad en anos</label>
+            <input v-model="form.ageYears" type="number" min="0" placeholder="Ej. 2" class="custom-input" />
           </div>
           <div class="form-group">
             <label>Sexo *</label>
-            <select class="custom-select">
+            <select v-model="form.sex" class="custom-select">
               <option>Macho</option>
               <option>Hembra</option>
             </select>
           </div>
           <div class="form-group">
             <label>Estado *</label>
-            <select class="custom-select">
+            <select v-model="form.animalStatus" class="custom-select">
               <option>Disponible</option>
               <option>En proceso</option>
               <option>Adoptada</option>
             </select>
           </div>
+          <div class="form-group">
+            <label>Salud</label>
+            <input v-model="form.healthStatus" placeholder="Saludable, vacunada..." class="custom-input" />
+          </div>
+          <div class="form-group">
+            <label>Foto URL</label>
+            <input v-model="form.photoUrl" placeholder="https://..." class="custom-input" />
+          </div>
+          <div class="form-group">
+            <label>Edad en meses</label>
+            <input v-model="form.ageMonths" type="number" min="0" max="11" placeholder="Ej. 5" class="custom-input" />
+          </div>
           <div class="form-group full-width">
             <label>Descripción</label>
-            <textarea placeholder="Descripción de la mascota..." class="custom-textarea"></textarea>
+            <textarea v-model="form.description" placeholder="Descripcion de la mascota..." class="custom-textarea"></textarea>
           </div>
         </form>
         
+        <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
+
         <div class="form-actions">
-          <button class="btn-save">Guardar mascota</button>
-          <button class="btn-discard" @click="showForm = false">Cancelar</button>
+          <button class="btn-save" :disabled="saving" @click="savePet">{{ saving ? 'Guardando...' : 'Guardar mascota' }}</button>
+          <button class="btn-discard" @click="closeForm">Cancelar</button>
         </div>
       </div>
     </Transition>
@@ -102,6 +244,9 @@ const statusColor = s => ({
           </tr>
         </thead>
         <tbody>
+          <tr v-if="loading">
+            <td colspan="9">Cargando mascotas...</td>
+          </tr>
           <tr v-for="p in pets" :key="p.id">
             <td><span class="id-code">{{ p.id }}</span></td>
             <td class="font-semibold">{{ p.name }}</td>
@@ -113,7 +258,7 @@ const statusColor = s => ({
             <td><span class="badge" :class="statusColor(p.status)">{{ p.status }}</span></td>
             <td>
               <div class="action-btns">
-                <button class="action-btn" @click="showForm = true; editMode = true" title="Editar">
+                <button class="action-btn" @click="openEdit(p)" title="Editar">
                   <Icon name="Edit" />
                 </button>
                 <button class="action-btn" title="Ver historial">
@@ -265,6 +410,13 @@ const statusColor = s => ({
   display: flex; 
   gap: 12px; 
   margin-top: 24px; 
+}
+
+.form-error {
+  color: #B42318;
+  font-size: 14px;
+  font-weight: 700;
+  margin-top: 18px;
 }
 
 .btn-save {

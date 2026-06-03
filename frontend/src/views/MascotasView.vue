@@ -1,225 +1,107 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
 import FooterBar from '../components/FooterBar.vue'
+import { animalsApi } from '../services/api'
 
 const router = useRouter()
-
-/* FILTROS */
 
 const filterType = ref('Todos')
 const filterSex = ref('Todos')
 const filterStatus = ref('Todos')
 const searchQuery = ref('')
+const pets = ref([])
+const loading = ref(false)
+const errorMessage = ref('')
 
-/* MASCOTAS */
-
-const pets = [
-
-  {
-    id:1,
-    name:'Bartolo',
-    image:'/img-perros/Bartolo.PNG',
-    type:'Perro',
-    age:'5 meses',
-    sex:'Macho',
-    time:'Hace 1 mes',
-    status:'Disponible',
-    desc:'Muy juguetón y sociable. Le encanta correr, jugar y recibir cariño.'
-  },
-
-  {
-    id:2,
-    name:'Mojito',
-    image:'/img-perros/Mojito.jpg',
-    type:'Perro',
-    age:'13 años',
-    sex:'Macho',
-    time:'Hace 2 años',
-    status:'Disponible',
-    desc:'Tranquilo y cariñoso. Ama descansar en lugares cómodos y salir a pasear.'
-  },
-
-  {
-    id:3,
-    name:'Lola',
-    image:'/img-perros/Lola.PNG',
-    type:'Gato',
-    age:'1 año y 5 meses',
-    sex:'Hembra',
-    time:'Hace 4 meses',
-    status:'Disponible',
-    desc:'Curiosa y tranquila. Le encanta dormir y explorar rincones.'
-  },
-
-  {
-    id:4,
-    name:'Ramona',
-    image:'/img-perros/Ramona.PNG',
-    type:'Gato',
-    age:'1 año',
-    sex:'Hembra',
-    time:'Hace 2 meses',
-    status:'Disponible',
-    desc:'Muy juguetona y activa. Siempre busca algo nuevo por explorar.'
-  },
-
-  {
-    id:5,
-    name:'Mavis',
-    image:'/img-perros/Mavis.PNG',
-    type:'Gato',
-    age:'4 meses',
-    sex:'Hembra',
-    time:'Hace 1 mes',
-    status:'Disponible',
-    desc:'Pequeña y energética. Ama jugar y correr todo el día.'
-  },
-
-  {
-    id:6,
-    name:'Manchas',
-    image:'/img-perros/Manchas.PNG',
-    type:'Gato',
-    age:'1 año y 2 meses',
-    sex:'Hembra',
-    time:'Hace 3 meses',
-    status:'Disponible',
-    desc:'Observadora y tranquila. Prefiere lugares altos y silenciosos.'
-  },
-
-  {
-    id:7,
-    name:'Kiwi',
-    image:'/img-perros/Kiwi.PNG',
-    type:'Perro',
-    age:'5 años',
-    sex:'Macho',
-    time:'En proceso',
-    status:'En proceso',
-    desc:'Muy energético y amigable. Ama correr y jugar al aire libre.'
-  },
-
-  {
-    id:8,
-    name:'Cloe',
-    image:'/img-perros/Cloe.PNG',
-    type:'Gato',
-    age:'4 años',
-    sex:'Hembra',
-    time:'En proceso',
-    status:'En proceso',
-    desc:'Cariñosa y calmada. Prefiere ambientes tranquilos.'
-  },
-
-  {
-    id:9,
-    name:'Ares',
-    image:'/img-perros/Ares.PNG',
-    type:'Perro',
-    age:'2 años',
-    sex:'Macho',
-    time:'Adoptado',
-    status:'Adoptada',
-    desc:'Juguetón y muy cariñoso. Siempre busca atención.'
-  },
-
-  {
-    id:10,
-    name:'Bala',
-    image:'/img-perros/Bala.PNG',
-    type:'Perro',
-    age:'7 años',
-    sex:'Macho',
-    time:'Hace 4 años',
-    status:'Disponible',
-    desc:'Reservado pero noble. Le gustan los lugares tranquilos.'
-  },
-
+const fallbackImages = [
+  '/img-perros/Bartolo.PNG',
+  '/img-perros/Mojito.jpg',
+  '/img-perros/Lola.PNG',
+  '/img-perros/Ramona.PNG',
+  '/img-perros/Mavis.PNG',
+  '/img-perros/Manchas.PNG',
 ]
 
-/* FILTRADO */
+function formatAge(animal) {
+  const years = Number(animal.ageYears || 0)
+  const months = Number(animal.ageMonths || 0)
+  const parts = []
+
+  if (years) parts.push(`${years} ${years === 1 ? 'ano' : 'anos'}`)
+  if (months) parts.push(`${months} ${months === 1 ? 'mes' : 'meses'}`)
+
+  return parts.length ? parts.join(' y ') : 'Edad no indicada'
+}
+
+function mapAnimal(animal, index) {
+  return {
+    id: animal.animalId,
+    name: animal.animalName,
+    image: animal.photoUrl || fallbackImages[index % fallbackImages.length],
+    type: animal.species,
+    age: formatAge(animal),
+    sex: animal.sex,
+    time: animal.animalStatus,
+    status: animal.animalStatus,
+    desc: animal.description || animal.healthStatus || 'Sin descripcion disponible.',
+  }
+}
+
+async function loadPets() {
+  loading.value = true
+  errorMessage.value = ''
+
+  try {
+    const animals = await animalsApi.getAll({
+      species: filterType.value,
+      status: filterStatus.value,
+      search: searchQuery.value,
+    })
+
+    pets.value = animals.map(mapAnimal)
+  } catch (error) {
+    errorMessage.value = error.message
+    pets.value = []
+  } finally {
+    loading.value = false
+  }
+}
 
 const filtered = computed(() => {
-
-  return pets.filter((pet) => {
-
-    const petType =
-      pet.type.toLowerCase()
-
-    const selectedType =
-      filterType.value.toLowerCase()
-
-    const matchType =
-      selectedType === 'todos'
-      || petType === selectedType
-
-    const petSex =
-      pet.sex.toLowerCase()
-
-    const selectedSex =
-      filterSex.value.toLowerCase()
-
-    const matchSex =
-      selectedSex === 'todos'
-      || petSex === selectedSex
-
-    const petStatus =
-      pet.status.toLowerCase()
-
-    const selectedStatus =
-      filterStatus.value.toLowerCase()
-
-    const matchStatus =
-      selectedStatus === 'todos'
-      || petStatus === selectedStatus
-
-    const search =
-      searchQuery.value
-        .toLowerCase()
-        .trim()
-
-    const matchSearch =
-      search === ''
-      || pet.name.toLowerCase().includes(search)
-      || pet.type.toLowerCase().includes(search)
-      || pet.desc.toLowerCase().includes(search)
-
-    return (
-      matchType
-      && matchSex
-      && matchStatus
-      && matchSearch
-    )
-
+  return pets.value.filter((pet) => {
+    const selectedSex = filterSex.value.toLowerCase()
+    const matchSex = selectedSex === 'todos' || pet.sex.toLowerCase() === selectedSex
+    return matchSex
   })
-
 })
 
-/* BADGES */
-
 const statusColor = (status) => {
-
   return {
     'Disponible': 'badge-green',
     'En proceso': 'badge-yellow',
-    'Adoptada': 'badge-gray'
+    'Adoptada': 'badge-gray',
+    'Adoptado': 'badge-gray',
   }[status]
-
 }
 
-/* ADOPTAR */
-
 function goAdopt(pet) {
-
   router.push({
     name: 'adoptar',
     params: { id: pet.id },
     query: { name: pet.name }
   })
-
 }
+
+onMounted(loadPets)
+watch([filterType, filterStatus], loadPets)
+
+let searchTimer
+watch(searchQuery, () => {
+  window.clearTimeout(searchTimer)
+  searchTimer = window.setTimeout(loadPets, 300)
+})
 </script>
 
 <template>

@@ -1,5 +1,32 @@
 <script setup>
-import { RouterLink } from 'vue-router'
+import { ref } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
+import { authApi } from '../services/api'
+
+const router = useRouter()
+const usernameOrEmail = ref('')
+const password = ref('')
+const loading = ref(false)
+const errorMessage = ref('')
+
+async function login() {
+  loading.value = true
+  errorMessage.value = ''
+
+  try {
+    const user = await authApi.login({
+      usernameOrEmail: usernameOrEmail.value,
+      password: password.value,
+    })
+
+    localStorage.setItem('authUser', JSON.stringify(user))
+    router.push('/admin')
+  } catch (error) {
+    errorMessage.value = 'Credenciales invalidas o servicio no disponible.'
+  } finally {
+    loading.value = false
+  }
+}
 </script>
 
 <template>
@@ -30,15 +57,15 @@ import { RouterLink } from 'vue-router'
           <p>Ingresa tus credenciales para continuar</p>
         </header>
 
-        <form class="main-form" @submit.prevent>
+        <form class="main-form" @submit.prevent="login">
           <div class="input-group">
             <label>Correo electrónico</label>
-            <input type="email" placeholder="ejemplo@correo.com" class="custom-input" />
+            <input v-model="usernameOrEmail" type="email" placeholder="ejemplo@correo.com" class="custom-input" required />
           </div>
 
           <div class="input-group">
             <label>Contraseña</label>
-            <input type="password" placeholder="••••••••••••" class="custom-input" />
+            <input v-model="password" type="password" placeholder="************" class="custom-input" required />
           </div>
 
           <div class="form-utils">
@@ -49,7 +76,11 @@ import { RouterLink } from 'vue-router'
             <a href="#" class="forgot-password">¿Olvidaste tu contraseña?</a>
           </div>
 
-          <button type="submit" class="btn-login">Iniciar sesión</button>
+          <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
+
+          <button type="submit" class="btn-login" :disabled="loading">
+            {{ loading ? 'Ingresando...' : 'Iniciar sesion' }}
+          </button>
         </form>
 
         <div class="divider">
@@ -234,6 +265,13 @@ import { RouterLink } from 'vue-router'
   background-color: #7C927E;
   transform: translateY(-2px);
   box-shadow: 0 10px 25px rgba(146, 168, 148, 0.2);
+}
+
+.form-error {
+  color: #B42318;
+  font-size: 14px;
+  font-weight: 700;
+  margin: -10px 0 16px;
 }
 
 .btn-admin-demo {

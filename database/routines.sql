@@ -3,6 +3,73 @@ BEGIN;
 CREATE SCHEMA IF NOT EXISTS ANHELOPETS;
 SET search_path TO ANHELOPETS, public;
 
+ALTER TABLE user_profiles
+    ADD COLUMN IF NOT EXISTS national_id varchar(50),
+    ADD COLUMN IF NOT EXISTS nationality varchar(100);
+
+CREATE UNIQUE INDEX IF NOT EXISTS ux_user_profiles_national_id
+    ON user_profiles (national_id)
+    WHERE national_id IS NOT NULL;
+
+CREATE TABLE IF NOT EXISTS rescue_records (
+    rescue_id      bigint GENERATED ALWAYS AS IDENTITY,
+    animal_id      bigint,
+    rescue_date    date NOT NULL,
+    location       text NOT NULL,
+    description    text NOT NULL,
+    status         varchar(30) NOT NULL DEFAULT 'Activo',
+    foster_home_id bigint,
+    created_at     timestamptz,
+    created_by     varchar(100),
+    modified_at    timestamptz,
+    modified_by    varchar(100),
+    CONSTRAINT pk_rescue_records PRIMARY KEY (rescue_id),
+    CONSTRAINT ck_rescue_records_date_not_future CHECK (rescue_date <= CURRENT_DATE),
+    CONSTRAINT ck_rescue_records_status CHECK (status IN ('Activo', 'Cerrado'))
+);
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'fk_rescue_records_animal_id'
+    ) THEN
+        ALTER TABLE rescue_records
+            ADD CONSTRAINT fk_rescue_records_animal_id
+            FOREIGN KEY (animal_id)
+            REFERENCES animals (animal_id)
+            ON UPDATE CASCADE
+            ON DELETE SET NULL;
+    END IF;
+END;
+$$;
+
+ALTER TABLE foster_homes
+    ALTER COLUMN volunteer_id DROP NOT NULL,
+    ADD COLUMN IF NOT EXISTS name varchar(150),
+    ADD COLUMN IF NOT EXISTS address text,
+    ADD COLUMN IF NOT EXISTS phone varchar(30),
+    ADD COLUMN IF NOT EXISTS responsible varchar(150),
+    ADD COLUMN IF NOT EXISTS active boolean NOT NULL DEFAULT true;
+
+DO $$
+BEGIN
+    IF NOT EXISTS (
+        SELECT 1
+        FROM pg_constraint
+        WHERE conname = 'fk_rescue_records_foster_home_id'
+    ) THEN
+        ALTER TABLE rescue_records
+            ADD CONSTRAINT fk_rescue_records_foster_home_id
+            FOREIGN KEY (foster_home_id)
+            REFERENCES foster_homes (foster_home_id)
+            ON UPDATE CASCADE
+            ON DELETE SET NULL;
+    END IF;
+END;
+$$;
+
 -- ============================================================
 -- Validation helpers
 -- ============================================================
@@ -44,7 +111,9 @@ CREATE OR REPLACE FUNCTION fn_create_user_account(
     p_city varchar(100),
     p_town varchar(100),
     p_address_line text,
-    p_created_by varchar(100) DEFAULT 'api'
+    p_created_by varchar(100) DEFAULT 'api',
+    p_national_id varchar(50) DEFAULT NULL,
+    p_nationality varchar(100) DEFAULT NULL
 )
 RETURNS bigint
 LANGUAGE plpgsql
@@ -97,17 +166,21 @@ BEGIN
         RAISE EXCEPTION 'Address is required';
     END IF;
 
+    IF p_national_id IS NOT NULL AND btrim(p_national_id) = '' THEN
+        RAISE EXCEPTION 'National id cannot be empty';
+    END IF;
+
     INSERT INTO users (username, password_hash, created_at, created_by)
     VALUES (btrim(p_username), p_password_hash, now(), COALESCE(NULLIF(btrim(p_created_by), ''), 'api'))
     RETURNING user_id INTO v_user_id;
 
     INSERT INTO user_profiles (
-        user_id, first_name, middle_name, last_name, second_last_name, birth_date,
+        user_id, national_id, first_name, middle_name, last_name, second_last_name, birth_date, nationality,
         created_at, created_by
     )
     VALUES (
-        v_user_id, btrim(p_first_name), NULLIF(btrim(p_middle_name), ''),
-        btrim(p_last_name), NULLIF(btrim(p_second_last_name), ''), p_birth_date,
+        v_user_id, NULLIF(btrim(p_national_id), ''), btrim(p_first_name), NULLIF(btrim(p_middle_name), ''),
+        btrim(p_last_name), NULLIF(btrim(p_second_last_name), ''), p_birth_date, NULLIF(btrim(p_nationality), ''),
         now(), COALESCE(NULLIF(btrim(p_created_by), ''), 'api')
     );
 
@@ -647,6 +720,434 @@ AS $$
           OR a.breed ILIKE '%' || btrim(p_search) || '%'
       )
     ORDER BY a.created_at DESC NULLS LAST, a.animal_id DESC;
+$$;
+
+CREATE OR REPLACE FUNCTION fn_get_rescues_admin()
+RETURNS TABLE (
+    rescue_id bigint,
+    animal_id bigint,
+    animal_name varchar(100),
+    rescue_date date,
+    location text,
+    description text,
+    status varchar(30),
+    foster_home_id bigint,
+    foster_home_name varchar(150)
+)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT
+        r.rescue_id,
+        r.animal_id,
+        a.animal_name,
+        r.rescue_date,
+        r.location,
+        r.description,
+        r.status,
+        r.foster_home_id,
+        fh.name AS foster_home_name
+    FROM rescue_records r
+    LEFT JOIN animals a ON a.animal_id = r.animal_id
+    LEFT JOIN foster_homes fh ON fh.foster_home_id = r.foster_home_id
+    ORDER BY r.rescue_date DESC, r.rescue_id DESC;
+$$;
+
+CREATE OR REPLACE FUNCTION fn_create_rescue(
+    p_animal_id bigint,
+    p_rescue_date date,
+    p_location text,
+    p_description text,
+    p_status varchar(30) DEFAULT 'Activo',
+    p_foster_home_id bigint DEFAULT NULL,
+    p_created_by varchar(100) DEFAULT 'api'
+)
+RETURNS bigint
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_rescue_id bigint;
+    v_created_by varchar(100) := COALESCE(NULLIF(btrim(p_created_by), ''), 'api');
+BEGIN
+    IF p_animal_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM animals WHERE animal_id = p_animal_id) THEN
+        RAISE EXCEPTION 'Animal % does not exist', p_animal_id;
+    END IF;
+
+    IF p_rescue_date IS NULL OR p_rescue_date > CURRENT_DATE THEN
+        RAISE EXCEPTION 'Rescue date is required and cannot be in the future';
+    END IF;
+
+    IF p_location IS NULL OR btrim(p_location) = '' THEN
+        RAISE EXCEPTION 'Rescue location is required';
+    END IF;
+
+    IF p_description IS NULL OR btrim(p_description) = '' THEN
+        RAISE EXCEPTION 'Rescue description is required';
+    END IF;
+
+    IF p_status IS NULL OR btrim(p_status) NOT IN ('Activo', 'Cerrado') THEN
+        RAISE EXCEPTION 'Rescue status is invalid';
+    END IF;
+
+    IF p_foster_home_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM foster_homes WHERE foster_home_id = p_foster_home_id) THEN
+        RAISE EXCEPTION 'Foster home % does not exist', p_foster_home_id;
+    END IF;
+
+    INSERT INTO rescue_records (
+        animal_id, rescue_date, location, description, status, foster_home_id,
+        created_at, created_by
+    )
+    VALUES (
+        p_animal_id, p_rescue_date, btrim(p_location), btrim(p_description),
+        btrim(p_status), p_foster_home_id, now(), v_created_by
+    )
+    RETURNING rescue_id INTO v_rescue_id;
+
+    RETURN v_rescue_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION fn_update_rescue(
+    p_rescue_id bigint,
+    p_animal_id bigint,
+    p_rescue_date date,
+    p_location text,
+    p_description text,
+    p_status varchar(30),
+    p_foster_home_id bigint DEFAULT NULL,
+    p_modified_by varchar(100) DEFAULT 'api'
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_modified_by varchar(100) := COALESCE(NULLIF(btrim(p_modified_by), ''), 'api');
+BEGIN
+    IF p_rescue_id IS NULL THEN
+        RAISE EXCEPTION 'Rescue id is required';
+    END IF;
+
+    IF p_animal_id IS NOT NULL AND NOT EXISTS (SELECT 1 FROM animals WHERE animal_id = p_animal_id) THEN
+        RAISE EXCEPTION 'Animal % does not exist', p_animal_id;
+    END IF;
+
+    IF p_rescue_date IS NULL OR p_rescue_date > CURRENT_DATE THEN
+        RAISE EXCEPTION 'Rescue date is required and cannot be in the future';
+    END IF;
+
+    IF p_location IS NULL OR btrim(p_location) = '' THEN
+        RAISE EXCEPTION 'Rescue location is required';
+    END IF;
+
+    IF p_description IS NULL OR btrim(p_description) = '' THEN
+        RAISE EXCEPTION 'Rescue description is required';
+    END IF;
+
+    IF p_status IS NULL OR btrim(p_status) NOT IN ('Activo', 'Cerrado') THEN
+        RAISE EXCEPTION 'Rescue status is invalid';
+    END IF;
+
+    IF p_foster_home_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM foster_homes WHERE foster_home_id = p_foster_home_id) THEN
+        RAISE EXCEPTION 'Foster home % does not exist', p_foster_home_id;
+    END IF;
+
+    UPDATE rescue_records
+    SET animal_id = p_animal_id,
+        rescue_date = p_rescue_date,
+        location = btrim(p_location),
+        description = btrim(p_description),
+        status = btrim(p_status),
+        foster_home_id = p_foster_home_id,
+        modified_at = now(),
+        modified_by = v_modified_by
+    WHERE rescue_id = p_rescue_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Rescue % does not exist', p_rescue_id;
+    END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION fn_get_foster_homes_admin()
+RETURNS TABLE (
+    foster_home_id bigint,
+    volunteer_id bigint,
+    name varchar(150),
+    address text,
+    phone varchar(30),
+    responsible varchar(150),
+    capacity integer,
+    active boolean
+)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT
+        foster_home_id,
+        volunteer_id,
+        name,
+        address,
+        phone,
+        responsible,
+        capacity,
+        active
+    FROM foster_homes
+    ORDER BY active DESC, name;
+$$;
+
+CREATE OR REPLACE FUNCTION fn_create_foster_home(
+    p_volunteer_id bigint,
+    p_name varchar(150),
+    p_address text,
+    p_phone varchar(30),
+    p_responsible varchar(150),
+    p_capacity integer,
+    p_created_by varchar(100) DEFAULT 'api'
+)
+RETURNS bigint
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_foster_home_id bigint;
+    v_created_by varchar(100) := COALESCE(NULLIF(btrim(p_created_by), ''), 'api');
+BEGIN
+    IF p_volunteer_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM volunteers WHERE volunteer_id = p_volunteer_id) THEN
+        RAISE EXCEPTION 'Volunteer % does not exist', p_volunteer_id;
+    END IF;
+
+    IF p_name IS NULL OR btrim(p_name) = '' THEN
+        RAISE EXCEPTION 'Foster home name is required';
+    END IF;
+
+    IF p_address IS NULL OR btrim(p_address) = '' THEN
+        RAISE EXCEPTION 'Foster home address is required';
+    END IF;
+
+    IF NOT fn_is_valid_phone(p_phone) THEN
+        RAISE EXCEPTION 'Foster home phone is invalid';
+    END IF;
+
+    IF p_responsible IS NULL OR btrim(p_responsible) = '' THEN
+        RAISE EXCEPTION 'Foster home responsible person is required';
+    END IF;
+
+    IF p_capacity IS NULL OR p_capacity <= 0 THEN
+        RAISE EXCEPTION 'Foster home capacity must be greater than zero';
+    END IF;
+
+    INSERT INTO foster_homes (
+        volunteer_id, name, address, phone, responsible, capacity, active,
+        created_at, created_by
+    )
+    VALUES (
+        p_volunteer_id, btrim(p_name), btrim(p_address), btrim(p_phone),
+        btrim(p_responsible), p_capacity, true, now(), v_created_by
+    )
+    RETURNING foster_home_id INTO v_foster_home_id;
+
+    RETURN v_foster_home_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION fn_update_foster_home(
+    p_foster_home_id bigint,
+    p_volunteer_id bigint,
+    p_name varchar(150),
+    p_address text,
+    p_phone varchar(30),
+    p_responsible varchar(150),
+    p_capacity integer,
+    p_active boolean,
+    p_modified_by varchar(100) DEFAULT 'api'
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_modified_by varchar(100) := COALESCE(NULLIF(btrim(p_modified_by), ''), 'api');
+BEGIN
+    IF p_foster_home_id IS NULL THEN
+        RAISE EXCEPTION 'Foster home id is required';
+    END IF;
+
+    IF p_volunteer_id IS NOT NULL
+       AND NOT EXISTS (SELECT 1 FROM volunteers WHERE volunteer_id = p_volunteer_id) THEN
+        RAISE EXCEPTION 'Volunteer % does not exist', p_volunteer_id;
+    END IF;
+
+    IF p_name IS NULL OR btrim(p_name) = '' THEN
+        RAISE EXCEPTION 'Foster home name is required';
+    END IF;
+
+    IF p_address IS NULL OR btrim(p_address) = '' THEN
+        RAISE EXCEPTION 'Foster home address is required';
+    END IF;
+
+    IF NOT fn_is_valid_phone(p_phone) THEN
+        RAISE EXCEPTION 'Foster home phone is invalid';
+    END IF;
+
+    IF p_responsible IS NULL OR btrim(p_responsible) = '' THEN
+        RAISE EXCEPTION 'Foster home responsible person is required';
+    END IF;
+
+    IF p_capacity IS NULL OR p_capacity <= 0 THEN
+        RAISE EXCEPTION 'Foster home capacity must be greater than zero';
+    END IF;
+
+    UPDATE foster_homes
+    SET volunteer_id = p_volunteer_id,
+        name = btrim(p_name),
+        address = btrim(p_address),
+        phone = btrim(p_phone),
+        responsible = btrim(p_responsible),
+        capacity = p_capacity,
+        active = COALESCE(p_active, true),
+        modified_at = now(),
+        modified_by = v_modified_by
+    WHERE foster_home_id = p_foster_home_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Foster home % does not exist', p_foster_home_id;
+    END IF;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION fn_get_foster_placements_admin()
+RETURNS TABLE (
+    animal_foster_placement_id bigint,
+    animal_id bigint,
+    animal_name varchar(100),
+    foster_home_id bigint,
+    foster_home_name varchar(150),
+    start_date date,
+    end_date date,
+    notes text
+)
+LANGUAGE sql
+STABLE
+AS $$
+    SELECT
+        afp.animal_foster_placement_id,
+        afp.animal_id,
+        a.animal_name,
+        afp.foster_home_id,
+        fh.name AS foster_home_name,
+        afp.start_date,
+        afp.end_date,
+        afp.notes
+    FROM animal_foster_placements afp
+    JOIN animals a ON a.animal_id = afp.animal_id
+    JOIN foster_homes fh ON fh.foster_home_id = afp.foster_home_id
+    ORDER BY afp.start_date DESC, afp.animal_foster_placement_id DESC;
+$$;
+
+CREATE OR REPLACE FUNCTION fn_assign_animal_foster_home(
+    p_animal_id bigint,
+    p_foster_home_id bigint,
+    p_start_date date,
+    p_end_date date DEFAULT NULL,
+    p_notes text DEFAULT NULL,
+    p_created_by varchar(100) DEFAULT 'api'
+)
+RETURNS bigint
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_placement_id bigint;
+    v_created_by varchar(100) := COALESCE(NULLIF(btrim(p_created_by), ''), 'api');
+BEGIN
+    IF p_animal_id IS NULL OR NOT EXISTS (SELECT 1 FROM animals WHERE animal_id = p_animal_id) THEN
+        RAISE EXCEPTION 'Animal is required and must exist';
+    END IF;
+
+    IF p_foster_home_id IS NULL OR NOT EXISTS (
+        SELECT 1 FROM foster_homes WHERE foster_home_id = p_foster_home_id AND active
+    ) THEN
+        RAISE EXCEPTION 'Active foster home is required and must exist';
+    END IF;
+
+    IF p_start_date IS NULL THEN
+        RAISE EXCEPTION 'Start date is required';
+    END IF;
+
+    IF p_end_date IS NOT NULL AND p_end_date < p_start_date THEN
+        RAISE EXCEPTION 'End date cannot be before start date';
+    END IF;
+
+    UPDATE animal_foster_placements
+    SET end_date = p_start_date,
+        modified_at = now(),
+        modified_by = v_created_by
+    WHERE animal_id = p_animal_id
+      AND end_date IS NULL;
+
+    INSERT INTO animal_foster_placements (
+        animal_id, foster_home_id, start_date, end_date, notes,
+        created_at, created_by
+    )
+    VALUES (
+        p_animal_id, p_foster_home_id, p_start_date, p_end_date,
+        NULLIF(btrim(p_notes), ''), now(), v_created_by
+    )
+    RETURNING animal_foster_placement_id INTO v_placement_id;
+
+    RETURN v_placement_id;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION fn_update_foster_placement(
+    p_animal_foster_placement_id bigint,
+    p_animal_id bigint,
+    p_foster_home_id bigint,
+    p_start_date date,
+    p_end_date date DEFAULT NULL,
+    p_notes text DEFAULT NULL,
+    p_modified_by varchar(100) DEFAULT 'api'
+)
+RETURNS void
+LANGUAGE plpgsql
+AS $$
+DECLARE
+    v_modified_by varchar(100) := COALESCE(NULLIF(btrim(p_modified_by), ''), 'api');
+BEGIN
+    IF p_animal_foster_placement_id IS NULL THEN
+        RAISE EXCEPTION 'Placement id is required';
+    END IF;
+
+    IF p_animal_id IS NULL OR NOT EXISTS (SELECT 1 FROM animals WHERE animal_id = p_animal_id) THEN
+        RAISE EXCEPTION 'Animal is required and must exist';
+    END IF;
+
+    IF p_foster_home_id IS NULL OR NOT EXISTS (SELECT 1 FROM foster_homes WHERE foster_home_id = p_foster_home_id) THEN
+        RAISE EXCEPTION 'Foster home is required and must exist';
+    END IF;
+
+    IF p_start_date IS NULL THEN
+        RAISE EXCEPTION 'Start date is required';
+    END IF;
+
+    IF p_end_date IS NOT NULL AND p_end_date < p_start_date THEN
+        RAISE EXCEPTION 'End date cannot be before start date';
+    END IF;
+
+    UPDATE animal_foster_placements
+    SET animal_id = p_animal_id,
+        foster_home_id = p_foster_home_id,
+        start_date = p_start_date,
+        end_date = p_end_date,
+        notes = NULLIF(btrim(p_notes), ''),
+        modified_at = now(),
+        modified_by = v_modified_by
+    WHERE animal_foster_placement_id = p_animal_foster_placement_id;
+
+    IF NOT FOUND THEN
+        RAISE EXCEPTION 'Foster placement % does not exist', p_animal_foster_placement_id;
+    END IF;
+END;
 $$;
 
 COMMIT;
