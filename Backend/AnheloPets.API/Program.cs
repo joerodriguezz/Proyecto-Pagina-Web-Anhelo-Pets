@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using AnheloPets.API.Data;
 using AnheloPets.API.Services;
+using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -17,6 +18,7 @@ builder.Services.AddScoped<IRescateService, RescateService>();
 builder.Services.AddScoped<IVolunteerService, VolunteerService>();
 builder.Services.AddScoped<IAdoptionService, AdoptionService>();
 builder.Services.AddScoped<IDonationService, DonationService>();
+builder.Services.AddScoped<IUserService, UserService>();
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -31,8 +33,22 @@ if (string.IsNullOrWhiteSpace(defaultConnection))
         "Set ConnectionStrings__DefaultConnection in the deployment environment.");
 }
 
+var connectionStringBuilder = new NpgsqlConnectionStringBuilder(defaultConnection);
+if (string.IsNullOrWhiteSpace(connectionStringBuilder.SearchPath))
+{
+    connectionStringBuilder.SearchPath = "anhelopets, public";
+}
+
+connectionStringBuilder.Timeout = Math.Max(connectionStringBuilder.Timeout, 15);
+connectionStringBuilder.CommandTimeout = Math.Max(connectionStringBuilder.CommandTimeout, 60);
+
+if (connectionStringBuilder.Host.Contains("pooler.supabase.com", StringComparison.OrdinalIgnoreCase))
+{
+    connectionStringBuilder.Pooling = false;
+}
+
 builder.Services.AddDbContext<AnheloPetsDbContext>(options =>
-    options.UseNpgsql(defaultConnection));
+    options.UseNpgsql(connectionStringBuilder.ConnectionString));
 
 // CORS para Vue
 builder.Services.AddCors(options =>

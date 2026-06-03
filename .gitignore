@@ -1,11 +1,13 @@
 # OS and editor files
 .DS_Store
+/.DS_Store
 .idea/
 .vscode/*
 !.vscode/extensions.json
 
 # Node
 node_modules/
+/node_modules/
 frontend/node_modules/
 npm-debug.log*
 yarn-debug.log*
@@ -14,12 +16,33 @@ pnpm-debug.log*
 
 # Frontend builds
 dist/
+/dist/
 frontend/dist/
 dist-ssr/
 
 # .NET
 **/bin/
 **/obj/
+bin/
+obj/
+/Backend/AnheloPets.API/bin/
+/Backend/AnheloPets.API/obj/
+Backend/AnheloPets.API/bin/
+Backend/AnheloPets.API/obj/
+*.dll
+*.exe
+*.pdb
+*.cache
+*.assets.cache
+*.sourcelink.json
+*.FileListAbsolute.txt
+*.GeneratedMSBuildEditorConfig.editorconfig
+*.AssemblyInfoInputs.cache
+*.nuget.dgspec.json
+*.nuget.g.props
+*.nuget.g.targets
+project.assets.json
+project.nuget.cache
 *.user
 *.suo
 *.rsuser
@@ -28,4 +51,3 @@ dist-ssr/
 .env
 .env.*
 *.local
-

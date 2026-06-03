@@ -4,9 +4,8 @@ namespace AnheloPets.API.Services;
 
 public interface IAnimalService
 {
-    IEnumerable<AnimalDto> GetAll();
+    IEnumerable<AnimalDto> GetAll(string? species = null, string? status = "Disponible", string? search = null);
     AnimalDto? GetById(long id);
     AnimalDto Create(AnimalDto animal);
     AnimalDto? Update(long id, AnimalDto animal);
-    bool Delete(long id);
 }
