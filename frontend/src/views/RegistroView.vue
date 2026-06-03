@@ -3,177 +3,324 @@ import { RouterLink } from 'vue-router'
 </script>
 
 <template>
-  <div class="auth-page">
-    <div class="auth-left">
-      <div class="auth-brand">
-        <RouterLink to="/" class="logo">🐾 Anhelo<strong>Pets</strong></RouterLink>
+  <div class="auth-container">
+    <div class="auth-visual">
+      <div class="brand-wrapper">
+        <RouterLink to="/" class="logo-link">
+          Anhelo<span class="peach">Pets</span>
+        </RouterLink>
       </div>
-      <div class="auth-hero-text">
-        <h1>Únete a nuestra comunidad</h1>
-        <p>Crea tu cuenta gratuita y da el primer paso para adoptar una mascota o apoyar nuestra fundación.</p>
-        <ul class="perks">
-          <li>✅ Envía solicitudes de adopción</li>
-          <li>✅ Sigue el estado de tu proceso</li>
-          <li>✅ Accede a información exclusiva</li>
-          <li>✅ Conecta con nuestra comunidad</li>
-        </ul>
+      
+      <div class="visual-content">
+        <h1 class="visual-title">Únete a nuestra <br>comunidad</h1>
+        <p class="visual-description">
+          Crea tu cuenta gratuita y da el primer paso para adoptar una mascota o apoyar nuestra fundación.
+        </p>
       </div>
-      <p class="auth-quote">"Adoptar es un acto de amor que cambia dos vidas: la tuya y la del animal."</p>
+
+      <div class="visual-footer">
+        <p>© Anhelo Pets. Dedicados al bienestar animal.</p>
+      </div>
     </div>
 
-    <div class="auth-right">
-      <div class="auth-card">
-        <h2>Crear cuenta</h2>
-        <p class="auth-sub">Completa tus datos personales</p>
+    <div class="auth-form-side">
+      <div class="form-container">
+        <header class="form-header">
+          <h2>Crear cuenta</h2>
+          <p>Completa tus datos personales</p>
+        </header>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Nombre completo *</label>
-            <input class="form-input" placeholder="María González" />
+        <form class="main-form" @submit.prevent>
+          <div class="form-row">
+            <div class="input-group">
+              <label>Nombre completo *</label>
+              <input placeholder="María González" class="custom-input" />
+            </div>
+            <div class="input-group">
+              <label>Cédula *</label>
+              <input placeholder="1-2345-6789" class="custom-input" />
+            </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Cédula *</label>
-            <input class="form-input" placeholder="1-2345-6789" />
+
+          <div class="input-group">
+            <label>Correo electrónico *</label>
+            <input type="email" placeholder="correo@ejemplo.com" class="custom-input" />
           </div>
-        </div>
 
-        <div class="form-group">
-          <label class="form-label">Correo electrónico *</label>
-          <input class="form-input" type="email" placeholder="correo@ejemplo.com" />
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Edad *</label>
-            <input class="form-input" type="number" placeholder="25" min="18" />
+          <div class="form-row">
+            <div class="input-group">
+              <label>Edad *</label>
+              <input type="number" placeholder="25" min="18" class="custom-input" />
+            </div>
+            <div class="input-group">
+              <label>Nacionalidad *</label>
+              <select class="custom-select">
+                <option>Costa Rica</option>
+                <option>Nicaragua</option>
+                <option>Colombia</option>
+                <option>Otro</option>
+              </select>
+            </div>
           </div>
-          <div class="form-group">
-            <label class="form-label">Nacionalidad *</label>
-            <select class="form-select">
-              <option>Costa Rica</option>
-              <option>Nicaragua</option>
-              <option>Colombia</option>
-              <option>Otro</option>
-            </select>
+
+          <div class="form-row">
+            <div class="input-group">
+              <label>Teléfono *</label>
+              <input placeholder="+506 8xxx-xxxx" class="custom-input" />
+            </div>
+            <div class="input-group">
+              <label>Provincia *</label>
+              <select class="custom-select">
+                <option>San José</option>
+                <option>Alajuela</option>
+                <option>Cartago</option>
+                <option>Heredia</option>
+                <option>Guanacaste</option>
+                <option>Puntarenas</option>
+                <option>Limón</option>
+              </select>
+            </div>
           </div>
-        </div>
 
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Teléfono *</label>
-            <input class="form-input" placeholder="+506 8xxx-xxxx" />
+          <div class="input-group">
+            <label>Dirección completa *</label>
+            <input placeholder="Cantón, distrito, señas..." class="custom-input" />
           </div>
-          <div class="form-group">
-            <label class="form-label">Provincia *</label>
-            <select class="form-select">
-              <option>San José</option>
-              <option>Alajuela</option>
-              <option>Cartago</option>
-              <option>Heredia</option>
-              <option>Guanacaste</option>
-              <option>Puntarenas</option>
-              <option>Limón</option>
-            </select>
+
+          <div class="form-row">
+            <div class="input-group">
+              <label>Contraseña *</label>
+              <input type="password" placeholder="Mínimo 8 caracteres" class="custom-input" />
+            </div>
+            <div class="input-group">
+              <label>Confirmar contraseña *</label>
+              <input type="password" placeholder="Repetir contraseña" class="custom-input" />
+            </div>
           </div>
-        </div>
 
-        <div class="form-group">
-          <label class="form-label">Dirección completa *</label>
-          <input class="form-input" placeholder="Cantón, distrito, señas..." />
-        </div>
-
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Contraseña *</label>
-            <input class="form-input" type="password" placeholder="Mínimo 8 caracteres" />
+          <div class="form-utils">
+            <label class="custom-checkbox">
+              <input type="checkbox" />
+              <span class="label-text">
+                Acepto los <a href="#" class="inner-link">términos y condiciones</a> y la <a href="#" class="inner-link">política de privacidad</a>
+              </span>
+            </label>
           </div>
-          <div class="form-group">
-            <label class="form-label">Confirmar contraseña *</label>
-            <input class="form-input" type="password" placeholder="Repetir contraseña" />
-          </div>
-        </div>
 
-        <div class="form-group">
-          <label class="checkbox-label">
-            <input type="checkbox" />
-            <span>Acepto los <a href="#" class="auth-link">términos y condiciones</a> y la <a href="#" class="auth-link">política de privacidad</a></span>
-          </label>
-        </div>
+          <button type="submit" class="btn-register">Crear mi cuenta</button>
+        </form>
 
-        <button class="btn-primary auth-btn">Crear mi cuenta</button>
-
-        <p class="auth-footer-text">
-          ¿Ya tienes cuenta?
-          <RouterLink to="/login" class="auth-link">Iniciar sesión</RouterLink>
-        </p>
+        <footer class="form-footer">
+          <p>¿Ya tienes cuenta? 
+            <RouterLink to="/login" class="login-link">Iniciar sesión</RouterLink>
+          </p>
+        </footer>
       </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.auth-page {
+/* ── Estructura Principal ── */
+.auth-container {
   min-height: 100vh;
-  display: grid;
-  grid-template-columns: 1fr 1.4fr;
+  display: flex;
+  background-color: #FAFAFA;
 }
-.auth-left {
-  background: linear-gradient(160deg, var(--green-dark) 0%, var(--green) 100%);
-  padding: 50px;
+
+/* ── Lado Visual (Izquierdo) ── */
+.auth-visual {
+  flex: 1;
+  position: relative;
+  background: linear-gradient(135deg, #92A894 0%, #7C927E 100%);
+  padding: 60px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  color: var(--white);
-  position: sticky;
-  top: 0;
-  height: 100vh;
+  overflow: hidden;
+  color: white;
 }
-.logo { font-size: 22px; font-weight: 700; color: var(--white); }
-.logo strong { color: var(--yellow); }
 
-.auth-hero-text h1 { font-size: 34px; font-weight: 800; color: var(--white); line-height: 1.2; margin-bottom: 16px; }
-.auth-hero-text p  { font-size: 15px; color: rgba(255,255,255,0.8); line-height: 1.7; margin-bottom: 20px; }
+.logo-link {
+  font-size: 28px;
+  font-weight: 800;
+  color: white;
+  text-decoration: none;
+  letter-spacing: -1px;
+}
 
-.perks { display: flex; flex-direction: column; gap: 10px; font-size: 14px; color: rgba(255,255,255,0.9); }
-.perks li { list-style: none; }
+.peach { color: #F9C17A; }
 
-.auth-quote {
+.visual-content {
+  max-width: 440px;
+  margin-auto: 0;
+  z-index: 2;
+}
+
+.visual-title {
+  font-size: 52px;
+  line-height: 1.1;
+  font-weight: 800;
+  margin-bottom: 20px;
+  letter-spacing: -2px;
+}
+
+.visual-description {
+  font-size: 18px;
+  line-height: 1.6;
+  opacity: 0.9;
+}
+
+.visual-footer {
+  z-index: 2;
+  font-size: 13px;
+  opacity: 0.6;
+}
+
+/* ── Lado Formulario (Derecho) ── */
+.auth-form-side {
+  flex: 1.3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 50px 40px;
+  background-color: #FAFAFA;
+}
+
+.form-container {
+  width: 100%;
+  max-width: 520px;
+}
+
+.form-header h2 {
+  font-size: 32px;
+  font-weight: 800;
+  color: #3A473C;
+  margin-bottom: 4px;
+}
+
+.form-header p {
+  color: #6C756D;
+  font-size: 15px;
+  margin-bottom: 32px;
+}
+
+/* ── Filas y Grupos de Entrada ── */
+.form-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.input-group {
+  margin-bottom: 18px;
+}
+
+.input-group label {
+  display: block;
   font-size: 14px;
-  font-style: italic;
-  color: rgba(255,255,255,0.65);
-  border-left: 3px solid var(--yellow);
-  padding-left: 14px;
-  line-height: 1.5;
+  font-weight: 700;
+  color: #3A473C;
+  margin-bottom: 8px;
 }
 
-.auth-right {
-  background: var(--cream);
-  padding: 40px 24px;
-  overflow-y: auto;
+.custom-input, .custom-select {
+  width: 100%;
+  padding: 13px 16px;
+  border-radius: 14px;
+  border: 2px solid #F4F6F4;
+  background-color: #F4F6F4;
+  font-size: 15px;
+  color: #3A473C;
+  transition: all 0.3s ease;
+  outline: none;
+  box-sizing: border-box;
 }
-.auth-card {
-  background: var(--white);
-  border-radius: var(--radius-lg);
-  padding: 40px;
-  max-width: 560px;
-  margin: 0 auto;
-  box-shadow: var(--shadow-md);
+
+.custom-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%236C756D' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
+  background-repeat: no-repeat;
+  background-position: right 14px center;
+  background-size: 16px;
+  padding-right: 40px;
 }
-.auth-card h2 { font-size: 26px; font-weight: 800; margin-bottom: 6px; }
-.auth-sub { font-size: 14px; color: var(--text-light); margin-bottom: 24px; }
 
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.custom-input:focus, .custom-select:focus {
+  background-color: white;
+  border-color: #92A894;
+  box-shadow: 0 8px 20px rgba(146, 168, 148, 0.08);
+}
 
-.checkbox-label { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--text-mid); cursor: pointer; }
-.checkbox-label input { margin-top: 2px; accent-color: var(--green); }
+/* ── Checkbox y Links ── */
+.form-utils {
+  margin: 24px 0;
+}
 
-.auth-btn { width: 100%; justify-content: center; padding: 13px; font-size: 15px; margin-top: 10px; }
-.auth-footer-text { text-align: center; font-size: 14px; color: var(--text-mid); margin-top: 20px; }
-.auth-link { color: var(--green); font-weight: 700; }
+.custom-checkbox {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #6C756D;
+  line-height: 1.4;
+}
 
-@media (max-width: 768px) {
-  .auth-page { grid-template-columns: 1fr; }
-  .auth-left  { display: none; }
-  .form-row   { grid-template-columns: 1fr; }
+.custom-checkbox input {
+  accent-color: #92A894;
+  margin-top: 2px;
+}
+
+.inner-link {
+  color: #92A894;
+  text-decoration: none;
+  font-weight: 700;
+}
+
+/* ── Botón Registro ── */
+.btn-register {
+  width: 100%;
+  padding: 16px;
+  border-radius: 16px;
+  border: none;
+  background-color: #92A894;
+  color: white;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.btn-register:hover {
+  background-color: #7C927E;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(146, 168, 148, 0.2);
+}
+
+/* ── Footer ── */
+.form-footer {
+  text-align: center;
+  margin-top: 32px;
+  font-size: 15px;
+  color: #6C756D;
+}
+
+.login-link {
+  color: #92A894;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+/* ── Responsivo ── */
+@media (max-width: 1024px) {
+  .visual-title { font-size: 40px; }
+  .auth-visual { padding: 40px; }
+}
+
+@media (max-width: 850px) {
+  .auth-visual { display: none; }
+  .auth-form-side { flex: 1; background-color: white; padding: 40px 24px; }
+  .form-row { grid-template-columns: 1fr; gap: 0; }
 }
 </style>

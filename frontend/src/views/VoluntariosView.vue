@@ -1,180 +1,852 @@
 <script setup>
 import NavBar from '../components/NavBar.vue'
 import FooterBar from '../components/FooterBar.vue'
+
+const benefits = [
+
+  {
+    icon:'bx bxs-heart',
+    title:'Apoyo veterinario',
+    text:'La fundación cubre controles y atención médica.'
+  },
+
+  {
+    icon:'bx bxs-bowl-hot',
+    title:'Alimento incluido',
+    text:'Nosotros proporcionamos comida y suministros.'
+  },
+
+  {
+    icon:'bx bxs-shield-plus',
+    title:'Seguimiento constante',
+    text:'Acompañamiento durante todo el proceso.'
+  },
+
+  {
+    icon:'bx bxs-home-heart',
+    title:'Impacto real',
+    text:'Ayudas directamente a rescates y adopciones.'
+  }
+
+]
 </script>
 
 <template>
+
   <NavBar />
 
-  <div class="page-hero">
-    <h1>🤝 Voluntarios y Casas Cuna</h1>
-    <p>Únete a nuestra red y ayuda a cambiar vidas de animales</p>
-  </div>
+  <!-- HERO -->
 
-  <section class="container vol-section">
-    <div class="vol-grid">
-      <!-- Form -->
-      <div class="vol-form card">
-        <h2>Registro de Voluntario</h2>
-        <p class="form-subtitle">Completa el formulario y nos pondremos en contacto contigo.</p>
+  <section class="hero">
 
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Nombre completo *</label>
-            <input class="form-input" placeholder="Ej. María González" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Cédula *</label>
-            <input class="form-input" placeholder="1-2345-6789" />
-          </div>
-        </div>
+    <img
+      src="/img-vol/Voluntarios.JPG"
+      class="hero-image"
+      alt="Voluntarios"
+    >
 
-        <div class="form-row">
-          <div class="form-group">
-            <label class="form-label">Correo electrónico *</label>
-            <input class="form-input" type="email" placeholder="correo@ejemplo.com" />
-          </div>
-          <div class="form-group">
-            <label class="form-label">Teléfono *</label>
-            <input class="form-input" placeholder="+506 8xxx-xxxx" />
-          </div>
-        </div>
+    <div class="hero-overlay"></div>
 
-        <div class="form-group">
-          <label class="form-label">Dirección *</label>
-          <input class="form-input" placeholder="Provincia, cantón, distrito..." />
-        </div>
+    <div class="hero-content">
 
-        <div class="form-group">
-          <label class="form-label">Tipo de voluntariado *</label>
-          <select class="form-select">
-            <option>Seleccione una opción</option>
-            <option>Casa cuna (hogar temporal)</option>
-            <option>Apoyo en eventos de adopción</option>
-            <option>Transporte de mascotas</option>
-            <option>Cuidado en veterinaria</option>
-            <option>Redes sociales y comunicación</option>
-            <option>Otro</option>
-          </select>
-        </div>
+      <div class="hero-text">
 
-        <div class="form-group">
-          <label class="form-label">¿Por qué quieres ser voluntario?</label>
-          <textarea class="form-textarea" placeholder="Cuéntanos tu motivación..."></textarea>
-        </div>
+        <h1>
+          Sé parte de una
+          segunda oportunidad
+        </h1>
 
-        <div class="form-group checkbox-group">
-          <label class="checkbox-label">
-            <input type="checkbox" />
-            <span>Acepto los términos y condiciones de voluntariado</span>
-          </label>
-          <label class="checkbox-label">
-            <input type="checkbox" />
-            <span>Autorizo el uso de mis datos para contacto por parte de Anhelo Pets</span>
-          </label>
-        </div>
+        <p>
+          Forma parte de nuestra red de voluntarios
+          y hogares temporales para brindar amor,
+          cuidado y nuevas oportunidades.
+        </p>
 
-        <button class="btn-primary" style="width:100%;justify-content:center;padding:14px;">
-          🤝 Registrarme como voluntario
-        </button>
       </div>
 
-      <!-- Info panels -->
-      <div class="vol-info">
-        <div class="card info-card green-card">
-          <span class="info-icon">🏡</span>
-          <h3>¿Qué es una Casa Cuna?</h3>
-          <p>Una casa cuna es un hogar temporal que acoge a una mascota rescatada mientras espera ser adoptada. La fundación cubre todos los gastos médicos y de alimentación.</p>
-          <ul class="info-list">
-            <li>✅ No tienes que pagar ningún costo</li>
-            <li>✅ Recibimos el animal ya vacunado</li>
-            <li>✅ Apoyo veterinario permanente</li>
-            <li>✅ Duración promedio: 4-8 semanas</li>
-          </ul>
-        </div>
-
-        <div class="card info-card">
-          <span class="info-icon">⭐</span>
-          <h3>Beneficios de ser voluntario</h3>
-          <ul class="info-list">
-            <li>🐾 Contribuir al bienestar animal</li>
-            <li>📜 Certificado de voluntariado</li>
-            <li>👥 Comunidad de amantes de animales</li>
-            <li>📸 Participación en eventos especiales</li>
-            <li>💙 Satisfacción de hacer la diferencia</li>
-          </ul>
-        </div>
-
-        <div class="stats-mini">
-          <div class="mini-stat" v-for="s in miniStats" :key="s.label">
-            <span class="mini-icon">{{ s.icon }}</span>
-            <span class="mini-value">{{ s.value }}</span>
-            <span class="mini-label">{{ s.label }}</span>
-          </div>
-        </div>
-      </div>
     </div>
+
+  </section>
+
+  <!-- CONTENT -->
+
+  <section class="volunteer-section">
+
+    <div class="container volunteer-grid">
+
+      <!-- LEFT -->
+
+      <div class="left-side">
+
+        <!-- INTRO -->
+
+        <div class="intro-card">
+
+          <div class="intro-image-wrap">
+
+            <img
+              src="/img-vol/Voluntariado.JPG"
+              class="intro-image"
+            >
+
+          </div>
+
+          <div class="intro-content">
+
+            <span>
+              HOGARES TEMPORALES
+            </span>
+
+            <h2>
+              ¿Qué es una
+              casa cuna?
+            </h2>
+
+            <p>
+              Un hogar temporal que recibe mascotas
+              rescatadas mientras encuentran una
+              familia definitiva y segura.
+            </p>
+
+          </div>
+
+        </div>
+
+        <!-- BENEFITS -->
+
+        <div class="benefits-grid">
+
+          <div
+            class="benefit-card"
+            v-for="item in benefits"
+            :key="item.title"
+          >
+
+            <div class="benefit-icon">
+
+              <i :class="item.icon"></i>
+
+            </div>
+
+            <div>
+
+              <h3>
+                {{ item.title }}
+              </h3>
+
+              <p>
+                {{ item.text }}
+              </p>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      </div>
+
+      <!-- FORM -->
+
+      <div class="vol-form">
+
+        <div class="form-top">
+
+          <span>
+            REGISTRO
+          </span>
+
+          <h2>
+            Registro de voluntario
+          </h2>
+
+          <p>
+            Completa el formulario y nos pondremos
+            en contacto contigo.
+          </p>
+
+        </div>
+
+        <div class="form-row">
+
+          <div class="form-group">
+
+            <label>
+              Nombre completo
+            </label>
+
+            <input
+              type="text"
+              placeholder="Ej. María González"
+            >
+
+          </div>
+
+          <div class="form-group">
+
+            <label>
+              Cédula
+            </label>
+
+            <input
+              type="text"
+              placeholder="1-2345-6789"
+            >
+
+          </div>
+
+        </div>
+
+        <div class="form-row">
+
+          <div class="form-group">
+
+            <label>
+              Correo electrónico
+            </label>
+
+            <input
+              type="email"
+              placeholder="correo@ejemplo.com"
+            >
+
+          </div>
+
+          <div class="form-group">
+
+            <label>
+              Teléfono
+            </label>
+
+            <input
+              type="text"
+              placeholder="+506 8xxx-xxxx"
+            >
+
+          </div>
+
+        </div>
+
+        <div class="form-group">
+
+          <label>
+            Dirección
+          </label>
+
+          <input
+            type="text"
+            placeholder="Provincia, cantón y distrito"
+          >
+
+        </div>
+
+        <div class="form-group">
+
+          <label>
+            Tipo de voluntariado
+          </label>
+
+          <select>
+
+            <option>
+              Seleccione una opción
+            </option>
+
+            <option>
+              Casa cuna
+            </option>
+
+            <option>
+              Eventos de adopción
+            </option>
+
+            <option>
+              Transporte
+            </option>
+
+            <option>
+              Veterinaria
+            </option>
+
+            <option>
+              Redes sociales
+            </option>
+
+          </select>
+
+        </div>
+
+        <div class="form-group">
+
+          <label>
+            Motivación
+          </label>
+
+          <textarea
+            placeholder="Cuéntanos por qué deseas ayudar..."
+          ></textarea>
+
+        </div>
+
+        <button class="submit-btn">
+          Registrarme como voluntario
+        </button>
+
+      </div>
+
+    </div>
+
   </section>
 
   <FooterBar />
+
 </template>
 
-<script>
-export default {
-  data() {
-    return {
-      miniStats: [
-        { icon:'👥', value:'40+', label:'Voluntarios activos' },
-        { icon:'🏠', value:'5',   label:'Casas cuna' },
-        { icon:'🐾', value:'115+',label:'Animales ayudados' },
-      ]
-    }
-  }
-}
-</script>
-
 <style scoped>
-.vol-section { padding: 50px 24px 70px; }
-.vol-grid { display: grid; grid-template-columns: 1fr 400px; gap: 36px; align-items: start; }
 
-.vol-form h2 { font-size: 22px; font-weight: 800; color: var(--text-dark); margin-bottom: 6px; }
-.form-subtitle { font-size: 14px; color: var(--text-light); margin-bottom: 24px; }
-.form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+/* HERO */
 
-.checkbox-group { display: flex; flex-direction: column; gap: 10px; }
-.checkbox-label { display: flex; align-items: flex-start; gap: 10px; font-size: 13px; color: var(--text-mid); cursor: pointer; }
-.checkbox-label input { margin-top: 2px; accent-color: var(--green); }
+.hero {
 
-.info-card { margin-bottom: 18px; }
-.info-icon { font-size: 36px; display: block; margin-bottom: 12px; }
-.info-card h3 { font-size: 18px; font-weight: 700; color: var(--text-dark); margin-bottom: 10px; }
-.info-card p { font-size: 14px; color: var(--text-mid); line-height: 1.6; margin-bottom: 14px; }
-.info-list { display: flex; flex-direction: column; gap: 8px; font-size: 14px; color: var(--text-mid); padding-left: 0; }
-.info-list li { list-style: none; }
+  position: relative;
 
-.green-card { border-top: 4px solid var(--green); }
+  height: 520px;
 
-.stats-mini {
-  display: flex;
-  gap: 12px;
+  overflow: hidden;
+
+  background: #FAFAFA;
 }
-.mini-stat {
-  flex: 1;
-  background: var(--green-dark);
-  border-radius: var(--radius-md);
-  padding: 16px 12px;
+
+.hero-image {
+
+  width: 100%;
+
+  height: 100%;
+
+  object-fit: cover;
+
+  object-position: center 52%;
+
+  filter:
+    brightness(0.88)
+    contrast(1.02);
+
+  transform: scale(1.03);
+}
+
+.hero-overlay {
+
+  position: absolute;
+
+  inset: 0;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(58,71,60,0.58) 8%,
+      rgba(58,71,60,0.20) 55%,
+      rgba(58,71,60,0.04) 100%
+    );
+}
+
+.hero-content {
+
+  position: absolute;
+
+  inset: 0;
+
   display: flex;
-  flex-direction: column;
+
   align-items: center;
-  gap: 4px;
-  text-align: center;
-}
-.mini-icon  { font-size: 22px; }
-.mini-value { font-size: 22px; font-weight: 800; color: var(--yellow); }
-.mini-label { font-size: 11px; color: rgba(255,255,255,0.75); font-weight: 500; }
 
-@media (max-width: 900px) {
-  .vol-grid { grid-template-columns: 1fr; }
-  .form-row  { grid-template-columns: 1fr; }
+  justify-content: flex-start;
+
+  padding: 0 8%;
 }
+
+.hero-text {
+
+  max-width: 560px;
+
+  color: white;
+}
+
+.hero-text h1 {
+
+  font-size: 68px;
+
+  line-height: 0.92;
+
+  font-weight: 800;
+
+  letter-spacing: -4px;
+
+  margin-bottom: 22px;
+}
+
+.hero-text p {
+
+  font-size: 17px;
+
+  line-height: 1.9;
+
+  color:
+    rgba(255,255,255,0.90);
+
+  max-width: 470px;
+}
+
+/* SECTION */
+
+.volunteer-section {
+
+  background: #FAFAFA;
+
+  padding:
+    90px 24px
+    120px;
+}
+
+.container {
+
+  max-width: 1240px;
+
+  margin: auto;
+}
+
+.volunteer-grid {
+
+  display: grid;
+
+  grid-template-columns:
+    0.95fr 1.05fr;
+
+  gap: 34px;
+
+  align-items: start;
+}
+
+/* LEFT */
+
+.left-side {
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 24px;
+}
+
+/* INTRO */
+
+.intro-card {
+
+  background: white;
+
+  border-radius: 34px;
+
+  overflow: hidden;
+
+  border:
+    1px solid rgba(146,168,148,0.10);
+
+  box-shadow:
+    0 14px 40px rgba(0,0,0,0.04);
+}
+
+.intro-image-wrap {
+
+  height: 250px;
+
+  overflow: hidden;
+}
+
+.intro-image {
+
+  width: 100%;
+
+  height: 100%;
+
+  object-fit: cover;
+
+  object-position: center 62%;
+
+  transition: 0.6s ease;
+}
+
+.intro-card:hover .intro-image {
+
+  transform: scale(1.04);
+}
+
+.intro-content {
+
+  padding: 34px;
+}
+
+.intro-content span {
+
+  color: #92A894;
+
+  font-size: 12px;
+
+  font-weight: 700;
+
+  letter-spacing: 1px;
+}
+
+.intro-content h2 {
+
+  font-size: 46px;
+
+  line-height: 0.95;
+
+  font-weight: 800;
+
+  letter-spacing: -2px;
+
+  color: #3A473C;
+
+  margin:
+    18px 0;
+}
+
+.intro-content p {
+
+  font-size: 15px;
+
+  line-height: 1.9;
+
+  color: #667085;
+}
+
+/* BENEFITS */
+
+.benefits-grid {
+
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap: 18px;
+}
+
+.benefit-card {
+
+  background: white;
+
+  border-radius: 26px;
+
+  padding: 24px;
+
+  display: flex;
+
+  gap: 16px;
+
+  align-items: flex-start;
+
+  border:
+    1px solid rgba(146,168,148,0.10);
+
+  box-shadow:
+    0 10px 28px rgba(0,0,0,0.03);
+
+  transition: 0.3s ease;
+}
+
+.benefit-card:hover {
+
+  transform: translateY(-5px);
+
+  box-shadow:
+    0 18px 36px rgba(0,0,0,0.06);
+}
+
+.benefit-icon {
+
+  width: 52px;
+
+  height: 52px;
+
+  border-radius: 18px;
+
+  background:
+    rgba(146,168,148,0.14);
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  flex-shrink: 0;
+}
+
+.benefit-icon i {
+
+  font-size: 25px;
+
+  color: #92A894;
+}
+
+.benefit-card h3 {
+
+  font-size: 16px;
+
+  font-weight: 800;
+
+  color: #3A473C;
+
+  margin-bottom: 8px;
+}
+
+.benefit-card p {
+
+  font-size: 14px;
+
+  line-height: 1.7;
+
+  color: #667085;
+}
+
+/* FORM */
+
+.vol-form {
+
+  background: white;
+
+  border-radius: 34px;
+
+  padding: 40px;
+
+  border:
+    1px solid rgba(146,168,148,0.10);
+
+  box-shadow:
+    0 14px 40px rgba(0,0,0,0.04);
+}
+
+.form-top {
+
+  margin-bottom: 30px;
+}
+
+.form-top span {
+
+  color: #92A894;
+
+  font-size: 12px;
+
+  font-weight: 700;
+
+  letter-spacing: 1px;
+}
+
+.form-top h2 {
+
+  font-size: 38px;
+
+  line-height: 1;
+
+  font-weight: 800;
+
+  letter-spacing: -2px;
+
+  color: #3A473C;
+
+  margin:
+    14px 0 10px;
+}
+
+.form-top p {
+
+  font-size: 15px;
+
+  line-height: 1.8;
+
+  color: #667085;
+}
+
+.form-row {
+
+  display: grid;
+
+  grid-template-columns:
+    1fr 1fr;
+
+  gap: 18px;
+}
+
+.form-group {
+
+  display: flex;
+
+  flex-direction: column;
+
+  margin-bottom: 18px;
+}
+
+.form-group label {
+
+  font-size: 14px;
+
+  font-weight: 700;
+
+  color: #3A473C;
+
+  margin-bottom: 8px;
+}
+
+.form-group input,
+.form-group select,
+.form-group textarea {
+
+  border:
+    1px solid #E5ECE6;
+
+  border-radius: 16px;
+
+  padding: 15px 16px;
+
+  font-size: 14px;
+
+  background: #FCFCFC;
+
+  outline: none;
+
+  transition: 0.25s ease;
+
+  font-family: inherit;
+
+  color: #3A473C;
+}
+
+.form-group textarea {
+
+  min-height: 130px;
+
+  resize: vertical;
+}
+
+.form-group input:focus,
+.form-group select:focus,
+.form-group textarea:focus {
+
+  border-color: #92A894;
+
+  background: white;
+
+  box-shadow:
+    0 0 0 4px rgba(146,168,148,0.10);
+}
+
+/* BUTTON */
+
+.submit-btn {
+
+  width: 100%;
+
+  height: 56px;
+
+  border: none;
+
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #92A894 0%,
+      #7E947F 100%
+    );
+
+  color: white;
+
+  font-size: 15px;
+
+  font-weight: 700;
+
+  cursor: pointer;
+
+  transition: 0.3s ease;
+}
+
+.submit-btn:hover {
+
+  transform: translateY(-2px);
+
+  box-shadow:
+    0 14px 28px rgba(146,168,148,0.18);
+}
+
+/* RESPONSIVE */
+
+@media (max-width: 980px) {
+
+  .volunteer-grid {
+
+    grid-template-columns: 1fr;
+  }
+
+  .hero-content {
+
+    justify-content: center;
+
+    text-align: center;
+
+    padding: 0 24px;
+  }
+
+  .hero-text {
+
+    max-width: 100%;
+  }
+
+  .hero-text h1 {
+
+    font-size: 50px;
+  }
+
+}
+
+@media (max-width: 700px) {
+
+  .hero {
+
+    height: 440px;
+  }
+
+  .hero-text h1 {
+
+    font-size: 40px;
+  }
+
+  .hero-text p {
+
+    font-size: 15px;
+  }
+
+  .benefits-grid {
+
+    grid-template-columns: 1fr;
+  }
+
+  .form-row {
+
+    grid-template-columns: 1fr;
+  }
+
+  .intro-content,
+  .vol-form {
+
+    padding: 28px;
+  }
+
+  .intro-content h2 {
+
+    font-size: 36px;
+  }
+
+}
+
 </style>
