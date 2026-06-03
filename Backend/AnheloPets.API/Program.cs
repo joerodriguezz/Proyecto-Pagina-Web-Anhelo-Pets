@@ -16,6 +16,8 @@ builder.Services.AddControllers();
 builder.Services.AddScoped<IAnimalService, AnimalService>();
 builder.Services.AddScoped<IRescateService, RescateService>();
 builder.Services.AddScoped<IVolunteerService, VolunteerService>();
+builder.Services.AddScoped<IFosterHomeService, FosterHomeService>();
+builder.Services.AddScoped<IFosterPlacementService, FosterPlacementService>();
 builder.Services.AddScoped<IAdoptionService, AdoptionService>();
 builder.Services.AddScoped<IDonationService, DonationService>();
 builder.Services.AddScoped<IUserService, UserService>();

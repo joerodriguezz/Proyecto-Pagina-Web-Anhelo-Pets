@@ -1,6 +1,55 @@
 <script setup>
+import { computed, ref } from 'vue'
+import { RouterLink } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
 import FooterBar from '../components/FooterBar.vue'
+import { volunteersApi } from '../services/api'
+
+const storedUser = localStorage.getItem('authUser')
+const authUser = ref(storedUser ? JSON.parse(storedUser) : null)
+const loading = ref(false)
+const successMessage = ref('')
+const errorMessage = ref('')
+
+const volunteerForm = ref({
+  nationalId: '',
+  volunteerType: '',
+  motivation: '',
+})
+
+const isLoggedIn = computed(() => Boolean(authUser.value?.userId))
+
+async function registerVolunteer() {
+  if (!isLoggedIn.value) {
+    errorMessage.value = 'Debes iniciar sesion antes de registrarte como voluntario.'
+    return
+  }
+
+  loading.value = true
+  errorMessage.value = ''
+  successMessage.value = ''
+
+  try {
+    await volunteersApi.create({
+      userId: authUser.value.userId,
+      nationalId: volunteerForm.value.nationalId,
+      volunteerType: volunteerForm.value.volunteerType,
+      motivation: volunteerForm.value.motivation,
+      createdBy: 'frontend',
+    })
+
+    successMessage.value = 'Solicitud de voluntariado enviada para validacion.'
+    volunteerForm.value = {
+      nationalId: '',
+      volunteerType: '',
+      motivation: '',
+    }
+  } catch (error) {
+    errorMessage.value = error.message || 'No se pudo registrar la solicitud.'
+  } finally {
+    loading.value = false
+  }
+}
 
 const benefits = [
 
@@ -148,7 +197,7 @@ const benefits = [
 
       <!-- FORM -->
 
-      <div class="vol-form">
+      <form class="vol-form" @submit.prevent="registerVolunteer">
 
         <div class="form-top">
 
@@ -161,81 +210,28 @@ const benefits = [
           </h2>
 
           <p>
-            Completa el formulario y nos pondremos
-            en contacto contigo.
+            Esta solicitud se asocia a tu cuenta registrada para que podamos validarla.
           </p>
 
         </div>
 
-        <div class="form-row">
-
-          <div class="form-group">
-
-            <label>
-              Nombre completo
-            </label>
-
-            <input
-              type="text"
-              placeholder="Ej. María González"
-            >
-
-          </div>
-
-          <div class="form-group">
-
-            <label>
-              Cédula
-            </label>
-
-            <input
-              type="text"
-              placeholder="1-2345-6789"
-            >
-
-          </div>
-
-        </div>
-
-        <div class="form-row">
-
-          <div class="form-group">
-
-            <label>
-              Correo electrónico
-            </label>
-
-            <input
-              type="email"
-              placeholder="correo@ejemplo.com"
-            >
-
-          </div>
-
-          <div class="form-group">
-
-            <label>
-              Teléfono
-            </label>
-
-            <input
-              type="text"
-              placeholder="+506 8xxx-xxxx"
-            >
-
-          </div>
-
+        <div v-if="!isLoggedIn" class="login-notice">
+          Para registrarte como voluntario primero debes
+          <RouterLink to="/login">iniciar sesion</RouterLink>.
         </div>
 
         <div class="form-group">
 
           <label>
-            Dirección
+            Cedula
           </label>
 
           <input
+            v-model="volunteerForm.nationalId"
             type="text"
-            placeholder="Provincia, cantón y distrito"
+            placeholder="1-2345-6789"
+            :disabled="!isLoggedIn"
+            required
           >
 
         </div>
@@ -246,10 +242,14 @@ const benefits = [
             Tipo de voluntariado
           </label>
 
-          <select>
+          <select
+            v-model="volunteerForm.volunteerType"
+            :disabled="!isLoggedIn"
+            required
+          >
 
-            <option>
-              Seleccione una opción
+            <option value="" disabled>
+              Seleccione una opcion
             </option>
 
             <option>
@@ -257,7 +257,7 @@ const benefits = [
             </option>
 
             <option>
-              Eventos de adopción
+              Eventos de adopcion
             </option>
 
             <option>
@@ -279,20 +279,26 @@ const benefits = [
         <div class="form-group">
 
           <label>
-            Motivación
+            Motivacion
           </label>
 
           <textarea
-            placeholder="Cuéntanos por qué deseas ayudar..."
+            v-model="volunteerForm.motivation"
+            :disabled="!isLoggedIn"
+            placeholder="Cuentanos por que deseas ayudar..."
+            required
           ></textarea>
 
         </div>
 
-        <button class="submit-btn">
-          Registrarme como voluntario
+        <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
+        <p v-if="successMessage" class="form-success">{{ successMessage }}</p>
+
+        <button class="submit-btn" :disabled="loading || !isLoggedIn">
+          {{ loading ? 'Enviando...' : 'Registrarme como voluntario' }}
         </button>
 
-      </div>
+      </form>
 
     </div>
 
@@ -769,6 +775,41 @@ const benefits = [
   cursor: pointer;
 
   transition: 0.3s ease;
+}
+
+.submit-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.login-notice,
+.form-error,
+.form-success {
+  padding: 12px 14px;
+  border-radius: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.login-notice {
+  background: #FFF1DD;
+  color: #9A5E11;
+}
+
+.login-notice a {
+  color: #7C4A0B;
+  font-weight: 800;
+}
+
+.form-error {
+  background: #FEE4E2;
+  color: #B42318;
+}
+
+.form-success {
+  background: #E7F1E8;
+  color: #4F6F55;
 }
 
 .submit-btn:hover {

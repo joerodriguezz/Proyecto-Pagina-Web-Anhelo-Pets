@@ -37,7 +37,9 @@ public class UserService : IUserService
                 @city::varchar,
                 @town::varchar,
                 @addressLine::text,
-                @createdBy::varchar);
+                @createdBy::varchar,
+                @nationalId::varchar,
+                @nationality::varchar);
             """);
 
         AddParameter(command, "username", request.Username);
@@ -54,6 +56,8 @@ public class UserService : IUserService
         AddParameter(command, "town", request.Town);
         AddParameter(command, "addressLine", request.AddressLine);
         AddParameter(command, "createdBy", request.CreatedBy);
+        AddParameter(command, "nationalId", request.NationalId);
+        AddParameter(command, "nationality", request.Nationality);
 
         ExecuteScalar(command);
 

@@ -1,15 +1,65 @@
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import Icon from '../../components/Icon.vue'
+import { volunteersApi } from '../../services/api'
 
-const voluntarios = ref([
-  { id:'V-001', nombre:'Familia Mora',   cedula:'1-1111-2222', telefono:'8812-3456', correo:'mora@gmail.com',   tipo:'Casa cuna',  activo:true  },
-  { id:'V-002', nombre:'Gabriela Torres',cedula:'2-2222-3333', telefono:'8723-4567', correo:'gaby@gmail.com',   tipo:'Eventos',    activo:true  },
-  { id:'V-003', nombre:'Familia Vega',   cedula:'3-3333-4444', telefono:'8765-4321', correo:'vega@hotmail.com', tipo:'Casa cuna',  activo:true  },
-  { id:'V-004', nombre:'Andrés Matamoros',cedula:'1-4444-5555',telefono:'8634-5678', correo:'andres@gmail.com', tipo:'Transporte', activo:true  },
-  { id:'V-005', nombre:'Paula Chacón',   cedula:'4-5555-6666', telefono:'8545-6789', correo:'paula@gmail.com',  tipo:'Redes',      activo:false },
-  { id:'V-006', nombre:'Familia Salas',  cedula:'2-6666-7777', telefono:'8900-1122', correo:'salas@gmail.com',  tipo:'Casa cuna',  activo:true  },
-])
+const volunteers = ref([])
+const loading = ref(false)
+const errorMessage = ref('')
+
+async function loadVolunteers() {
+  loading.value = true
+  errorMessage.value = ''
+
+  try {
+    volunteers.value = await volunteersApi.getAll()
+  } catch (error) {
+    errorMessage.value = error.message || 'No se pudieron cargar los voluntarios.'
+    volunteers.value = []
+  } finally {
+    loading.value = false
+  }
+}
+
+async function setActive(volunteer, active) {
+  try {
+    await volunteersApi.update(volunteer.volunteerId, {
+      active,
+      modifiedBy: 'frontend',
+    })
+    await loadVolunteers()
+  } catch (error) {
+    errorMessage.value = error.message || 'No se pudo actualizar el estado.'
+  }
+}
+
+async function validateVolunteer(volunteer, validationStatus) {
+  const storedUser = localStorage.getItem('authUser')
+  const authUser = storedUser ? JSON.parse(storedUser) : null
+
+  if (!authUser?.userId) {
+    errorMessage.value = 'Debes iniciar sesion para validar voluntarios.'
+    return
+  }
+
+  try {
+    await volunteersApi.update(volunteer.volunteerId, {
+      validationStatus,
+      validatedByUserId: authUser.userId,
+      validationNotes: validationStatus === 'Aprobado' ? 'Aprobado desde admin' : 'Rechazado desde admin',
+      modifiedBy: 'frontend',
+    })
+    await loadVolunteers()
+  } catch (error) {
+    errorMessage.value = error.message || 'No se pudo validar el voluntario.'
+  }
+}
+
+function activeLabel(value) {
+  return value ? 'Activo' : 'Inactivo'
+}
+
+onMounted(loadVolunteers)
 </script>
 
 <template>
@@ -17,9 +67,11 @@ const voluntarios = ref([
     <header class="page-header">
       <div>
         <h1 class="admin-page-title">Voluntarios</h1>
-        <p class="admin-page-sub">Gestión y seguimiento de voluntarios registrados</p>
+        <p class="admin-page-sub">Gestion y seguimiento de voluntarios registrados</p>
       </div>
     </header>
+
+    <p v-if="errorMessage" class="form-error">{{ errorMessage }}</p>
 
     <div class="table-wrapper">
       <table class="data-table">
@@ -27,40 +79,50 @@ const voluntarios = ref([
           <tr>
             <th>ID</th>
             <th>Nombre</th>
-            <th>Cédula</th>
-            <th>Teléfono</th>
+            <th>Cedula</th>
+            <th>Telefono</th>
             <th>Correo</th>
             <th>Tipo</th>
+            <th>Validacion</th>
             <th>Estado</th>
             <th class="text-right">Acciones</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="v in voluntarios" :key="v.id">
-            <td><span class="id-code">{{ v.id }}</span></td>
-            <td class="font-semibold">{{ v.nombre }}</td>
-            <td class="text-secondary">{{ v.cedula }}</td>
-            <td>{{ v.telefono }}</td>
-            <td class="text-email">{{ v.correo }}</td>
+          <tr v-if="loading">
+            <td colspan="9">Cargando voluntarios...</td>
+          </tr>
+
+          <tr v-for="v in volunteers" :key="v.volunteerId">
+            <td><span class="id-code">V-{{ v.volunteerId }}</span></td>
+            <td class="font-semibold">{{ v.fullName }}</td>
+            <td class="text-secondary">{{ v.nationalId }}</td>
+            <td>{{ v.phone }}</td>
+            <td class="text-email">{{ v.email }}</td>
             <td>
               <span class="badge badge-type">
-                {{ v.tipo }}
+                {{ v.volunteerType }}
               </span>
             </td>
             <td>
-              <span class="badge" :class="v.activo ? 'badge-green' : 'badge-gray'">
-                {{ v.activo ? 'Activo' : 'Inactivo' }}
+              <span class="badge badge-gray">
+                {{ v.validationStatus || 'Pendiente' }}
+              </span>
+            </td>
+            <td>
+              <span class="badge" :class="v.active ? 'badge-green' : 'badge-gray'">
+                {{ activeLabel(v.active) }}
               </span>
             </td>
             <td>
               <div class="action-btns">
-                <button class="action-btn" title="Ver detalle">
-                  <Icon name="Show" />
+                <button class="action-btn" title="Aprobar" @click="validateVolunteer(v, 'Aprobado')">
+                  <Icon name="Check" />
                 </button>
-                <button class="action-btn" title="Editar">
-                  <Icon name="Edit" />
+                <button class="action-btn" title="Rechazar" @click="validateVolunteer(v, 'Rechazado')">
+                  <Icon name="XCircle" />
                 </button>
-                <button class="action-btn disable-vol" title="Desactivar">
+                <button class="action-btn disable-vol" :title="v.active ? 'Desactivar' : 'Activar'" @click="setActive(v, !v.active)">
                   <Icon name="Lock" />
                 </button>
               </div>
@@ -73,33 +135,31 @@ const voluntarios = ref([
 </template>
 
 <style scoped>
-/* ── Estructura de Contenedor ── */
 .view-container {
   background-color: transparent;
 }
 
-.page-header { 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
-  margin-bottom: 32px; 
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 32px;
 }
 
-.admin-page-title { 
-  font-size: 28px; 
-  font-weight: 800; 
-  color: #3A473C; 
-  letter-spacing: -0.5px;
+.admin-page-title {
+  font-size: 28px;
+  font-weight: 800;
+  color: #3A473C;
+  letter-spacing: 0;
 }
 
-.admin-page-sub { 
-  font-size: 14px; 
-  color: #6C756D; 
-  margin-top: 4px; 
+.admin-page-sub {
+  font-size: 14px;
+  color: #6C756D;
+  margin-top: 4px;
   font-weight: 500;
 }
 
-/* ── Estilos de la Tabla ── */
 .table-wrapper {
   background: white;
   border-radius: 24px;
@@ -108,10 +168,10 @@ const voluntarios = ref([
   overflow-x: auto;
 }
 
-.data-table { 
-  width: 100%; 
-  border-collapse: collapse; 
-  text-align: left; 
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
 }
 
 .data-table th {
@@ -145,7 +205,6 @@ const voluntarios = ref([
 .text-email { font-size: 13px; color: #3A473C; }
 .text-right { text-align: right; }
 
-/* ── Badges de Estado y Categorías ── */
 .badge {
   padding: 6px 12px;
   border-radius: 10px;
@@ -155,39 +214,35 @@ const voluntarios = ref([
 }
 
 .badge-type {
-  background: rgba(249, 193, 122, 0.2); /* Tono durazno para categorizar tipos */
+  background: rgba(249, 193, 122, 0.2);
   color: #D18C3A;
-  padding: 6px 12px;
-  border-radius: 10px;
   font-size: 11px;
-  font-weight: 700;
 }
 
-.badge-green  { background: rgba(146, 168, 148, 0.2); color: #5A6E5C; }
-.badge-gray   { background: #F4F6F4; color: #6C756D; }
+.badge-green { background: rgba(146, 168, 148, 0.2); color: #5A6E5C; }
+.badge-gray { background: #F4F6F4; color: #6C756D; }
 
-/* ── Botones de Acción ── */
-.action-btns { 
-  display: flex; 
-  gap: 8px; 
+.action-btns {
+  display: flex;
+  gap: 8px;
   justify-content: flex-end;
 }
 
-.action-btn { 
-  width: 34px; 
-  height: 34px; 
-  border: 2px solid #F4F6F4; 
-  border-radius: 10px; 
-  background: white; 
-  cursor: pointer; 
-  display: flex; 
-  align-items: center; 
+.action-btn {
+  width: 34px;
+  height: 34px;
+  border: 2px solid #F4F6F4;
+  border-radius: 10px;
+  background: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
   justify-content: center;
   transition: all 0.2s ease;
   color: #6C756D;
 }
 
-.action-btn:hover { 
+.action-btn:hover {
   background: #F4F6F4;
   border-color: #6C756D;
   color: #3A473C;
@@ -200,7 +255,13 @@ const voluntarios = ref([
   color: #C45252;
 }
 
-/* Ajustes Responsivos */
+.form-error {
+  color: #B42318;
+  font-size: 14px;
+  font-weight: 700;
+  margin-bottom: 16px;
+}
+
 @media (max-width: 768px) {
   .page-header { flex-direction: column; align-items: flex-start; gap: 8px; }
 }
