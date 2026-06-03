@@ -121,13 +121,43 @@ CREATE TABLE animals (
     animal_name   varchar(100),
     animal_status varchar(50) NOT NULL,
     health_status varchar(50) NOT NULL,
+    birth_date    date,
+    sex           varchar(20),
+    description   text,
 
     created_at    timestamptz,
     created_by    varchar(100),
     modified_at   timestamptz,
     modified_by   varchar(100),
 
-    CONSTRAINT pk_animals PRIMARY KEY (animal_id)
+    CONSTRAINT pk_animals PRIMARY KEY (animal_id),
+    CONSTRAINT ck_animals_sex
+        CHECK (sex IS NULL OR sex IN ('Macho', 'Hembra')),
+    CONSTRAINT ck_animals_birth_date_not_future
+        CHECK (birth_date IS NULL OR birth_date <= CURRENT_DATE)
+);
+
+CREATE TABLE animal_photos (
+    animal_photo_id bigint GENERATED ALWAYS AS IDENTITY,
+    animal_id       bigint NOT NULL,
+    photo_url       text NOT NULL,
+    description     text,
+    is_primary      boolean NOT NULL DEFAULT false,
+    display_order   integer NOT NULL DEFAULT 0,
+
+    created_at      timestamptz,
+    created_by      varchar(100),
+    modified_at     timestamptz,
+    modified_by     varchar(100),
+
+    CONSTRAINT pk_animal_photos PRIMARY KEY (animal_photo_id),
+    CONSTRAINT ck_animal_photos_photo_url_not_empty CHECK (btrim(photo_url) <> ''),
+    CONSTRAINT ck_animal_photos_display_order_non_negative CHECK (display_order >= 0),
+    CONSTRAINT fk_animal_photos_animal_id
+        FOREIGN KEY (animal_id)
+        REFERENCES animals (animal_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE
 );
 
 CREATE TABLE animal_intakes (
@@ -161,6 +191,13 @@ CREATE TABLE volunteers (
     volunteer_id bigint GENERATED ALWAYS AS IDENTITY,
     user_id      bigint NOT NULL,
     active       boolean NOT NULL,
+    national_id  varchar(50),
+    volunteer_type varchar(100),
+    motivation   text,
+    validation_status varchar(20) NOT NULL DEFAULT 'Pendiente',
+    validation_notes text,
+    validated_at timestamptz,
+    validated_by_user_id bigint,
 
     created_at   timestamptz,
     created_by   varchar(100),
@@ -173,7 +210,14 @@ CREATE TABLE volunteers (
         FOREIGN KEY (user_id)
         REFERENCES users (user_id)
         ON UPDATE CASCADE
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT ck_volunteers_validation_status
+        CHECK (validation_status IN ('Pendiente', 'Aprobado', 'Rechazado')),
+    CONSTRAINT fk_volunteers_validated_by_user_id
+        FOREIGN KEY (validated_by_user_id)
+        REFERENCES users (user_id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
 );
 
 CREATE TABLE veterinarians (
@@ -326,8 +370,25 @@ CREATE INDEX ix_animal_intakes_reported_by_user_id
 CREATE INDEX ix_animal_intakes_intake_at
     ON animal_intakes (intake_at);
 
+CREATE INDEX ix_animal_photos_animal_id
+    ON animal_photos (animal_id);
+
+CREATE UNIQUE INDEX ux_animal_photos_one_primary_per_animal
+    ON animal_photos (animal_id)
+    WHERE is_primary;
+
 CREATE INDEX ix_volunteers_user_id
     ON volunteers (user_id);
+
+CREATE INDEX ix_volunteers_validation_status
+    ON volunteers (validation_status);
+
+CREATE INDEX ix_volunteers_validated_by_user_id
+    ON volunteers (validated_by_user_id);
+
+CREATE UNIQUE INDEX ux_volunteers_national_id
+    ON volunteers (national_id)
+    WHERE national_id IS NOT NULL;
 
 CREATE INDEX ix_veterinarians_volunteer_id
     ON veterinarians (volunteer_id);
