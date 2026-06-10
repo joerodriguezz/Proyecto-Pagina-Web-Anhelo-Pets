@@ -172,6 +172,57 @@ const gallery = [
 
   </section>
 
+  <!-- MISIÓN Y VISIÓN -->
+
+<section class="purpose-section">
+
+  <div class="purpose-container">
+
+    <div class="purpose-header">
+
+      <span>NUESTRA ESENCIA</span>
+
+      <h2>
+        Comprometidos con cada vida que rescatamos
+      </h2>
+
+    </div>
+
+    <div class="purpose-grid">
+
+      <div class="purpose-box">
+
+        <h3>Misión</h3>
+
+        <p>
+          Rescatar, rehabilitar y proteger animales en situación
+          de abandono o vulnerabilidad, promoviendo adopciones
+          responsables y creando conciencia sobre el bienestar
+          animal mediante el trabajo comunitario y la educación.
+        </p>
+
+      </div>
+
+      <div class="purpose-box">
+
+        <h3>Visión</h3>
+
+        <p>
+          Ser una organización referente en protección animal
+          en Costa Rica, construyendo una sociedad donde cada
+          mascota tenga acceso a una vida digna, segura y llena
+          de amor dentro de una familia responsable.
+        </p>
+
+      </div>
+
+    </div>
+
+  </div>
+
+</section>
+
+  
   <!-- GALERÍA -->
 
   <section class="gallery-section">
@@ -263,6 +314,7 @@ const gallery = [
 /* GENERAL */
 
 .history-section,
+.purpose-section,
 .gallery-section,
 .team-section {
 
@@ -367,8 +419,7 @@ const gallery = [
 
   display: grid;
 
-  grid-template-columns:
-    1fr 1fr;
+  grid-template-columns: 0.8fr 1.2fr;
 
   overflow: hidden;
 
@@ -553,6 +604,115 @@ const gallery = [
   transform: scale(1.08);
 }
 
+/* MISIÓN Y VISIÓN */
+
+.purpose-section {
+
+  padding:
+    20px 24px
+    80px;
+
+  background: #FAFAFA;
+}
+
+.purpose-container {
+
+  max-width: 1120px;
+
+  margin: 0 auto;
+}
+
+.purpose-header {
+
+  text-align: center;
+
+  margin-bottom: 40px;
+}
+
+.purpose-header span {
+
+  color: #92A894;
+
+  font-size: 12px;
+
+  font-weight: 700;
+
+  letter-spacing: 1px;
+}
+
+.purpose-header h2 {
+
+  font-size: 46px;
+
+  font-weight: 800;
+
+  color: #3A473C;
+
+  margin-top: 14px;
+
+  letter-spacing: -2px;
+
+  line-height: 1;
+}
+
+.purpose-grid {
+
+  display: grid;
+
+  grid-template-columns:
+    repeat(2, 1fr);
+
+  gap: 24px;
+}
+
+.purpose-box {
+
+  background: white;
+
+  padding: 34px;
+
+  border-radius: 28px;
+
+  border:
+    1px solid rgba(146,168,148,0.10);
+
+  box-shadow:
+    0 10px 30px rgba(58,71,60,0.05);
+
+  transition: 0.35s ease;
+}
+
+.purpose-box:hover {
+
+  transform:
+    translateY(-6px);
+
+  box-shadow:
+    0 18px 42px rgba(58,71,60,0.10);
+}
+
+.purpose-box h3 {
+
+  font-size: 28px;
+
+  font-weight: 800;
+
+  color: #3A473C;
+
+  margin-bottom: 16px;
+}
+
+.purpose-box p {
+
+  font-size: 15px;
+
+  line-height: 1.8;
+
+  color: #687168;
+
+  margin: 0;
+}
+
 /* TEAM */
 
 .team-section {
@@ -726,6 +886,16 @@ const gallery = [
 }
 
 @media (max-width: 700px) {
+
+    .purpose-grid {
+
+    grid-template-columns: 1fr;
+  }
+
+  .purpose-header h2 {
+
+    font-size: 36px;
+  }
 
   .hero {
 
