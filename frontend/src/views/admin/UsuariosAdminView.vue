@@ -2,25 +2,78 @@
 import { ref } from 'vue'
 import Icon from '../../components/Icon.vue'
 
-const usuarios = ref([
-  { id:'U-001', nombre:'Shirley Valverde', cedula:'1-0932-0528', correo:'shirley@anhelopets.cr', telefono:'8840-3334', rol:'Admin',   activo:true  },
-  { id:'U-002', nombre:'Ana Rodríguez',    cedula:'1-1234-5678', correo:'ana@gmail.com',          telefono:'8812-1234', rol:'Usuario', activo:true  },
-  { id:'U-003', nombre:'Carlos Mora',      cedula:'2-2345-6789', correo:'carlos@outlook.com',     telefono:'8901-2345', rol:'Usuario', activo:true  },
-  { id:'U-004', nombre:'Sofía Vega',       cedula:'3-3456-7890', correo:'sofia@gmail.com',        telefono:'8723-4567', rol:'Usuario', activo:true  },
-  { id:'U-005', nombre:'Diego Salas',      cedula:'1-4567-8901', correo:'diego@hotmail.com',      telefono:'8634-5678', rol:'Usuario', activo:false },
-  { id:'U-006', nombre:'Laura Jiménez',    cedula:'4-5678-9012', correo:'laura@gmail.com',        telefono:'8545-6789', rol:'Usuario', activo:true  },
-])
+const usuarios = ref([])
+const showModal = ref(false)
+const selectedUser = ref(null)
+
+function cargarUsuarios() {
+  const guardados = JSON.parse(
+    localStorage.getItem('anhelo_usuarios')
+  ) || [
+    {
+      id: 'ADMIN-001',
+      nombre: 'Shirley Valverde',
+      cedula: '1-0932-0528',
+      correo: 'shirley@anhelopets.cr',
+      telefono: '+506 8840-3334',
+      password: 'Admin123',
+      rol: 'Admin',
+      tipoVoluntario: '',
+      direccion: '',
+      pais: 'Costa Rica',
+      solicitudVoluntario: null,
+      activo: true
+    }
+  ]
+  usuarios.value = guardados
+}
+
+cargarUsuarios()
+
+function guardarUsuarios() {
+  localStorage.setItem(
+    'anhelo_usuarios',
+    JSON.stringify(usuarios.value)
+  )
+}
+
+function toggleEstado(user) {
+  if (user.id === 'ADMIN-001') return
+  user.activo = !user.activo
+  guardarUsuarios()
+}
+
+function verDetalle(user) {
+  selectedUser.value = user
+  showModal.value = true
+}
+
+function rolClass(rol) {
+  if (rol === 'Admin')      return 'badge-peach'
+  if (rol === 'Voluntario') return 'badge-green'
+  return 'badge-gray'
+}
+
+function solicitudClass(estado) {
+  if (estado === 'Aprobada')  return 'badge-green'
+  if (estado === 'Rechazada') return 'badge-red'
+  if (estado === 'Pendiente') return 'badge-peach'
+  return 'badge-gray'
+}
 </script>
 
 <template>
   <div class="view-container">
+
+    <!-- HEADER -->
     <header class="page-header">
       <div>
         <h1 class="admin-page-title">Gestión de Usuarios</h1>
-        <p class="admin-page-sub">Control de cuentas y roles del sistema</p>
+        <p class="admin-page-sub">Control de cuentas y roles</p>
       </div>
     </header>
 
+    <!-- TABLA -->
     <div class="table-wrapper">
       <table class="data-table">
         <thead>
@@ -31,177 +84,382 @@ const usuarios = ref([
             <th>Correo</th>
             <th>Teléfono</th>
             <th>Rol</th>
+            <th>Tipo</th>
+            <th>Solicitud</th>
             <th>Estado</th>
-            <th class="text-right">Acciones</th>
+            <th>Acciones</th>
           </tr>
         </thead>
+
         <tbody>
           <tr v-for="u in usuarios" :key="u.id">
+
             <td><span class="id-code">{{ u.id }}</span></td>
+
             <td class="font-semibold">{{ u.nombre }}</td>
-            <td class="text-secondary">{{ u.cedula }}</td>
-            <td class="text-email">{{ u.correo }}</td>
-            <td>{{ u.telefono }}</td>
+
+            <td class="text-secondary">{{ u.cedula || '—' }}</td>
+
+            <td class="text-secondary">{{ u.correo }}</td>
+
+            <td>{{ u.telefono || '—' }}</td>
+
             <td>
-              <span class="badge" :class="u.rol === 'Admin' ? 'badge-peach' : 'badge-gray'">
+              <span class="badge" :class="rolClass(u.rol)">
                 {{ u.rol }}
               </span>
             </td>
+
+            <td>{{ u.tipoVoluntario || '—' }}</td>
+
+            <td>
+              <span
+                v-if="u.solicitudVoluntario?.estado"
+                class="badge"
+                :class="solicitudClass(u.solicitudVoluntario.estado)"
+              >
+                {{ u.solicitudVoluntario.estado }}
+              </span>
+              <span v-else class="text-secondary">—</span>
+            </td>
+
             <td>
               <span class="badge" :class="u.activo ? 'badge-green' : 'badge-red'">
                 {{ u.activo ? 'Activo' : 'Inactivo' }}
               </span>
             </td>
+
             <td>
               <div class="action-btns">
-                <button class="action-btn" title="Editar">
-                  <Icon name="Edit" />
+
+                <!-- VER -->
+                <button
+                  class="action-btn"
+                  title="Ver detalle"
+                  @click="verDetalle(u)"
+                >
+                  <Icon name="Eye" />
                 </button>
-                <button class="action-btn" title="Cambiar rol">
-                  <Icon name="Key" />
-                </button>
-                <button class="action-btn status-toggle" :class="{ 'is-active': u.activo }" :title="u.activo ? 'Desactivar' : 'Activar'">
+
+                <!-- ACTIVAR / DESACTIVAR -->
+                <button
+                  class="action-btn"
+                  :class="{ 'danger': u.activo }"
+                  :disabled="u.id === 'ADMIN-001'"
+                  :title="u.activo ? 'Desactivar cuenta' : 'Activar cuenta'"
+                  @click="toggleEstado(u)"
+                >
                   <Icon :name="u.activo ? 'Lock' : 'Unlock'" />
                 </button>
+
               </div>
             </td>
+
           </tr>
         </tbody>
       </table>
     </div>
+
+    <!-- MODAL DETALLE -->
+    <div
+      v-if="showModal"
+      class="modal-overlay"
+      @click.self="showModal = false"
+    >
+      <div class="modal-card">
+
+        <div class="modal-header">
+          <h2>Información del usuario</h2>
+          <button class="close-btn" @click="showModal = false">×</button>
+        </div>
+
+        <div v-if="selectedUser" class="detail-grid">
+
+          <div class="detail-item">
+            <span>Nombre</span>
+            <strong>{{ selectedUser.nombre }}</strong>
+          </div>
+
+          <div class="detail-item">
+            <span>Cédula</span>
+            <strong>{{ selectedUser.cedula || '—' }}</strong>
+          </div>
+
+          <div class="detail-item">
+            <span>Correo</span>
+            <strong>{{ selectedUser.correo }}</strong>
+          </div>
+
+          <div class="detail-item">
+            <span>Teléfono</span>
+            <strong>{{ selectedUser.telefono || '—' }}</strong>
+          </div>
+
+          <div class="detail-item">
+            <span>País</span>
+            <strong>{{ selectedUser.pais || '—' }}</strong>
+          </div>
+
+          <div class="detail-item">
+            <span>Dirección</span>
+            <strong>{{ selectedUser.direccion || '—' }}</strong>
+          </div>
+
+          <div class="detail-item">
+            <span>Rol</span>
+            <span class="badge" :class="rolClass(selectedUser.rol)">
+              {{ selectedUser.rol }}
+            </span>
+          </div>
+
+          <div class="detail-item">
+            <span>Estado de cuenta</span>
+            <span class="badge" :class="selectedUser.activo ? 'badge-green' : 'badge-red'">
+              {{ selectedUser.activo ? 'Activo' : 'Inactivo' }}
+            </span>
+          </div>
+
+          <div class="detail-item">
+            <span>Tipo voluntario</span>
+            <strong>{{ selectedUser.tipoVoluntario || '—' }}</strong>
+          </div>
+
+          <div class="detail-item">
+            <span>Solicitud de voluntariado</span>
+            <span
+              v-if="selectedUser.solicitudVoluntario?.estado"
+              class="badge"
+              :class="solicitudClass(selectedUser.solicitudVoluntario.estado)"
+            >
+              {{ selectedUser.solicitudVoluntario.estado }}
+            </span>
+            <strong v-else>—</strong>
+          </div>
+
+        </div>
+
+        <!-- NOTA -->
+        <div class="info-note">
+          <i class="bx bxs-info-circle"></i>
+          El rol se actualiza automáticamente desde
+          <strong>Solicitudes de Voluntariado</strong>
+          al aprobar o rechazar una postulación.
+        </div>
+
+        <button class="close-full-btn" @click="showModal = false">
+          Cerrar
+        </button>
+
+      </div>
+    </div>
+
   </div>
 </template>
 
 <style scoped>
-/* ── Contenedor General ── */
 .view-container {
-  background-color: transparent;
+  padding: 10px;
 }
 
-.page-header { 
-  display: flex; 
-  justify-content: space-between; 
-  align-items: center; 
-  margin-bottom: 32px; 
+.page-header {
+  margin-bottom: 28px;
 }
 
-.admin-page-title { 
-  font-size: 28px; 
-  font-weight: 800; 
-  color: #3A473C; 
-  letter-spacing: -0.5px;
+.admin-page-title {
+  font-size: 32px;
+  font-weight: 800;
+  color: #2F3B31;
 }
 
-.admin-page-sub { 
-  font-size: 14px; 
-  color: #6C756D; 
-  margin-top: 4px; 
-  font-weight: 500;
+.admin-page-sub {
+  color: #667085;
+  margin-top: 4px;
 }
 
-/* ── Estilos de la Tabla ── */
 .table-wrapper {
   background: white;
   border-radius: 24px;
   padding: 24px;
-  box-shadow: 0 4px 20px rgba(58, 71, 60, 0.02);
   overflow-x: auto;
 }
 
-.data-table { 
-  width: 100%; 
-  border-collapse: collapse; 
-  text-align: left; 
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
 }
 
 .data-table th {
-  font-size: 13px;
-  font-weight: 700;
-  color: #6C756D;
+  text-align: left;
   padding-bottom: 16px;
-  border-bottom: 1px solid #F4F6F4;
+  color: #667085;
+  font-size: 13px;
 }
 
 .data-table td {
-  padding: 16px 0;
-  font-size: 14px;
-  color: #3A473C;
-  border-bottom: 1px solid #FAFAFA;
-  vertical-align: middle;
+  padding: 18px 0;
+  border-top: 1px solid #F4F6F4;
 }
 
-.id-code {
-  font-size: 12px;
-  font-family: monospace;
-  background: #F4F6F4;
-  padding: 4px 8px;
-  border-radius: 8px;
-  color: #3A473C;
-  font-weight: 600;
-}
-
-.font-semibold { font-weight: 600; }
-.text-secondary { font-size: 13px; color: #6C756D; }
-.text-email { font-size: 13px; color: #3A473C; }
-.text-right { text-align: right; }
-
-/* ── Badges de Estado y Roles ── */
 .badge {
   padding: 6px 12px;
-  border-radius: 10px;
+  border-radius: 999px;
   font-size: 12px;
   font-weight: 700;
   display: inline-block;
 }
 
-.badge-peach  { background: rgba(249, 193, 122, 0.2); color: #D18C3A; } /* Tono de acento AnheloPets */
-.badge-gray   { background: #F4F6F4; color: #6C756D; }
-.badge-green  { background: rgba(146, 168, 148, 0.2); color: #5A6E5C; }
-.badge-red    { background: rgba(235, 119, 119, 0.15); color: #C45252; }
-
-/* ── Botones de Acción ── */
-.action-btns { 
-  display: flex; 
-  gap: 8px; 
-  justify-content: flex-end;
-}
-
-.action-btn { 
-  width: 34px; 
-  height: 34px; 
-  border: 2px solid #F4F6F4; 
-  border-radius: 10px; 
-  background: white; 
-  cursor: pointer; 
-  display: flex; 
-  align-items: center; 
-  justify-content: center;
-  transition: all 0.2s ease;
-  color: #6C756D;
-}
-
-.action-btn:hover { 
-  background: #F4F6F4;
-  border-color: #6C756D;
-  color: #3A473C;
-  transform: translateY(-1px);
-}
-
-/* Transiciones específicas de bloqueo/desbloqueo */
-.action-btn.status-toggle:hover {
-  background: rgba(249, 193, 122, 0.15);
-  border-color: #F9C17A;
+.badge-peach {
+  background: rgba(249,193,122,0.18);
   color: #D18C3A;
 }
 
-.action-btn.status-toggle.is-active:hover {
-  background: rgba(235, 119, 119, 0.1);
-  border-color: #EB7777;
+.badge-gray {
+  background: #F4F6F4;
+  color: #667085;
+}
+
+.badge-green {
+  background: rgba(146,168,148,0.18);
+  color: #5A6E5C;
+}
+
+.badge-red {
+  background: rgba(235,119,119,0.16);
   color: #C45252;
 }
 
-/* Ajustes Responsivos */
-@media (max-width: 768px) {
-  .page-header { flex-direction: column; align-items: flex-start; gap: 8px; }
+.id-code {
+  background: #F4F6F4;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: monospace;
+  color: #3A473C;
+}
+
+.font-semibold { font-weight: 700; }
+.text-secondary { color: #667085; }
+
+.action-btns {
+  display: flex;
+  gap: 10px;
+}
+
+.action-btn {
+  width: 38px;
+  height: 38px;
+  border: none;
+  border-radius: 12px;
+  background: #F4F6F4;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s;
+}
+
+.action-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.action-btn.danger {
+  background: rgba(235,119,119,0.16);
+  color: #C45252;
+}
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 999;
+}
+
+.modal-card {
+  width: 100%;
+  max-width: 700px;
+  background: white;
+  border-radius: 28px;
+  padding: 30px;
+}
+
+.modal-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 28px;
+}
+
+.modal-header h2 {
+  font-size: 22px;
+  font-weight: 800;
+  color: #2F3B31;
+}
+
+.close-btn {
+  border: none;
+  background: transparent;
+  font-size: 28px;
+  cursor: pointer;
+  color: #667085;
+  line-height: 1;
+}
+
+.detail-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+}
+
+.detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.detail-item span:first-child {
+  font-size: 13px;
+  color: #667085;
+}
+
+.detail-item strong {
+  color: #2F3B31;
+  font-weight: 600;
+}
+
+.info-note {
+  margin-top: 24px;
+  padding: 14px 18px;
+  background: rgba(146,168,148,0.10);
+  border-radius: 14px;
+  font-size: 13px;
+  color: #5A6E5C;
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  line-height: 1.6;
+}
+
+.info-note i {
+  font-size: 18px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.close-full-btn {
+  width: 100%;
+  height: 54px;
+  border: none;
+  border-radius: 16px;
+  margin-top: 20px;
+  background: linear-gradient(135deg, #92A894, #7C927E);
+  color: white;
+  font-weight: 800;
+  cursor: pointer;
+  font-size: 15px;
 }
 </style>

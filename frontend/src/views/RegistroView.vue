@@ -1,326 +1,1061 @@
 <script setup>
-import { RouterLink } from 'vue-router'
+
+/* ─────────────────────────────
+   IMPORTS
+───────────────────────────── */
+
+import {
+  ref,
+  computed,
+  onMounted,
+  onBeforeUnmount
+} from 'vue'
+
+import {
+  RouterLink,
+  useRouter
+} from 'vue-router'
+
+import {
+  countryList,
+  phoneCodesList
+} from '../data/paises'
+
+const router = useRouter()
+
+/* ─────────────────────────────
+   ESTADOS
+───────────────────────────── */
+
+const nombre = ref('')
+const correo = ref('')
+const telefono = ref('')
+const cedula = ref('')
+const password = ref('')
+const confirmarPassword = ref('')
+
+const error = ref('')
+const success = ref(false)
+
+/* ─────────────────────────────
+   PAISES
+───────────────────────────── */
+
+const countrySearch = ref('')
+
+const showCountryDropdown = ref(false)
+
+const filteredCountries = computed(() => {
+
+  if (!countrySearch.value) {
+
+    return countryList
+
+  }
+
+  return countryList.filter(country =>
+
+    country.toLowerCase().includes(
+
+      countrySearch.value.toLowerCase()
+
+    )
+
+  )
+
+})
+
+function selectCountry(country) {
+
+  countrySearch.value = country
+
+  showCountryDropdown.value = false
+
+}
+
+/* ─────────────────────────────
+   CODIGOS TELEFONICOS
+───────────────────────────── */
+
+const dropdownContainer = ref(null)
+
+const showCodeDropdown = ref(false)
+
+const codeSearchQuery = ref('')
+
+const selectedCountryObject = ref({
+
+  name: 'Costa Rica',
+  code: '+506'
+
+})
+
+const filteredPhoneCodes = computed(() => {
+
+  const query =
+
+    codeSearchQuery.value
+      .toLowerCase()
+      .trim()
+
+  if (!query) {
+
+    return phoneCodesList
+
+  }
+
+  return phoneCodesList.filter(item =>
+
+    item.name
+      .toLowerCase()
+      .includes(query)
+
+    ||
+
+    item.code.includes(query)
+
+  )
+
+})
+
+function selectPhoneCode(item) {
+
+  selectedCountryObject.value = item
+
+  showCodeDropdown.value = false
+
+  codeSearchQuery.value = ''
+
+}
+
+/* ─────────────────────────────
+   CLICK AFUERA
+───────────────────────────── */
+
+function handleClickOutside(event) {
+
+  if (
+
+    dropdownContainer.value &&
+
+    !dropdownContainer.value.contains(
+      event.target
+    )
+
+  ) {
+
+    showCodeDropdown.value = false
+    showCountryDropdown.value = false
+
+  }
+
+}
+
+onMounted(() => {
+
+  document.addEventListener(
+    'click',
+    handleClickOutside
+  )
+
+})
+
+onBeforeUnmount(() => {
+
+  document.removeEventListener(
+    'click',
+    handleClickOutside
+  )
+
+})
+
+/* ─────────────────────────────
+   TELEFONO SOLO NUMEROS
+───────────────────────────── */
+
+function filterPhoneNumber() {
+
+  telefono.value =
+
+    telefono.value.replace(
+      /\D/g,
+      ''
+    )
+
+}
+
+/* ─────────────────────────────
+   REGISTRO
+───────────────────────────── */
+
+function crearCuenta() {
+
+  error.value = ''
+
+  if (
+
+    !nombre.value ||
+    !correo.value ||
+    !telefono.value ||
+    !cedula.value ||
+    !password.value ||
+    !confirmarPassword.value ||
+    !countrySearch.value
+
+  ) {
+
+    error.value =
+      'Completa todos los campos'
+
+    return
+
+  }
+
+  if (
+
+    password.value !==
+    confirmarPassword.value
+
+  ) {
+
+    error.value =
+      'Las contraseñas no coinciden'
+
+    return
+
+  }
+
+  if (
+
+    password.value.length < 8
+
+  ) {
+
+    error.value =
+      'La contraseña debe tener mínimo 8 caracteres'
+
+    return
+
+  }
+
+  const usuarios = JSON.parse(
+
+    localStorage.getItem(
+      'anhelo_usuarios'
+    )
+
+  ) || []
+
+  const correoExiste = usuarios.find(u =>
+
+    u.correo.toLowerCase() ===
+
+    correo.value.toLowerCase()
+
+  )
+
+  if (correoExiste) {
+
+    error.value =
+      'Ya existe una cuenta con este correo'
+
+    return
+
+  }
+
+  const nuevoUsuario = {
+
+    id:
+      `U-${String(
+        usuarios.length + 1
+      ).padStart(3,'0')}`,
+
+    nombre:
+      nombre.value,
+
+    correo:
+      correo.value,
+
+    cedula:
+      cedula.value,
+
+    telefono:
+      `${selectedCountryObject.value.code} ${telefono.value}`,
+
+    pais:
+      countrySearch.value,
+
+    password:
+      password.value,
+
+    rol:
+      'Usuario',
+
+    activo:
+      true
+
+  }
+
+  usuarios.push(
+    nuevoUsuario
+  )
+
+  localStorage.setItem(
+
+    'anhelo_usuarios',
+
+    JSON.stringify(
+      usuarios
+    )
+
+  )
+
+  localStorage.setItem(
+
+    'anhelo_usuario_actual',
+
+    JSON.stringify(
+      nuevoUsuario
+    )
+
+  )
+
+  success.value = true
+
+  setTimeout(() => {
+
+    router.push('/')
+
+  }, 1000)
+
+}
+
 </script>
 
 <template>
+
   <div class="auth-container">
+
+    <!-- VISUAL -->
+
     <div class="auth-visual">
-      <div class="brand-wrapper">
-        <RouterLink to="/" class="logo-link">
-          Anhelo<span class="peach">Pets</span>
-        </RouterLink>
-      </div>
-      
+
+      <RouterLink
+        to="/"
+        class="logo-link"
+      >
+
+        Anhelo
+
+        <span class="peach">
+          Pets
+        </span>
+
+      </RouterLink>
+
       <div class="visual-content">
-        <h1 class="visual-title">Únete a nuestra <br>comunidad</h1>
+
+        <h1 class="visual-title">
+
+          Únete a nuestra
+          comunidad
+
+        </h1>
+
         <p class="visual-description">
-          Crea tu cuenta gratuita y da el primer paso para adoptar una mascota o apoyar nuestra fundación.
+
+          Crea tu cuenta y
+          forma parte de
+          Anhelo Pets.
+
         </p>
+
       </div>
 
-      <div class="visual-footer">
-        <p>© Anhelo Pets. Dedicados al bienestar animal.</p>
-      </div>
     </div>
+
+    <!-- FORM -->
 
     <div class="auth-form-side">
+
       <div class="form-container">
-        <header class="form-header">
-          <h2>Crear cuenta</h2>
-          <p>Completa tus datos personales</p>
-        </header>
 
-        <form class="main-form" @submit.prevent>
-          <div class="form-row">
-            <div class="input-group">
-              <label>Nombre completo *</label>
-              <input placeholder="María González" class="custom-input" />
-            </div>
-            <div class="input-group">
-              <label>Cédula *</label>
-              <input placeholder="1-2345-6789" class="custom-input" />
-            </div>
-          </div>
+        <div class="form-header">
 
-          <div class="input-group">
-            <label>Correo electrónico *</label>
-            <input type="email" placeholder="correo@ejemplo.com" class="custom-input" />
-          </div>
+          <h2>
+            Crear cuenta
+          </h2>
 
-          <div class="form-row">
-            <div class="input-group">
-              <label>Edad *</label>
-              <input type="number" placeholder="25" min="18" class="custom-input" />
-            </div>
-            <div class="input-group">
-              <label>Nacionalidad *</label>
-              <select class="custom-select">
-                <option>Costa Rica</option>
-                <option>Nicaragua</option>
-                <option>Colombia</option>
-                <option>Otro</option>
-              </select>
-            </div>
-          </div>
+          <p>
+            Completa tu información
+          </p>
 
-          <div class="form-row">
-            <div class="input-group">
-              <label>Teléfono *</label>
-              <input placeholder="+506 8xxx-xxxx" class="custom-input" />
-            </div>
-            <div class="input-group">
-              <label>Provincia *</label>
-              <select class="custom-select">
-                <option>San José</option>
-                <option>Alajuela</option>
-                <option>Cartago</option>
-                <option>Heredia</option>
-                <option>Guanacaste</option>
-                <option>Puntarenas</option>
-                <option>Limón</option>
-              </select>
-            </div>
-          </div>
+        </div>
+
+        <!-- ERROR -->
+
+        <div
+          v-if="error"
+          class="error-box"
+        >
+
+          {{ error }}
+
+        </div>
+
+        <!-- SUCCESS -->
+
+        <div
+          v-if="success"
+          class="success-box"
+        >
+
+          Cuenta creada correctamente
+
+        </div>
+
+        <!-- FORM -->
+
+        <form
+          @submit.prevent="
+            crearCuenta
+          "
+        >
+
+          <!-- NOMBRE -->
 
           <div class="input-group">
-            <label>Dirección completa *</label>
-            <input placeholder="Cantón, distrito, señas..." class="custom-input" />
-          </div>
 
-          <div class="form-row">
-            <div class="input-group">
-              <label>Contraseña *</label>
-              <input type="password" placeholder="Mínimo 8 caracteres" class="custom-input" />
-            </div>
-            <div class="input-group">
-              <label>Confirmar contraseña *</label>
-              <input type="password" placeholder="Repetir contraseña" class="custom-input" />
-            </div>
-          </div>
-
-          <div class="form-utils">
-            <label class="custom-checkbox">
-              <input type="checkbox" />
-              <span class="label-text">
-                Acepto los <a href="#" class="inner-link">términos y condiciones</a> y la <a href="#" class="inner-link">política de privacidad</a>
-              </span>
+            <label>
+              Nombre completo *
             </label>
+
+            <input
+              v-model="nombre"
+              class="custom-input"
+              placeholder="María González"
+            />
+
           </div>
 
-          <button type="submit" class="btn-register">Crear mi cuenta</button>
+          <!-- CORREO -->
+
+          <div class="input-group">
+
+            <label>
+              Correo electrónico *
+            </label>
+
+            <input
+              v-model="correo"
+              type="email"
+              class="custom-input"
+              placeholder="correo@ejemplo.com"
+            />
+
+          </div>
+
+          <!-- PAIS -->
+
+          <div class="input-group">
+
+            <label>
+              País *
+            </label>
+
+            <div class="autocomplete-wrapper">
+
+              <input
+                v-model="countrySearch"
+                class="custom-input"
+                placeholder="Buscar país..."
+                @focus="
+                  showCountryDropdown = true
+                "
+              />
+
+              <div
+                v-if="
+                  showCountryDropdown
+                "
+                class="autocomplete-dropdown"
+              >
+
+                <button
+                  v-for="country in filteredCountries"
+                  :key="country"
+                  type="button"
+                  class="dropdown-item"
+                  @click="
+                    selectCountry(country)
+                  "
+                >
+
+                  {{ country }}
+
+                </button>
+
+              </div>
+
+            </div>
+
+          </div>
+
+          <!-- TELEFONO -->
+
+          <div class="form-row">
+
+            <!-- CODIGO -->
+
+            <div
+              class="input-group"
+              ref="dropdownContainer"
+            >
+
+              <label>
+                Código país *
+              </label>
+
+              <button
+                type="button"
+                class="phone-code-btn"
+                @click="
+                  showCodeDropdown =
+                  !showCodeDropdown
+                "
+              >
+
+                <span>
+
+                  {{
+                    selectedCountryObject.name
+                  }}
+
+                </span>
+
+                <strong>
+
+                  {{
+                    selectedCountryObject.code
+                  }}
+
+                </strong>
+
+              </button>
+
+              <div
+                v-if="showCodeDropdown"
+                class="phone-dropdown"
+              >
+
+                <input
+                  v-model="codeSearchQuery"
+                  class="dropdown-search"
+                  placeholder="Buscar..."
+                />
+
+                <div class="phone-list">
+
+                  <button
+                    v-for="item in filteredPhoneCodes"
+                    :key="item.code + item.name"
+                    type="button"
+                    class="phone-option"
+                    @click="
+                      selectPhoneCode(item)
+                    "
+                  >
+
+                    <span>
+                      {{ item.name }}
+                    </span>
+
+                    <strong>
+                      {{ item.code }}
+                    </strong>
+
+                  </button>
+
+                </div>
+
+              </div>
+
+            </div>
+
+            <!-- NUMERO -->
+
+            <div class="input-group">
+
+              <label>
+                Teléfono *
+              </label>
+
+              <input
+                v-model="telefono"
+                @input="filterPhoneNumber"
+                class="custom-input"
+                placeholder="88888888"
+              />
+
+            </div>
+
+          </div>
+
+          <!-- CEDULA -->
+
+          <div class="input-group">
+
+            <label>
+              Cédula *
+            </label>
+
+            <input
+              v-model="cedula"
+              class="custom-input"
+              placeholder="1-2345-6789"
+            />
+
+          </div>
+
+          <!-- PASSWORD -->
+
+          <div class="form-row">
+
+            <div class="input-group">
+
+              <label>
+                Contraseña *
+              </label>
+
+              <input
+                v-model="password"
+                type="password"
+                class="custom-input"
+                placeholder="Mínimo 8 caracteres"
+              />
+
+            </div>
+
+            <div class="input-group">
+
+              <label>
+                Confirmar contraseña *
+              </label>
+
+              <input
+                v-model="confirmarPassword"
+                type="password"
+                class="custom-input"
+                placeholder="Repetir contraseña"
+              />
+
+            </div>
+
+          </div>
+
+          <!-- BOTON -->
+
+          <button
+            type="submit"
+            class="btn-register"
+          >
+
+            Crear mi cuenta
+
+          </button>
+
+          <!-- LOGIN -->
+
+          <div class="login-link-container">
+
+            <span>
+              ¿Ya tienes una cuenta?
+            </span>
+
+            <RouterLink
+              to="/login"
+              class="login-link"
+            >
+
+              Inicia sesión
+
+            </RouterLink>
+
+          </div>
+
         </form>
 
-        <footer class="form-footer">
-          <p>¿Ya tienes cuenta? 
-            <RouterLink to="/login" class="login-link">Iniciar sesión</RouterLink>
-          </p>
-        </footer>
       </div>
+
     </div>
+
   </div>
+
 </template>
 
 <style scoped>
-/* ── Estructura Principal ── */
+
 .auth-container {
+
   min-height: 100vh;
+
   display: flex;
-  background-color: #FAFAFA;
+
+  background: #FAFAFA;
 }
 
-/* ── Lado Visual (Izquierdo) ── */
 .auth-visual {
+
   flex: 1;
-  position: relative;
-  background: linear-gradient(135deg, #92A894 0%, #7C927E 100%);
+
+  background:
+    linear-gradient(
+      135deg,
+      #92A894,
+      #7C927E
+    );
+
   padding: 60px;
-  display: flex;
-  flex-direction: column;
-  justify-content: space-between;
-  overflow: hidden;
+
   color: white;
 }
 
 .logo-link {
-  font-size: 28px;
+
+  font-size: 30px;
+
   font-weight: 800;
+
   color: white;
+
   text-decoration: none;
-  letter-spacing: -1px;
 }
 
-.peach { color: #F9C17A; }
+.peach {
+
+  color: #F9C17A;
+}
 
 .visual-content {
-  max-width: 440px;
-  margin-auto: 0;
-  z-index: 2;
+
+  margin-top: 120px;
 }
 
 .visual-title {
-  font-size: 52px;
-  line-height: 1.1;
+
+  font-size: 58px;
+
   font-weight: 800;
-  margin-bottom: 20px;
-  letter-spacing: -2px;
+
+  line-height: 1.1;
 }
 
 .visual-description {
+
+  margin-top: 22px;
+
   font-size: 18px;
-  line-height: 1.6;
-  opacity: 0.9;
+
+  line-height: 1.7;
+
+  max-width: 420px;
 }
 
-.visual-footer {
-  z-index: 2;
-  font-size: 13px;
-  opacity: 0.6;
-}
-
-/* ── Lado Formulario (Derecho) ── */
 .auth-form-side {
-  flex: 1.3;
+
+  flex: 1.1;
+
   display: flex;
-  align-items: center;
+
   justify-content: center;
-  padding: 50px 40px;
-  background-color: #FAFAFA;
+
+  align-items: center;
+
+  padding: 50px;
 }
 
 .form-container {
+
   width: 100%;
-  max-width: 520px;
+
+  max-width: 540px;
 }
 
 .form-header h2 {
-  font-size: 32px;
-  font-weight: 800;
-  color: #3A473C;
-  margin-bottom: 4px;
+
+  font-size: 36px;
+
+  color: #2F3B31;
+
+  margin-bottom: 6px;
 }
 
 .form-header p {
-  color: #6C756D;
-  font-size: 15px;
-  margin-bottom: 32px;
+
+  color: #667085;
+
+  margin-bottom: 30px;
 }
 
-/* ── Filas y Grupos de Entrada ── */
 .form-row {
+
   display: grid;
+
   grid-template-columns: 1fr 1fr;
+
   gap: 16px;
 }
 
 .input-group {
-  margin-bottom: 18px;
+
+  margin-bottom: 20px;
+
+  position: relative;
 }
 
 .input-group label {
+
   display: block;
-  font-size: 14px;
-  font-weight: 700;
-  color: #3A473C;
+
   margin-bottom: 8px;
+
+  font-size: 14px;
+
+  font-weight: 700;
+
+  color: #2F3B31;
 }
 
-.custom-input, .custom-select {
+.custom-input {
+
   width: 100%;
-  padding: 13px 16px;
-  border-radius: 14px;
-  border: 2px solid #F4F6F4;
-  background-color: #F4F6F4;
-  font-size: 15px;
-  color: #3A473C;
-  transition: all 0.3s ease;
+
+  height: 56px;
+
+  border-radius: 16px;
+
+  border: 2px solid #EEF2EE;
+
+  background: #F8FAF8;
+
+  padding: 0 18px;
+
+  font-size: 14px;
+
   outline: none;
+
+  transition: 0.25s ease;
+
   box-sizing: border-box;
 }
 
-.custom-select {
-  appearance: none;
-  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='24' height='24' viewBox='0 0 24 24' fill='none' stroke='%236C756D' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'><polyline points='6 9 12 15 18 9'></polyline></svg>");
-  background-repeat: no-repeat;
-  background-position: right 14px center;
-  background-size: 16px;
-  padding-right: 40px;
-}
+.custom-input:focus {
 
-.custom-input:focus, .custom-select:focus {
-  background-color: white;
   border-color: #92A894;
-  box-shadow: 0 8px 20px rgba(146, 168, 148, 0.08);
+
+  background: white;
 }
 
-/* ── Checkbox y Links ── */
-.form-utils {
-  margin: 24px 0;
-}
+.autocomplete-dropdown,
+.phone-dropdown {
 
-.custom-checkbox {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  cursor: pointer;
-  font-size: 13px;
-  color: #6C756D;
-  line-height: 1.4;
-}
+  position: absolute;
 
-.custom-checkbox input {
-  accent-color: #92A894;
-  margin-top: 2px;
-}
+  top: calc(100% + 8px);
 
-.inner-link {
-  color: #92A894;
-  text-decoration: none;
-  font-weight: 700;
-}
+  left: 0;
 
-/* ── Botón Registro ── */
-.btn-register {
   width: 100%;
-  padding: 16px;
-  border-radius: 16px;
+
+  background: white;
+
+  border-radius: 18px;
+
+  box-shadow:
+    0 18px 40px rgba(0,0,0,0.08);
+
+  max-height: 260px;
+
+  overflow: hidden;
+
+  z-index: 999;
+}
+
+.dropdown-item,
+.phone-option {
+
+  width: 100%;
+
   border: none;
-  background-color: #92A894;
-  color: white;
-  font-size: 16px;
-  font-weight: 700;
+
+  background: white;
+
+  padding: 14px 18px;
+
+  text-align: left;
+
   cursor: pointer;
-  transition: all 0.3s ease;
+
+  font-size: 14px;
+
+  display: flex;
+
+  justify-content: space-between;
 }
 
-.btn-register:hover {
-  background-color: #7C927E;
-  transform: translateY(-2px);
-  box-shadow: 0 10px 25px rgba(146, 168, 148, 0.2);
+.dropdown-item:hover,
+.phone-option:hover {
+
+  background: #F5F7F5;
 }
 
-/* ── Footer ── */
-.form-footer {
-  text-align: center;
-  margin-top: 32px;
+.phone-code-btn {
+
+  width: 100%;
+
+  height: 56px;
+
+  border-radius: 16px;
+
+  border: 2px solid #EEF2EE;
+
+  background: #F8FAF8;
+
+  padding: 0 16px;
+
+  display: flex;
+
+  justify-content: space-between;
+
+  align-items: center;
+
+  cursor: pointer;
+}
+
+.dropdown-search {
+
+  width: 100%;
+
+  height: 50px;
+
+  border: none;
+
+  border-bottom:
+    1px solid #EEF2EE;
+
+  padding: 0 16px;
+
+  outline: none;
+}
+
+.phone-list {
+
+  max-height: 200px;
+
+  overflow-y: auto;
+}
+
+.btn-register {
+
+  width: 100%;
+
+  height: 58px;
+
+  border: none;
+
+  border-radius: 18px;
+
+  background:
+    linear-gradient(
+      135deg,
+      #92A894,
+      #7C927E
+    );
+
+  color: white;
+
   font-size: 15px;
-  color: #6C756D;
+
+  font-weight: 800;
+
+  cursor: pointer;
+
+  margin-top: 10px;
+}
+
+.login-link-container {
+
+  margin-top: 24px;
+
+  display: flex;
+
+  justify-content: center;
+
+  gap: 6px;
+
+  font-size: 14px;
+
+  color: #667085;
 }
 
 .login-link {
-  color: #92A894;
-  font-weight: 800;
+
+  color: #7C927E;
+
+  font-weight: 700;
+
   text-decoration: none;
 }
 
-/* ── Responsivo ── */
-@media (max-width: 1024px) {
-  .visual-title { font-size: 40px; }
-  .auth-visual { padding: 40px; }
+.login-link:hover {
+
+  text-decoration: underline;
 }
 
-@media (max-width: 850px) {
-  .auth-visual { display: none; }
-  .auth-form-side { flex: 1; background-color: white; padding: 40px 24px; }
-  .form-row { grid-template-columns: 1fr; gap: 0; }
+.error-box {
+
+  background:
+    rgba(235,119,119,0.12);
+
+  color: #C45252;
+
+  padding: 16px;
+
+  border-radius: 16px;
+
+  margin-bottom: 20px;
+
+  font-weight: 700;
 }
+
+.success-box {
+
+  background:
+    rgba(111,133,114,0.12);
+
+  color: #5C715E;
+
+  padding: 16px;
+
+  border-radius: 16px;
+
+  margin-bottom: 20px;
+
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+
+  .auth-visual {
+
+    display: none;
+  }
+
+  .form-row {
+
+    grid-template-columns: 1fr;
+  }
+
+}
+
 </style>

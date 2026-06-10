@@ -1,17 +1,73 @@
 <script setup>
-import { ref } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
+import { ref, onMounted } from 'vue'
+
+import {
+  RouterLink,
+  useRoute,
+  useRouter
+} from 'vue-router'
 
 const route = useRoute()
+const router = useRouter()
+
 const menuOpen = ref(false)
 
+const showProfileMenu = ref(false)
+
+const usuarioActual = ref(null)
+
 const navLinks = [
+
   { name: 'Inicio', to: '/' },
   { name: 'Mascotas', to: '/mascotas' },
   { name: 'Rescates', to: '/rescates' },
   { name: 'Ayuda / Voluntario', to: '/voluntarios' },
+  { name: 'Donar', to: '/donar' },
   { name: 'Nosotros', to: '/nosotros' },
+
 ]
+
+/* ─────────────────────────────
+   CARGAR SESION
+───────────────────────────── */
+
+onMounted(() => {
+
+  const usuarioGuardado =
+
+    localStorage.getItem(
+      'anhelo_usuario_actual'
+    )
+
+  if (usuarioGuardado) {
+
+    usuarioActual.value =
+
+      JSON.parse(
+        usuarioGuardado
+      )
+
+  }
+
+})
+
+/* ─────────────────────────────
+   CERRAR SESION
+───────────────────────────── */
+
+function cerrarSesion() {
+
+  localStorage.removeItem(
+    'anhelo_usuario_actual'
+  )
+
+  usuarioActual.value = null
+
+  router.push('/')
+
+  location.reload()
+
+}
 </script>
 
 <template>
@@ -39,7 +95,7 @@ const navLinks = [
 
       </RouterLink>
 
-      <!-- DESKTOP LINKS -->
+      <!-- LINKS -->
 
       <nav class="nav-links">
 
@@ -61,19 +117,111 @@ const navLinks = [
 
       <div class="nav-auth">
 
-        <RouterLink
-          to="/login"
-          class="btn-login"
-        >
-          Iniciar sesión
-        </RouterLink>
+        <!-- SIN SESION -->
 
-        <RouterLink
-          to="/registro"
-          class="btn-register"
+        <template v-if="!usuarioActual">
+
+          <RouterLink
+            to="/login"
+            class="btn-login"
+          >
+
+            Iniciar sesión
+
+          </RouterLink>
+
+          <RouterLink
+            to="/registro"
+            class="btn-register"
+          >
+
+            Registrarse
+
+          </RouterLink>
+
+        </template>
+
+        <!-- CON SESION -->
+
+        <div
+          v-else
+          class="profile-dropdown"
         >
-          Registrarse
-        </RouterLink>
+
+          <button
+            class="profile-btn"
+            @click="
+              showProfileMenu =
+              !showProfileMenu
+            "
+          >
+
+            <div class="profile-avatar">
+
+              {{
+                usuarioActual.nombre
+                  ?.charAt(0)
+              }}
+
+            </div>
+
+            <span class="profile-name">
+
+              {{ usuarioActual.nombre }}
+
+            </span>
+
+          </button>
+
+          <div
+            v-if="showProfileMenu"
+            class="dropdown-menu"
+          >
+
+            <RouterLink
+              to="/perfil"
+              class="dropdown-item"
+            >
+
+              Mi perfil
+
+            </RouterLink>
+
+            <RouterLink
+              to="/mis-adopciones"
+              class="dropdown-item"
+            >
+
+              Mis adopciones
+
+            </RouterLink>
+
+            <!-- ADMIN -->
+
+            <RouterLink
+              v-if="
+                usuarioActual.rol === 'Admin'
+              "
+              to="/admin"
+              class="dropdown-item"
+            >
+
+              Panel admin
+
+            </RouterLink>
+
+            <button
+              class="dropdown-item logout"
+              @click="cerrarSesion"
+            >
+
+              Cerrar sesión
+
+            </button>
+
+          </div>
+
+        </div>
 
       </div>
 
@@ -112,23 +260,69 @@ const navLinks = [
 
       </RouterLink>
 
+      <!-- MOBILE AUTH -->
+
       <div class="mobile-auth">
 
-        <RouterLink
-          to="/login"
-          class="btn-login"
-          @click="menuOpen = false"
-        >
-          Iniciar sesión
-        </RouterLink>
+        <template v-if="!usuarioActual">
 
-        <RouterLink
-          to="/registro"
-          class="btn-register"
-          @click="menuOpen = false"
-        >
-          Registrarse
-        </RouterLink>
+          <RouterLink
+            to="/login"
+            class="btn-login"
+            @click="menuOpen = false"
+          >
+
+            Iniciar sesión
+
+          </RouterLink>
+
+          <RouterLink
+            to="/registro"
+            class="btn-register"
+            @click="menuOpen = false"
+          >
+
+            Registrarse
+
+          </RouterLink>
+
+        </template>
+
+        <template v-else>
+
+          <RouterLink
+            to="/perfil"
+            class="btn-login"
+            @click="menuOpen = false"
+          >
+
+            Mi perfil
+
+          </RouterLink>
+
+          <RouterLink
+            v-if="
+              usuarioActual.rol === 'Admin'
+            "
+            to="/admin"
+            class="btn-login"
+            @click="menuOpen = false"
+          >
+
+            Admin
+
+          </RouterLink>
+
+          <button
+            class="btn-register"
+            @click="cerrarSesion"
+          >
+
+            Cerrar sesión
+
+          </button>
+
+        </template>
 
       </div>
 
@@ -275,9 +469,13 @@ const navLinks = [
   border:
     1.5px solid #6F8572;
 
+  background: white;
+
   text-decoration: none;
 
   transition: 0.3s ease;
+
+  cursor: pointer;
 }
 
 .btn-login:hover {
@@ -305,6 +503,8 @@ const navLinks = [
   text-decoration: none;
 
   transition: 0.3s ease;
+
+  cursor: pointer;
 }
 
 .btn-register:hover {
@@ -312,8 +512,139 @@ const navLinks = [
   background: #596B5C;
 
   border-color: #596B5C;
+}
 
-  transform: translateY(-1px);
+/* PROFILE */
+
+.profile-dropdown {
+
+  position: relative;
+}
+
+.profile-btn {
+
+  height: 52px;
+
+  padding: 0 16px;
+
+  border-radius: 999px;
+
+  border: none;
+
+  background: #F4F6F4;
+
+  display: flex;
+
+  align-items: center;
+
+  gap: 12px;
+
+  cursor: pointer;
+}
+
+.profile-btn:hover {
+
+  background: #E7EEE7;
+}
+
+.profile-avatar {
+
+  width: 36px;
+
+  height: 36px;
+
+  border-radius: 50%;
+
+  background:
+    linear-gradient(
+      135deg,
+      #92A894,
+      #7C927E
+    );
+
+  display: flex;
+
+  align-items: center;
+
+  justify-content: center;
+
+  color: white;
+
+  font-size: 15px;
+
+  font-weight: 800;
+}
+
+.profile-name {
+
+  font-size: 14px;
+
+  font-weight: 700;
+
+  color: #2F3B31;
+}
+
+.dropdown-menu {
+
+  position: absolute;
+
+  top: 65px;
+
+  right: 0;
+
+  width: 220px;
+
+  background: white;
+
+  border-radius: 22px;
+
+  padding: 10px;
+
+  box-shadow:
+    0 20px 45px rgba(0,0,0,0.08);
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 4px;
+
+  z-index: 999;
+}
+
+.dropdown-item {
+
+  width: 100%;
+
+  padding: 14px 16px;
+
+  border-radius: 14px;
+
+  border: none;
+
+  background: transparent;
+
+  text-decoration: none;
+
+  text-align: left;
+
+  cursor: pointer;
+
+  color: #2F3B31;
+
+  font-size: 14px;
+
+  font-weight: 700;
+}
+
+.dropdown-item:hover {
+
+  background: #F4F6F4;
+}
+
+.logout {
+
+  color: #C45252;
 }
 
 /* HAMBURGER */
@@ -389,6 +720,8 @@ const navLinks = [
 
   display: flex;
 
+  flex-direction: column;
+
   gap: 12px;
 
   margin-top: 18px;
@@ -426,5 +759,4 @@ const navLinks = [
   }
 
 }
-
 </style>
