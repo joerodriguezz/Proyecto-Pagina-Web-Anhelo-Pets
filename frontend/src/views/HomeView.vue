@@ -117,11 +117,12 @@ const stats = [
       </div>
 
       <div class="hero-content">
-        <h1>Cada animal merece<br>un hogar con <span class="highlight">amor.</span></h1>
-        <p>Rescatamos, cuidamos y encontramos familias responsables para perros y gatos en necesidad. Únete a nuestra misión.</p>
-        <div class="hero-actions">
-          <RouterLink to="/mascotas" class="btn-primary">Ver mascotas</RouterLink>
-        </div>
+        <h1>
+  Cada animal merece<br>
+  un hogar con <span class="highlight">AMOR</span>
+</h1>
+        <p>Rescatamos, cuidamos y encontramos familias responsables para perros y gatos en necesidad.</p>
+        
       </div>
     </div>
   </section>
@@ -182,7 +183,9 @@ const stats = [
         <strong>¿Lista para comenzar?</strong>
         <span>Hay mascotas esperando un hogar ahora mismo.</span>
       </div>
-      <RouterLink to="/mascotas" class="btn-primary">Ver mascotas disponibles →</RouterLink>
+      <RouterLink to="/mascotas" class="cta-button">
+  Ver mascotas disponibles →
+</RouterLink>
     </div>
   </section>
 
@@ -234,11 +237,6 @@ const stats = [
         </div>
       </div>
 
-      <div class="see-all-wrap">
-        <RouterLink to="/mascotas" class="btn-all-pets">
-          Ver todas las mascotas →
-        </RouterLink>
-      </div>
     </div>
   </section>
 
@@ -346,7 +344,12 @@ const stats = [
   letter-spacing: -2px;
 }
 
-.highlight { color: #92A894; }
+.highlight {
+  color: #C9A06A;
+  position: relative;
+  display: inline-block;
+}
+
 
 .hero-content p {
   font-size: 19px;
@@ -501,23 +504,23 @@ const stats = [
 
 /* ─── HOW SECTION ─── */
 .how-section {
-  background: #F4F6F4;
-  padding: 70px 24px 0;
-  height: 77vh;
+  background: #FAF8F5;
+  padding: 60px 24px 40px;
 }
 
 .steps-modern {
-  max-width: 1180px;
-  margin: 40px auto 0;
+  max-width: 1000px;
+  margin: 25px auto 0;
   display: flex;
-  justify-content: space-between;
+  justify-content: center;
   align-items: flex-start;
-  gap: 24px;
+  gap: 40px;
   position: relative;
 }
 
 .step-modern {
-  flex: 1;
+  width: 180px;
+  flex: none;
   position: relative;
   text-align: center;
 }
@@ -615,9 +618,41 @@ const stats = [
   box-shadow: 0 10px 30px rgba(58, 71, 60, 0.12);
 }
 
-.cta-text { display: flex; flex-direction: column; gap: 4px; }
-.cta-text strong { font-size: 20px; color: #FFFFFF; font-weight: 800; }
-.cta-text span   { font-size: 14px; color: #92A894; font-weight: 500; }
+
+.cta-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: center;
+  align-items: center;
+}
+
+.cta-text strong {
+  font-size: 24px;
+  color: #FFFFFF;
+  font-weight: 800;
+}
+
+.cta-text span {
+  font-size: 15px;
+  color: #E8D8C3;
+  font-weight: 500;
+}
+
+.cta-button {
+  background: #F5E6D3;
+  color: #3A473C;
+  padding: 14px 28px;
+  border-radius: 14px;
+  text-decoration: none;
+  font-weight: 700;
+  transition: 0.25s ease;
+}
+
+.cta-button:hover {
+  background: #E8D8C3;
+  color: #3A473C;
+}
 
 /* ─── FEATURED PETS (FOTOS EXTRAÍDAS TOTALMENTE) ─── */
 .featured-section {
@@ -626,11 +661,25 @@ const stats = [
   border-top: 2px solid #F4F6F4;
 }
 
+
 .pets-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 20px;
   margin-bottom: 36px;
+}
+
+.pet-photo {
+  width: 100%;
+  height: 260px;
+  overflow: hidden;
+}
+
+.pet-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
 }
 
 .pet-card {
@@ -640,6 +689,9 @@ const stats = [
   overflow: hidden;
   box-shadow: 0 4px 20px rgba(58, 71, 60, 0.02);
   transition: all 0.25s ease;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
 }
 
 .pet-card:hover {
@@ -648,7 +700,12 @@ const stats = [
   transform: translateY(-3px);
 }
 
-.pet-info    { padding: 24px; }
+.pet-info {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
 
 .pet-header {
   display: flex;
@@ -665,6 +722,7 @@ const stats = [
   color: #3A473C;
   line-height: 1.6;
   margin-bottom: 18px;
+  flex: 1;
 }
 
 .pet-btn {
@@ -681,12 +739,19 @@ const stats = [
   justify-content: center;
   align-items: center;
   transition: all 0.2s ease;
+
+  margin-top: auto;
 }
 
 .pet-card:hover .pet-btn {
   background: #3A473C;
   border-color: #3A473C;
   color: #FFFFFF;
+}
+
+.pet-btn,
+.en-proceso-block {
+  margin-top: auto;
 }
 
 .see-all-wrap { text-align: center; }
@@ -726,7 +791,20 @@ const stats = [
   transition: all 0.35s ease;
   position: relative;
   overflow: hidden;
+
+  display: flex;
+  flex-direction: column;
 }
+
+.help-card p {
+  font-size: 15px;
+  line-height: 1.7;
+  color: #6C756D;
+  margin-bottom: 24px;
+
+  flex: 1;
+}
+
 
 .help-card::before {
   content: '';
@@ -766,6 +844,32 @@ const stats = [
 
 .help-card h3 { font-size: 24px; font-weight: 800; margin-bottom: 14px; color: #3A473C; letter-spacing: -0.5px; }
 .help-card p  { font-size: 15px; line-height: 1.7; color: #6C756D; margin-bottom: 24px; }
+
+
+.help-card .btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px 24px;
+  background: #3A473C !important;
+  color: #FFFFFF !important;
+  border: 2px solid #3A473C !important;
+  border-radius: 14px;
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 700;
+  transition: 0.25s ease;
+
+  margin-top: auto;
+}
+
+.help-card .btn-primary:hover {
+  background: #2D372F !important;
+  border-color: #2D372F !important;
+  color: #FFFFFF !important;
+  transform: translateY(-2px);
+}
+
 
 /* ─── Títulos de sección ─── */
 .section-title {

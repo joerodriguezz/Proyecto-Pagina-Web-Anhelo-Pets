@@ -2,50 +2,6 @@
 import NavBar from '../components/NavBar.vue'
 import FooterBar from '../components/FooterBar.vue'
 
-const team = [
-
- {
-  name:'Shirley',
-  image:'/img-nosotros/Veronica.jpg.avif',
-  role:'Fundadora',
-  story:'Todo comenzó cuando decidió ayudar animales abandonados en el malecón de Quepos. Su empatía y compromiso dieron inicio a Anhelo Pets.'
-},
-
-{
-  name:'Andrés Molina',
-  image:'/img-nosotros/Hombre.avif',
-  role:'Rescate y logística',
-  story:'Participa en rescates, traslados y apoyo veterinario para mascotas en situaciones vulnerables.'
-},
-
-{
-  name:'Julie Fernández',
-  image:'/img-nosotros/Volunteer-Julie.jpg.avif',
-  role:'Casa cuna',
-  story:'Brinda hogares temporales llenos de cuidado y paciencia para animales en recuperación.'
-},
-
-{
-  name:'Merxe Ramírez',
-  image:'/img-nosotros/Volunteer-Merxe.jpg.avif',
-  role:'Eventos de adopción',
-  story:'Ayuda a conectar familias con mascotas rescatadas mediante actividades y ferias.'
-},
-
-{
-  name:'Samuel Vargas',
-  image:'/img-nosotros/VOlunteer-Sam.jpg.avif',
-  role:'Apoyo comunitario',
-  story:'Colabora promoviendo la adopción responsable y el bienestar animal en la comunidad.'
-},
-
-{
-  name:'Camila Rojas',
-  image:'/img-nosotros/IMG-20200727-WA0003.jpg.avif',
-  role:'Comunicación',
-  story:'Crea contenido y campañas para dar visibilidad a rescates y adopciones.'
-}
-]
 
 const gallery = [
 
@@ -72,7 +28,7 @@ const gallery = [
   <section class="hero">
 
     <img
-      src="/img-nosotros/Portada.JPG"
+      src="/img-nosotros/hero.PNG"
       class="hero-image"
     >
 
@@ -100,68 +56,103 @@ const gallery = [
 
     <div class="history-card">
 
-      <!-- IMAGEN -->
+  <!-- IMAGEN -->
 
-      <div class="history-image-side">
+<div class="history-image-side">
 
-        <img
-          src="/img-nosotros/inicio.jpg"
-          class="history-main-image"
-        >
+  <img
+    src="/img-nosotros/inicioanhelo.PNG"
+    class="history-main-image"
+  >
+
+</div>
+
+<!-- TEXTO -->
+
+<div class="history-content-side">
+
+  <h2>
+    El inicio de
+    Anhelo Pets
+  </h2>
+
+  <div class="history-text">
+
+    <p>
+      Todo comenzó con un simple acto de empatía.
+    </p>
+
+    <p>
+      Al ver la realidad que enfrentaban muchos perros y gatos
+      en situación de abandono en Quepos, nació el deseo de
+      ayudar, rescatar y brindar una segunda oportunidad a
+      quienes más lo necesitaban.
+    </p>
+
+    <p>
+      Lo que inició con pequeños rescates y apoyo voluntario
+      fue creciendo hasta convertirse en una comunidad unida
+      por el amor y el compromiso con el bienestar animal.
+    </p>
+
+    <p>
+      Hoy, gracias al esfuerzo de voluntarios, casas cuna,
+      adoptantes y personas solidarias, Anhelo Pets continúa
+      transformando historias de abandono en historias de
+      recuperación, esperanza y nuevos comienzos.
+    </p>
+
+  </div>
+
+</div>
+    </div>
+
+  </section>
+
+
+  
+<section class="about-background">
+
+  
+
+  <!-- MISIÓN Y VISIÓN -->
+
+  <section class="purpose-section">
+
+    <div class="purpose-container">
+
+      <div class="purpose-header">
+
+        <h2>
+    
+        </h2>
 
       </div>
 
-      <!-- TEXTO -->
+      <div class="purpose-grid">
 
-      <div class="history-content-side">
+        <div class="purpose-box">
 
-        <span class="history-label">
-          NUESTRA HISTORIA
-        </span>
-
-        <h2>
-          El inicio de
-          Anhelo Pets
-        </h2>
-
-        <div class="history-text">
+          <h3>Misión</h3>
 
           <p>
-            Todo comenzó en 2018 en el malecón de Quepos,
-            cuando la fundadora de Anhelo Pets empezó
-            a encontrar perros y gatos abandonados viviendo
-            entre las calles, muchas veces enfermos,
-            desnutridos o heridos.
+            Rescatar, rehabilitar y proteger animales en situación
+            de abandono o vulnerabilidad, promoviendo adopciones
+            responsables y creando conciencia sobre el bienestar
+            animal mediante el trabajo comunitario y la educación.
           </p>
 
-          <p>
-            Le impactó ver cómo tantas personas pasaban
-            de largo mientras los animales buscaban comida,
-            refugio o simplemente un poco de atención.
-          </p>
+        </div>
+
+        <div class="purpose-box">
+
+          <h3>Visión</h3>
 
           <p>
-            Lo que inició ayudando con alimento y rescates
-            pequeños, poco a poco se convirtió en una red
-            de apoyo formada por amigos, vecinos y
-            voluntarios que compartían el mismo deseo
-            de cambiar vidas.
-          </p>
-
-          <p>
-            Con el tiempo comenzaron los hogares temporales,
-            los traslados veterinarios y las primeras
-            adopciones responsables, permitiendo que muchos
-            animales pudieran recuperarse y encontrar una
-            familia segura.
-          </p>
-
-          <p>
-            Hoy Anhelo Pets continúa creciendo como una
-            comunidad dedicada al rescate, rehabilitación
-            y protección animal, demostrando que incluso
-            un pequeño acto de empatía puede transformar
-            cientos de historias.
+            Ser una organización referente en protección animal
+            en Costa Rica, construyendo una sociedad donde cada
+            mascota tenga acceso a una vida digna, segura y llena
+            de amor dentro de una familia responsable.
           </p>
 
         </div>
@@ -172,57 +163,6 @@ const gallery = [
 
   </section>
 
-  <!-- MISIÓN Y VISIÓN -->
-
-<section class="purpose-section">
-
-  <div class="purpose-container">
-
-    <div class="purpose-header">
-
-      <span>NUESTRA ESENCIA</span>
-
-      <h2>
-        Comprometidos con cada vida que rescatamos
-      </h2>
-
-    </div>
-
-    <div class="purpose-grid">
-
-      <div class="purpose-box">
-
-        <h3>Misión</h3>
-
-        <p>
-          Rescatar, rehabilitar y proteger animales en situación
-          de abandono o vulnerabilidad, promoviendo adopciones
-          responsables y creando conciencia sobre el bienestar
-          animal mediante el trabajo comunitario y la educación.
-        </p>
-
-      </div>
-
-      <div class="purpose-box">
-
-        <h3>Visión</h3>
-
-        <p>
-          Ser una organización referente en protección animal
-          en Costa Rica, construyendo una sociedad donde cada
-          mascota tenga acceso a una vida digna, segura y llena
-          de amor dentro de una familia responsable.
-        </p>
-
-      </div>
-
-    </div>
-
-  </div>
-
-</section>
-
-  
   <!-- GALERÍA -->
 
   <section class="gallery-section">
@@ -246,70 +186,41 @@ const gallery = [
 
   </section>
 
-  <!-- EQUIPO -->
+</section>
 
-  <section class="team-section">
-
-    <div class="section-heading">
-
-      <span>
-        VOLUNTARIOS
-      </span>
-
-      <h2>
-        Personas detrás del cambio
-      </h2>
-
-      <p>
-        Historias de empatía, rescate y segundas oportunidades.
-      </p>
-
-    </div>
-
-    <div class="team-grid">
-
-      <div
-        class="team-card"
-        v-for="person in team"
-        :key="person.name"
-      >
-
-        <div class="team-image-wrap">
-
-          <img
-            :src="person.image"
-            class="team-image"
-          >
-
-        </div>
-
-        <div class="team-content">
-
-          <span class="team-role">
-            {{ person.role }}
-          </span>
-
-          <h3>
-            {{ person.name }}
-          </h3>
-
-          <p>
-            {{ person.story }}
-          </p>
-
-        </div>
-
-      </div>
-
-    </div>
-
-  </section>
 
   <FooterBar />
 
 </template>
 
 <style scoped>
+
+.about-background {
+
+  background-image: url('/img-nosotros/fondo.PNG');
+
+  background-size: cover;
+
+  background-position: center;
+
+  background-repeat: no-repeat;
+
+  position: relative;
+}
+
+.about-background::before {
+
+  content: '';
+
+  position: absolute;
+
+  inset: 0;
+
+  background: rgba(58,71,60,0.55);
+}
+
+.purpose-section,
+
 
 /* GENERAL */
 
@@ -419,7 +330,7 @@ const gallery = [
 
   display: grid;
 
-  grid-template-columns: 0.8fr 1.2fr;
+  grid-template-columns: 0.7fr 1.3fr;
 
   overflow: hidden;
 
@@ -445,7 +356,7 @@ const gallery = [
 
   width: 100%;
 
-  height: 100%;
+  height: 420px;
 
   object-fit: cover;
 
@@ -463,7 +374,7 @@ const gallery = [
 
 .history-content-side {
 
-  padding: 34px;
+  padding: 28px;
 
   display: flex;
 
@@ -483,7 +394,7 @@ const gallery = [
   background:
     rgba(146,168,148,0.14);
 
-  color: #92A894;
+  color: #3A473C;
 
   font-size: 11px;
 
@@ -535,8 +446,14 @@ const gallery = [
 
 .gallery-section {
 
+  position: relative;
+
+  z-index: 2;
+
+  background: transparent;
+
   padding:
-    10px 0
+    60px 0
     90px;
 
   overflow: hidden;
@@ -612,12 +529,12 @@ const gallery = [
     20px 24px
     80px;
 
-  background: #FAFAFA;
+  background: transparent;
 }
 
 .purpose-container {
 
-  max-width: 1120px;
+  max-width: 1000px;
 
   margin: 0 auto;
 }
@@ -631,7 +548,7 @@ const gallery = [
 
 .purpose-header span {
 
-  color: #92A894;
+  color: #3A473C;
 
   font-size: 12px;
 
@@ -667,19 +584,20 @@ const gallery = [
 
 .purpose-box {
 
-  background: white;
+  background: rgba(255,255,255,0.88);
 
-  padding: 34px;
+  backdrop-filter: blur(12px);
+
+  -webkit-backdrop-filter: blur(12px);
+
+  border: 1px solid rgba(255,255,255,0.30);
 
   border-radius: 28px;
 
-  border:
-    1px solid rgba(146,168,148,0.10);
+  padding: 28px;
 
   box-shadow:
-    0 10px 30px rgba(58,71,60,0.05);
-
-  transition: 0.35s ease;
+    0 12px 30px rgba(58,71,60,0.10);
 }
 
 .purpose-box:hover {
@@ -731,7 +649,7 @@ const gallery = [
 
 .section-heading span {
 
-  color: #92A894;
+  color: #3A473C;
 
   font-size: 12px;
 
@@ -837,7 +755,7 @@ const gallery = [
 
   letter-spacing: 1px;
 
-  color: #92A894;
+  color: #3A473C;
 
   display: block;
 

@@ -427,7 +427,7 @@ import FooterBar from '../components/FooterBar.vue'
 
 .hero-left h1 {
 
-  font-size: 76px;
+  font-size: 58px;
 
   line-height: 0.92;
 
@@ -435,18 +435,18 @@ import FooterBar from '../components/FooterBar.vue'
 
   font-weight: 800;
 
-  color: #2F3B31;
+  color: #3A473C;
 
   margin-bottom: 30px;
 }
 
 .hero-text {
 
-  font-size: 17px;
+  font-size: 15px;
 
   line-height: 1.95;
 
-  color: #667085;
+  color: #6C756D;
 
   margin-bottom: 20px;
 
@@ -457,7 +457,7 @@ import FooterBar from '../components/FooterBar.vue'
 
   width: 100%;
 
-  height: 650px;
+  height: 480px;
 
   object-fit: cover;
 
@@ -486,25 +486,17 @@ import FooterBar from '../components/FooterBar.vue'
 }
 
 .section-header h2 {
-
-  font-size: 58px;
-
+  font-size: 42px;
   font-weight: 800;
-
-  color: #2F3B31;
-
-  margin-bottom: 18px;
-
-  letter-spacing: -3px;
+  color: #3A473C;
+  margin-bottom: 12px;
+  letter-spacing: -1px;
 }
 
 .section-header p {
-
-  font-size: 17px;
-
-  color: #667085;
-
-  line-height: 1.8;
+  font-size: 15px;
+  color: #6C756D;
+  line-height: 1.7;
 }
 
 /* PAYPAL */
@@ -514,8 +506,8 @@ import FooterBar from '../components/FooterBar.vue'
   background:
     linear-gradient(
       135deg,
-      #859B87,
-      #708472
+      #3A473C,
+      #2D372F
     );
 
   border-radius: 40px;
@@ -547,7 +539,7 @@ import FooterBar from '../components/FooterBar.vue'
 .paypal-left p {
 
   color:
-    rgba(255,255,255,0.85);
+    rgba(255,255,255,0.90);
 
   line-height: 1.9;
 
@@ -595,7 +587,7 @@ import FooterBar from '../components/FooterBar.vue'
 
   background: white;
 
-  color: #2F3B31;
+  color: #3A473C;
 }
 
 .other-amount {
@@ -608,7 +600,7 @@ import FooterBar from '../components/FooterBar.vue'
 
   background: white;
 
-  color: #2F3B31;
+  color: #3A473C;
 
   text-decoration: none;
 
@@ -655,7 +647,7 @@ import FooterBar from '../components/FooterBar.vue'
 
   font-weight: 800;
 
-  color: #2F3B31;
+  color: #3A473C;
 
   margin-bottom: 14px;
 }
@@ -666,14 +658,14 @@ import FooterBar from '../components/FooterBar.vue'
 
   line-height: 1.8;
 
-  color: #667085;
+  color: #6C756D;
 
   margin-bottom: 24px;
 }
 
 .info-box {
 
-  background: #F8FAF8;
+  background: #F4F6F4;
 
   border-radius: 18px;
 
@@ -697,7 +689,7 @@ import FooterBar from '../components/FooterBar.vue'
 
 .info-box strong {
 
-  color: #2F3B31;
+  color: #3A473C;
 
   font-size: 14px;
 
@@ -731,29 +723,17 @@ import FooterBar from '../components/FooterBar.vue'
 }
 
 .supply-header h2 {
-
-  font-size: 56px;
-
-  font-weight: 800;
-
-  color: #2F3B31;
-
-  margin-bottom: 18px;
-
-  letter-spacing: -3px;
+  font-size: 38px;
+  letter-spacing: -1px;
 }
 
 .supply-header p {
 
   font-size: 17px;
 
-  color: #667085;
+  color: #6C756D;
 
   line-height: 1.8;
-
-  max-width: 700px;
-
-  margin: auto;
 }
 
 .supplies-grid {
@@ -767,7 +747,7 @@ import FooterBar from '../components/FooterBar.vue'
 
 .supply-box {
 
-  background: #F8FAF8;
+  background: #F4F6F4;
 
   border-radius: 28px;
 
@@ -797,7 +777,7 @@ import FooterBar from '../components/FooterBar.vue'
 
   font-weight: 800;
 
-  color: #2F3B31;
+  color: #3A473C;
 
   margin-bottom: 14px;
 }
@@ -808,7 +788,7 @@ import FooterBar from '../components/FooterBar.vue'
 
   line-height: 1.8;
 
-  color: #667085;
+  color: #6C756D;
 }
 
 /* FINAL */
@@ -819,7 +799,7 @@ import FooterBar from '../components/FooterBar.vue'
     linear-gradient(
       180deg,
       #F4F6F4 0%,
-      #EEF2EE 100%
+      #F4F6F4 100%
     );
 
   padding:
@@ -836,8 +816,8 @@ import FooterBar from '../components/FooterBar.vue'
   background:
     linear-gradient(
       135deg,
-      #859B87,
-      #708472
+      #3A473C,
+      #2D372F
     );
 
   border-radius: 42px;
@@ -895,22 +875,11 @@ import FooterBar from '../components/FooterBar.vue'
 }
 
 .final-box h2 {
-
-  font-size: 68px;
-
+  font-size: 48px;
   font-weight: 800;
-
-  line-height: 0.95;
-
-  color: white;
-
-  margin-bottom: 28px;
-
-  letter-spacing: -4px;
-
-  position: relative;
-
-  z-index: 2;
+  line-height: 1;
+  letter-spacing: -2px;
+  margin-bottom: 18px;
 }
 
 .final-box p {
