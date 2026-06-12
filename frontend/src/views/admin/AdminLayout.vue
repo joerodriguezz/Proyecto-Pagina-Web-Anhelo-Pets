@@ -5,20 +5,49 @@ import { RouterLink, useRoute } from 'vue-router'
 const route = useRoute()
 const sidebarOpen = ref(true)
 
+
 const navItems = [
-  { to:'/admin',             label:'Dashboard' },
-  { to:'/admin/mascotas',    label:'Mascotas' },
-  { to:'/admin/adopciones',  label:'Adopciones' },
-  { to:'/admin/rescates',    label:'Rescates' },
-  { to:'/admin/salud',       label:'Salud' },
-  { to:'/admin/usuarios',    label:'Usuarios' },
-  { to:'/admin/donaciones',  label:'Donaciones' },
-  { to:'/admin/voluntarios',  label:'Voluntarios' },
-
-
-
+  {
+    to: '/admin',
+    label: 'Dashboard',
+    icon: '/img-voluntarios/dashboard.svg'
+  },
+  {
+    to: '/admin/mascotas',
+    label: 'Mascotas',
+    icon: '/img-voluntarios/mascotas.svg'
+  },
+  {
+    to: '/admin/adopciones',
+    label: 'Adopciones',
+    icon: '/img-voluntarios/adopciones.svg'
+  },
+  {
+    to: '/admin/rescates',
+    label: 'Rescates',
+    icon: '/img-voluntarios/rescates.svg'
+  },
+  {
+    to: '/admin/salud',
+    label: 'Salud',
+    icon: '/img-voluntarios/salud.svg'
+  },
+  {
+    to: '/admin/usuarios',
+    label: 'Usuarios',
+    icon: '/img-voluntarios/usuarios.svg'
+  },
+  {
+    to: '/admin/donaciones',
+    label: 'Donaciones',
+    icon: '/img-voluntarios/donacion.svg'
+  },
+  {
+    to: '/admin/voluntarios',
+    label: 'Voluntarios',
+    icon: '/img-voluntarios/voluntario.svg'
+  }
 ]
-
 const isActive = (to) => {
   if (to === '/admin') return route.path === '/admin'
   return route.path.startsWith(to)
@@ -39,27 +68,55 @@ const isActive = (to) => {
       </div>
 
       <nav class="sidebar-nav">
-        <RouterLink
-          v-for="item in navItems"
-          :key="item.to"
-          :to="item.to"
-          class="nav-item"
-          :class="{ active: isActive(item.to) }"
-        >
-          <span class="nav-label">{{ item.label }}</span>
-        </RouterLink>
-      </nav>
+  <RouterLink
+    v-for="item in navItems"
+    :key="item.to"
+    :to="item.to"
+    class="nav-item"
+    :class="{ active: isActive(item.to) }"
+  >
+    <img
+      :src="item.icon"
+      :alt="item.label"
+      class="nav-icon"
+    >
+
+    <span
+      v-if="sidebarOpen"
+      class="nav-label"
+    >
+      {{ item.label }}
+    </span>
+  </RouterLink>
+</nav>
 
       <div class="sidebar-footer">
-        <RouterLink to="/" class="nav-item-footer">
-          <span v-if="sidebarOpen">Ver sitio web</span>
-          <span v-else class="footer-dot">·</span>
-        </RouterLink>
-        <RouterLink to="/login" class="nav-item-footer logout">
-          <span v-if="sidebarOpen">Cerrar sesión</span>
-          <span v-else class="footer-dot">×</span>
-        </RouterLink>
-      </div>
+
+  <RouterLink to="/" class="nav-item-footer">
+    <img
+      src="/img-voluntarios/web.svg"
+      alt="Web"
+      class="footer-icon"
+    >
+
+    <span v-if="sidebarOpen">
+      Ver sitio web
+    </span>
+  </RouterLink>
+
+  <RouterLink to="/login" class="nav-item-footer logout">
+    <img
+      src="/img-voluntarios/cerrar.svg"
+      alt="Cerrar sesión"
+      class="footer-icon"
+    >
+
+    <span v-if="sidebarOpen">
+      Cerrar sesión
+    </span>
+  </RouterLink>
+
+</div>
     </aside>
 
     <div class="admin-main">
@@ -186,6 +243,7 @@ const isActive = (to) => {
 .nav-item {
   display: flex;
   align-items: center;
+  gap: 12px;
   padding: 12px 16px;
   border-radius: 12px;
   color: rgba(255, 255, 255, 0.65);
@@ -196,9 +254,20 @@ const isActive = (to) => {
   white-space: nowrap;
 }
 
+.nav-icon {
+  width: 24px;
+  height: 24px;
+  object-fit: contain;
+}
+
 .admin-shell.collapsed .nav-item {
   justify-content: center;
   padding: 12px 0;
+}
+
+.admin-shell.collapsed .nav-icon {
+  width: 24px;
+  height: 24px;
 }
 
 .nav-item:hover {

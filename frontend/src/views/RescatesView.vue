@@ -48,10 +48,6 @@ const stories = [
 
       <div class="hero-content">
 
-        <span class="hero-tag">
-          HISTORIAS REALES
-        </span>
-
         <h1>
           Cada rescate
           merece una
@@ -75,9 +71,7 @@ const stories = [
 
         <div class="stories-header">
 
-          <span>
-            RESCATES
-          </span>
+    
 
           <h2>
             Historias que
@@ -110,9 +104,7 @@ const stories = [
 
             <div class="story-content">
 
-              <span class="story-label">
-                Rescate
-              </span>
+            
 
               <h3>
                 {{ story.title }}
@@ -128,47 +120,7 @@ const stories = [
 
         </div>
 
-        <!-- IMPACT -->
-
-        <div class="impact-grid">
-
-          <div class="impact-item">
-
-            <h3>
-              +350
-            </h3>
-
-            <p>
-              Mascotas rescatadas
-            </p>
-
-          </div>
-
-          <div class="impact-item">
-
-            <h3>
-              +120
-            </h3>
-
-            <p>
-              Adopciones exitosas
-            </p>
-
-          </div>
-
-          <div class="impact-item">
-
-            <h3>
-              +80
-            </h3>
-
-            <p>
-              Voluntarios activos
-            </p>
-
-          </div>
-
-        </div>
+      
 
 
       </div>
@@ -189,7 +141,7 @@ const stories = [
 
 .rescates-page {
 
-  background: #FAFAFA;
+  background: #FFFFFF;
 }
 
 /* HERO */
@@ -227,12 +179,12 @@ const stories = [
   inset: 0;
 
   background:
-    linear-gradient(
-      90deg,
-      rgba(58,71,60,0.82) 0%,
-      rgba(58,71,60,0.45) 45%,
-      rgba(58,71,60,0.10) 100%
-    );
+  linear-gradient(
+    90deg,
+    rgba(58,71,60,0.88) 0%,
+    rgba(58,71,60,0.58) 45%,
+    rgba(58,71,60,0.18) 100%
+  );
 }
 
 .hero-content {
@@ -291,7 +243,7 @@ const stories = [
 
 .hero-content h1 span {
 
-  color: #F9C17A;
+  color: #C9A06A;
 }
 
 .hero-content p {
@@ -309,11 +261,12 @@ const stories = [
 
 .stories-section {
 
-  padding:
-    130px 24px
-    170px;
-}
+  background: #FAF8F5;
 
+  padding:
+    100px 24px
+    120px;
+}
 .container {
 
   max-width: 1240px;
@@ -330,7 +283,7 @@ const stories = [
 
 .stories-header span {
 
-  color: #92A894;
+  color: #C9A06A;
 
   font-size: 12px;
 
@@ -380,14 +333,13 @@ const stories = [
 
 .story-card {
 
-  background: white;
+  background: #FFFFFF;
 
   border-radius: 30px;
 
   overflow: hidden;
 
-  border:
-    1px solid rgba(146,168,148,0.10);
+  border: 2px solid #F4F6F4;
 
   transition: 0.4s ease;
 
@@ -396,12 +348,9 @@ const stories = [
 }
 
 .story-card:hover {
-
-  transform:
-    translateY(-8px);
-
-  box-shadow:
-    0 16px 42px rgba(58,71,60,0.10);
+  transform: translateY(-8px);
+  border-color: #92A894;
+  box-shadow: 0 16px 42px rgba(58,71,60,0.08);
 }
 
 .story-image-wrap {
@@ -440,9 +389,9 @@ const stories = [
 
   border-radius: 999px;
 
-  background: #FFF1DD;
+  background: #F5E6D3;
 
-  color: #D89A47;
+  color: #A07A52;
 
   font-size: 12px;
 
@@ -489,7 +438,7 @@ const stories = [
 
 .impact-item {
 
-  background: white;
+  background: #F4F6F4;
 
   border-radius: 28px;
 
@@ -497,8 +446,7 @@ const stories = [
 
   text-align: center;
 
-  border:
-    1px solid rgba(146,168,148,0.10);
+  border: 1px solid #EEF3F0;
 
   box-shadow:
     0 10px 35px rgba(58,71,60,0.04);
@@ -508,7 +456,7 @@ const stories = [
 
   font-size: 54px;
 
-  color: #92A894;
+  color: #3A473C;
 
   font-weight: 800;
 
@@ -564,11 +512,12 @@ const stories = [
     font-size: 40px;
   }
 
+
   .stories-section {
 
     padding:
-      90px 20px
-      120px;
+      70px 20px
+      90px;
   }
 
 }

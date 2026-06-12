@@ -391,14 +391,14 @@ function cerrarSesion() {
 
   letter-spacing: -1.5px;
 
-  color: #1F2937;
+  color: #3A473C;
 
   line-height: 1;
 }
 
 .logo-green {
 
-  color: #6F8572;
+  color: #C9A06A;
 }
 
 /* LINKS */

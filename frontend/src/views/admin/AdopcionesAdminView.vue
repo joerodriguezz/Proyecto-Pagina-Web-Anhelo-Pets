@@ -69,12 +69,9 @@ function guardarSolicitudes() {
 
 /* ─────────────────────────────
    SINCRONIZAR MASCOTA
-   Actualiza el estado de la
-   mascota en el store y persiste
 ───────────────────────────── */
 function sincronizarMascota(solicitud, nuevoEstadoMascota) {
 
-  // Buscar por petId primero; si no existe, buscar por nombre (compatibilidad)
   const petId = solicitud.petId
   const nombreMascota = solicitud.mascota
 
@@ -90,60 +87,39 @@ function sincronizarMascota(solicitud, nuevoEstadoMascota) {
 
 /* ─────────────────────────────
    EN PROCESO
-   solicitud → "En proceso"
-   mascota   → "En proceso"
 ───────────────────────────── */
 function procesoSolicitud(id) {
 
-  const solicitud =
-    solicitudes.value.find(s => s.id === id)
-
+  const solicitud = solicitudes.value.find(s => s.id === id)
   if (!solicitud) return
-
   solicitud.estado = 'En proceso'
-
   guardarSolicitudes()
-
   sincronizarMascota(solicitud, 'En proceso')
 
 }
 
 /* ─────────────────────────────
    APROBAR
-   solicitud → "Aprobada"
-   mascota   → "Adoptada"
 ───────────────────────────── */
 function aprobarSolicitud(id) {
 
-  const solicitud =
-    solicitudes.value.find(s => s.id === id)
-
+  const solicitud = solicitudes.value.find(s => s.id === id)
   if (!solicitud) return
-
   solicitud.estado = 'Aprobada'
-
   guardarSolicitudes()
-
   sincronizarMascota(solicitud, 'Adoptada')
 
 }
 
 /* ─────────────────────────────
    RECHAZAR
-   solicitud → "Rechazada"
-   mascota   → "Disponible"
 ───────────────────────────── */
 function rechazarSolicitud(id) {
 
-  const solicitud =
-    solicitudes.value.find(s => s.id === id)
-
+  const solicitud = solicitudes.value.find(s => s.id === id)
   if (!solicitud) return
-
   solicitud.estado = 'Rechazada'
-
   guardarSolicitudes()
-
   sincronizarMascota(solicitud, 'Disponible')
 
 }
@@ -154,7 +130,6 @@ function rechazarSolicitud(id) {
 function verDetalle(solicitud) {
 
   selectedRequest.value = solicitud
-
   showDetailModal.value = true
 
 }
@@ -165,743 +140,804 @@ function verDetalle(solicitud) {
 const statusClass = (estado) => {
 
   return {
-    'Pendiente':  'badge-yellow',
+    'Pendiente':  'badge-peach',
     'En proceso': 'badge-blue',
     'Aprobada':   'badge-green',
-    'Rechazada':  'badge-red'
+    'Rechazada':  'badge-red',
   }[estado] || 'badge-gray'
 
 }
 </script>
 
 <template>
-
   <div class="view-container">
 
-    <!-- HEADER -->
+    <!-- ══════════════════════════════════════
+         CABECERA
+    ══════════════════════════════════════ -->
     <header class="page-header">
-
-      <h1 class="admin-page-title">
-        Solicitudes de Adopción
-      </h1>
-
-      <div class="filter-chips">
-
-        <button
-          v-for="s in [
-            'Todos',
-            'Pendiente',
-            'En proceso',
-            'Aprobada',
-            'Rechazada'
-          ]"
-          :key="s"
-          class="chip"
-          :class="{ active: filterStatus === s }"
-          @click="filterStatus = s"
-        >
-          {{ s }}
-        </button>
-
+      <div class="header-text">
+        <h1 class="page-title">Solicitudes de Adopción</h1>
+        <p class="page-sub">Gestión y seguimiento de solicitudes recibidas</p>
       </div>
-
     </header>
 
-    <!-- RESUMEN -->
-    <div class="summary-row">
+    <!-- ══════════════════════════════════════
+         TARJETAS DE ESTADÍSTICAS
+    ══════════════════════════════════════ -->
+    <div class="stats-grid">
 
-      <div class="sum-card pending">
-        <span class="sum-label">Pendientes</span>
-        <strong class="sum-value">
-          {{ solicitudes.filter(s => s.estado === 'Pendiente').length }}
-        </strong>
+      <div class="stat-card stat-pending">
+        <div class="stat-icon"></div>
+        <div class="stat-body">
+          <div class="stat-value">{{ solicitudes.filter(s => s.estado === 'Pendiente').length }}</div>
+          <div class="stat-label">Pendientes</div>
+          <div class="stat-desc">En espera de revisión</div>
+        </div>
       </div>
 
-      <div class="sum-card process">
-        <span class="sum-label">En proceso</span>
-        <strong class="sum-value">
-          {{ solicitudes.filter(s => s.estado === 'En proceso').length }}
-        </strong>
+      <div class="stat-card stat-process">
+        <div class="stat-icon"></div>
+        <div class="stat-body">
+          <div class="stat-value">{{ solicitudes.filter(s => s.estado === 'En proceso').length }}</div>
+          <div class="stat-label">En proceso</div>
+          <div class="stat-desc">Actualmente evaluadas</div>
+        </div>
       </div>
 
-      <div class="sum-card approved">
-        <span class="sum-label">Aprobadas</span>
-        <strong class="sum-value">
-          {{ solicitudes.filter(s => s.estado === 'Aprobada').length }}
-        </strong>
+      <div class="stat-card stat-approved">
+        <div class="stat-icon"></div>
+        <div class="stat-body">
+          <div class="stat-value">{{ solicitudes.filter(s => s.estado === 'Aprobada').length }}</div>
+          <div class="stat-label">Aprobadas</div>
+          <div class="stat-desc">Adopciones confirmadas</div>
+        </div>
       </div>
 
-      <div class="sum-card rejected">
-        <span class="sum-label">Rechazadas</span>
-        <strong class="sum-value">
-          {{ solicitudes.filter(s => s.estado === 'Rechazada').length }}
-        </strong>
+      <div class="stat-card stat-rejected">
+        <div class="stat-icon"></div>
+        <div class="stat-body">
+          <div class="stat-value">{{ solicitudes.filter(s => s.estado === 'Rechazada').length }}</div>
+          <div class="stat-label">Rechazadas</div>
+          <div class="stat-desc">No aprobadas</div>
+        </div>
       </div>
 
-      <div class="sum-card total">
-        <span class="sum-label">Total</span>
-        <strong class="sum-value">
-          {{ solicitudes.length }}
-        </strong>
-      </div>
-
-    </div>
-
-    <!-- TABLA -->
-    <div class="table-container">
-
-      <table
-        class="admin-table"
-        v-if="filtered.length > 0"
-      >
-
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Solicitante</th>
-            <th>Mascota</th>
-            <th>Fecha</th>
-            <th>Teléfono</th>
-            <th>Estado</th>
-            <th class="th-actions">Acciones</th>
-          </tr>
-        </thead>
-
-        <tbody>
-
-          <tr
-            v-for="s in filtered"
-            :key="s.id"
-          >
-
-            <td class="td-id text-nowrap">
-              {{ s.id }}
-            </td>
-
-            <td class="bold-text text-nowrap">
-              {{ s.solicitante }}
-            </td>
-
-            <td class="bold-text text-nowrap">
-              {{ s.mascota }}
-            </td>
-
-            <td class="subtle-text text-nowrap">
-              {{ s.fecha }}
-            </td>
-
-            <td class="phone-text text-nowrap">
-              {{ s.telefono }}
-            </td>
-
-            <td>
-              <span
-                class="badge"
-                :class="statusClass(s.estado)"
-              >
-                {{ s.estado }}
-              </span>
-            </td>
-
-            <td class="td-actions">
-
-              <div class="action-btns">
-
-                <!-- REVISAR: Pendiente → En proceso -->
-                <button
-                  v-if="s.estado === 'Pendiente'"
-                  type="button"
-                  class="action-btn process-btn"
-                  @click="procesoSolicitud(s.id)"
-                >
-                  Revisar
-                </button>
-
-                <!-- APROBAR: En proceso → Aprobada + mascota Adoptada -->
-                <button
-                  v-if="s.estado === 'En proceso'"
-                  type="button"
-                  class="action-btn approve"
-                  @click="aprobarSolicitud(s.id)"
-                >
-                  Aprobar
-                </button>
-
-                <!-- RECHAZAR: En proceso → Rechazada + mascota Disponible -->
-                <button
-                  v-if="s.estado === 'En proceso'"
-                  type="button"
-                  class="action-btn reject"
-                  @click="rechazarSolicitud(s.id)"
-                >
-                  Rechazar
-                </button>
-
-                <!-- VER DETALLE -->
-                <button
-                  type="button"
-                  class="action-btn view"
-                  @click="verDetalle(s)"
-                >
-                  Ver solicitud
-                </button>
-
-              </div>
-
-            </td>
-
-          </tr>
-
-        </tbody>
-
-      </table>
-
-      <div
-        v-else
-        class="empty-state"
-      >
-        No hay solicitudes registradas
+      <div class="stat-card stat-total">
+        <div class="stat-icon"></div>
+        <div class="stat-body">
+          <div class="stat-value">{{ solicitudes.length }}</div>
+          <div class="stat-label">Total</div>
+          <div class="stat-desc">Solicitudes registradas</div>
+        </div>
       </div>
 
     </div>
 
-    <!-- MODAL DETALLE -->
-    <div
-      v-if="showDetailModal"
-      class="modal-overlay"
-      @click.self="showDetailModal = false"
-    >
-
-      <div class="detail-modal">
-
-        <!-- HEADER MODAL -->
-        <div class="detail-header">
-
-          <div>
-
-            <div class="modal-badge-container">
-
-              <span class="detail-tag">
-                SOLICITUD {{ selectedRequest?.id }}
-              </span>
-
-              <span class="pet-interest-badge">
-                Interés: {{ selectedRequest?.mascota }}
-              </span>
-
-              <!-- Estado actual de la solicitud -->
-              <span
-                class="badge"
-                :class="statusClass(selectedRequest?.estado)"
-              >
-                {{ selectedRequest?.estado }}
-              </span>
-
-            </div>
-
-            <h2>
-              {{ selectedRequest?.solicitante }}
-            </h2>
-
-          </div>
-
+    <!-- ══════════════════════════════════════
+         FILTROS
+    ══════════════════════════════════════ -->
+    <div class="filters-panel">
+      <div class="filter-group">
+        <span class="filter-group-label">Estado</span>
+        <div class="tab-group">
           <button
-            type="button"
-            class="close-btn"
-            @click="showDetailModal = false"
-          >
-            ×
-          </button>
-
+            v-for="s in ['Todos', 'Pendiente', 'En proceso', 'Aprobada', 'Rechazada']"
+            :key="s"
+            class="tab-btn"
+            :class="{ 'tab-active': filterStatus === s }"
+            @click="filterStatus = s"
+          >{{ s }}</button>
         </div>
+      </div>
+    </div>
 
-        <!-- CONTENIDO -->
-        <div class="detail-content">
+    <!-- ══════════════════════════════════════
+         TABLA
+    ══════════════════════════════════════ -->
+    <div class="table-card">
 
-          <!-- DATOS PERSONALES -->
-          <div class="section-block">
-
-            <h3 class="section-title">
-              Datos Personales & Contacto
-            </h3>
-
-            <div class="grid-3-cols">
-
-              <div class="detail-card">
-                <span class="detail-label">Cédula</span>
-                <p class="data-text">{{ selectedRequest?.cedula }}</p>
-              </div>
-
-              <div class="detail-card">
-                <span class="detail-label">Edad</span>
-                <p class="data-text">{{ selectedRequest?.edad }}</p>
-              </div>
-
-              <div class="detail-card">
-                <span class="detail-label">Profesión</span>
-                <p class="data-text">{{ selectedRequest?.profesion }}</p>
-              </div>
-
-              <div class="detail-card">
-                <span class="detail-label">Teléfono</span>
-                <p class="data-text">{{ selectedRequest?.telefono }}</p>
-              </div>
-
-              <div class="detail-card">
-                <span class="detail-label">WhatsApp</span>
-                <p class="data-text">{{ selectedRequest?.whatsapp }}</p>
-              </div>
-
-              <div class="detail-card">
-                <span class="detail-label">Correo</span>
-                <p class="data-text">{{ selectedRequest?.email }}</p>
-              </div>
-
-            </div>
-
-          </div>
-
-          <!-- HOGAR -->
-          <div class="section-block">
-
-            <h3 class="section-title">
-              Hogar & Estilo de Vida
-            </h3>
-
-            <div class="grid-mixed">
-
-              <div class="detail-card full">
-                <span class="detail-label">Dirección</span>
-                <p class="data-text long-text">{{ selectedRequest?.direccion }}</p>
-              </div>
-
-              <div class="detail-card full">
-                <span class="detail-label">Personas del hogar</span>
-                <p class="data-text long-text">{{ selectedRequest?.hogar }}</p>
-              </div>
-
-              <div class="detail-card full">
-                <span class="detail-label">Otras mascotas</span>
-                <p class="data-text long-text">{{ selectedRequest?.otrasMascotas }}</p>
-              </div>
-
-            </div>
-
-          </div>
-
-          <!-- EVALUACIÓN -->
-          <div class="section-block">
-
-            <h3 class="section-title">
-              Evaluación
-            </h3>
-
-            <div class="grid-mixed">
-
-              <div class="detail-card full question-highlight">
-                <span class="detail-label">¿Por qué desea adoptar esta mascota?</span>
-                <p class="data-text long-text italic-quote">{{ selectedRequest?.porqueMascota }}</p>
-              </div>
-
-              <div class="detail-card full question-highlight">
-                <span class="detail-label">Motivos de adopción</span>
-                <p class="data-text long-text italic-quote">{{ selectedRequest?.motivos }}</p>
-              </div>
-
-              <div class="detail-card">
-                <span class="detail-label">Horas sola</span>
-                <p class="data-text">{{ selectedRequest?.horasSola }}</p>
-              </div>
-
-              <div class="detail-card full-from-two">
-                <span class="detail-label">Rutina diaria</span>
-                <p class="data-text long-text">{{ selectedRequest?.rutina }}</p>
-              </div>
-
-            </div>
-
-          </div>
-
-        </div>
-
+      <div class="table-header-row">
+        <span class="table-count">
+          {{ filtered.length }} solicitud{{ filtered.length !== 1 ? 'es' : '' }}
+        </span>
       </div>
 
+      <div class="table-scroll">
+        <table class="data-table" v-if="filtered.length > 0">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Solicitante</th>
+              <th>Mascota</th>
+              <th>Fecha</th>
+              <th>Teléfono</th>
+              <th>Estado</th>
+              <th class="th-right">Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr
+              v-for="s in filtered"
+              :key="s.id"
+              class="table-row"
+            >
+
+              <!-- ID -->
+              <td>
+                <span class="id-chip">{{ s.id }}</span>
+              </td>
+
+              <!-- Solicitante -->
+              <td class="name-cell">{{ s.solicitante }}</td>
+
+              <!-- Mascota -->
+              <td>
+                <span class="pet-chip">{{ s.mascota }}</span>
+              </td>
+
+              <!-- Fecha -->
+              <td class="muted-cell">{{ s.fecha }}</td>
+
+              <!-- Teléfono -->
+              <td class="phone-cell">{{ s.telefono }}</td>
+
+              <!-- Estado -->
+              <td>
+                <span class="badge" :class="statusClass(s.estado)">{{ s.estado }}</span>
+              </td>
+
+              <!-- Acciones -->
+              <td class="td-right">
+                <div class="action-group">
+
+                  <button
+                    v-if="s.estado === 'Pendiente'"
+                    type="button"
+                    class="act-pill act-process"
+                    @click="procesoSolicitud(s.id)"
+                  >Revisar</button>
+
+                  <button
+                    v-if="s.estado === 'En proceso'"
+                    type="button"
+                    class="act-pill act-approve"
+                    @click="aprobarSolicitud(s.id)"
+                  >Aprobar</button>
+
+                  <button
+                    v-if="s.estado === 'En proceso'"
+                    type="button"
+                    class="act-pill act-reject"
+                    @click="rechazarSolicitud(s.id)"
+                  >Rechazar</button>
+
+                  <button
+                    type="button"
+                    class="act-pill act-view"
+                    @click="verDetalle(s)"
+                  >Ver</button>
+
+                </div>
+              </td>
+
+            </tr>
+          </tbody>
+        </table>
+
+        <div v-else class="empty-state">
+          <div class="empty-icon">📋</div>
+          <p>No hay solicitudes que coincidan con el filtro</p>
+        </div>
+      </div>
     </div>
+
+    <!-- ══════════════════════════════════════
+         MODAL: Ver detalle
+    ══════════════════════════════════════ -->
+    <Transition name="modal-fade">
+      <div
+        v-if="showDetailModal"
+        class="modal-overlay"
+        @click.self="showDetailModal = false"
+      >
+        <div class="modal-box modal-large">
+
+          <!-- Head -->
+          <div class="modal-head">
+            <div class="modal-head-left">
+              <div class="modal-meta">
+                <span class="id-chip">{{ selectedRequest?.id }}</span>
+                <span class="pet-chip">{{ selectedRequest?.mascota }}</span>
+                <span class="badge" :class="statusClass(selectedRequest?.estado)">{{ selectedRequest?.estado }}</span>
+              </div>
+              <h2 class="modal-title-large">{{ selectedRequest?.solicitante }}</h2>
+            </div>
+            <button type="button" class="modal-close" @click="showDetailModal = false">✕</button>
+          </div>
+
+          <!-- Secciones -->
+          <div class="modal-sections">
+
+            <!-- Datos personales -->
+            <div class="modal-section">
+              <div class="modal-section-title">Datos Personales & Contacto</div>
+              <div class="detail-grid detail-grid-3">
+                <div class="detail-item">
+                  <span class="detail-label">Cédula</span>
+                  <span class="detail-val">{{ selectedRequest?.cedula }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Edad</span>
+                  <span class="detail-val">{{ selectedRequest?.edad }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Profesión</span>
+                  <span class="detail-val">{{ selectedRequest?.profesion }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Teléfono</span>
+                  <span class="detail-val">{{ selectedRequest?.telefono }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">WhatsApp</span>
+                  <span class="detail-val">{{ selectedRequest?.whatsapp }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Correo</span>
+                  <span class="detail-val">{{ selectedRequest?.email }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Hogar -->
+            <div class="modal-section">
+              <div class="modal-section-title">Hogar & Estilo de Vida</div>
+              <div class="detail-grid detail-grid-1">
+                <div class="detail-item">
+                  <span class="detail-label">Dirección</span>
+                  <span class="detail-val">{{ selectedRequest?.direccion }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Personas del hogar</span>
+                  <span class="detail-val">{{ selectedRequest?.hogar }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Otras mascotas</span>
+                  <span class="detail-val">{{ selectedRequest?.otrasMascotas }}</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Evaluación -->
+            <div class="modal-section">
+              <div class="modal-section-title">Evaluación</div>
+              <div class="detail-grid detail-grid-1">
+                <div class="detail-item detail-item-highlight">
+                  <span class="detail-label">¿Por qué desea adoptar esta mascota?</span>
+                  <span class="detail-val detail-val-quote">{{ selectedRequest?.porqueMascota }}</span>
+                </div>
+                <div class="detail-item detail-item-highlight">
+                  <span class="detail-label">Motivos de adopción</span>
+                  <span class="detail-val detail-val-quote">{{ selectedRequest?.motivos }}</span>
+                </div>
+              </div>
+              <div class="detail-grid detail-grid-3" style="margin-top:10px">
+                <div class="detail-item">
+                  <span class="detail-label">Horas sola</span>
+                  <span class="detail-val">{{ selectedRequest?.horasSola }}</span>
+                </div>
+                <div class="detail-item detail-item-span2">
+                  <span class="detail-label">Rutina diaria</span>
+                  <span class="detail-val">{{ selectedRequest?.rutina }}</span>
+                </div>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="modal-actions">
+            <button type="button" class="btn-ghost" @click="showDetailModal = false">Cerrar</button>
+          </div>
+
+        </div>
+      </div>
+    </Transition>
 
   </div>
-
 </template>
 
 <style scoped>
-.process {
-  border-top: 5px solid #6E9BFF;
-}
 
-.badge-blue {
-  background: rgba(110,155,255,0.14);
-  color: #4F73B8;
-}
-
-.process-btn {
-  background: #E8F0FF;
-  color: #4F73B8;
-}
-</style>
-<style scoped>
+/* ═══════════════════════════════════════
+   BASE
+═══════════════════════════════════════ */
 .view-container {
-  padding: 10px;
+  background: transparent;
 }
 
+/* ═══════════════════════════════════════
+   CABECERA
+═══════════════════════════════════════ */
 .page-header {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  margin-bottom: 34px;
-  gap: 20px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 28px;
+  gap: 16px;
 }
 
-.admin-page-title {
-  font-size: 42px;
+.page-title {
+  font-size: 26px;
   font-weight: 800;
-  color: #2F3B31;
+  color: #2D3A2E;
+  letter-spacing: -0.5px;
+  margin: 0 0 4px;
 }
 
-.filter-chips {
-  display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
+.page-sub {
+  font-size: 14px;
+  color: #7A847C;
+  font-weight: 500;
+  margin: 0;
 }
 
-.chip {
-  height: 54px;
-  padding: 0 32px;
-  border-radius: 999px;
-  border: none;
-  background: white;
-  color: #5E665F;
-  font-weight: 700;
-  font-size: 16px;
-  cursor: pointer;
-  transition: 0.2s;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.04);
-}
-
-.chip.active {
-  background: #92A894;
-  color: white;
-  box-shadow: 0 4px 12px rgba(146, 168, 148, 0.3);
-}
-
-.summary-row {
+/* ═══════════════════════════════════════
+   STATS
+═══════════════════════════════════════ */
+.stats-grid {
   display: grid;
   grid-template-columns: repeat(5, 1fr);
   gap: 14px;
   margin-bottom: 24px;
 }
 
-.sum-card {
+.stat-card {
   background: white;
   border-radius: 18px;
-  padding: 18px;
-}
-
-.sum-label {
-  display: block;
-  color: #6C756D;
-  margin-bottom: 8px;
-  font-size: 13px;
-}
-
-.sum-value {
-  font-size: 38px;
-  color: #2F3B31;
-  font-weight: 800;
-}
-
-.pending  { border-top: 5px solid #F9C17A; }
-.approved { border-top: 5px solid #92A894; }
-.rejected { border-top: 5px solid #EB7777; }
-.total    { border-top: 5px solid #6C756D; }
-
-.table-container {
-  background: white;
-  border-radius: 28px;
-  padding: 10px;
-  overflow-x: auto;
-}
-
-.admin-table {
-  width: 100%;
-  border-collapse: collapse;
-  text-align: left;
-}
-
-.admin-table th,
-.admin-table td {
-  padding: 20px 24px;
-  font-size: 15px;
-  color: #2F3B31;
-  vertical-align: middle;
-}
-
-.admin-table th {
-  font-weight: 700;
-  color: #6C756D;
-  border-bottom: 1px solid #EEF3EE;
-}
-
-.admin-table tbody tr {
-  border-bottom: 1px solid #FAFAFA;
-}
-
-.admin-table tbody tr:last-child {
-  border-bottom: none;
-}
-
-.td-id {
-  font-weight: 700;
-  color: #92A894;
-  font-family: monospace;
-}
-
-.text-nowrap  { white-space: nowrap; }
-.bold-text    { font-weight: 700; color: #2F3B31; }
-.subtle-text  { color: #6C756D; }
-.phone-text   { font-weight: 600; color: #4A544C; }
-
-.th-actions, .td-actions {
-  width: 320px;
-  text-align: left !important;
-}
-
-.badge {
-  padding: 8px 14px;
-  border-radius: 999px;
-  font-size: 13px;
-  font-weight: 700;
-  display: inline-block;
-}
-
-.badge-yellow { background: rgba(249,193,122,0.15); color: #C88A37; }
-.badge-green  { background: rgba(146,168,148,0.15); color: #5A705C; }
-.badge-red    { background: rgba(235,119,119,0.12); color: #C45252; }
-.badge-gray   { background: #EEF3EE; color: #6C756D; }
-
-.action-btns {
+  padding: 20px;
   display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
+  align-items: center;
+  gap: 14px;
+  border: 1.5px solid transparent;
+  transition: box-shadow .2s;
+}
+.stat-card:hover {
+  box-shadow: 0 4px 20px rgba(0,0,0,.06);
 }
 
-.action-btn {
-  min-width: 95px;
-  height: 36px;
-  padding: 0 14px;
-  border-radius: 10px;
-  border: none;
+.stat-icon {
+  font-size: 26px;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: #2D3A2E;
+  line-height: 1;
+  margin-bottom: 3px;
+}
+.stat-label {
+  font-size: 13px;
   font-weight: 700;
+  color: #2D3A2E;
+  margin-bottom: 2px;
+}
+.stat-desc {
   font-size: 12px;
-  cursor: pointer;
-  transition: 0.2s ease;
+  color: #9AA89C;
+}
+
+.stat-pending  { border-color: rgba(249,193,122,.3);  background: rgba(249,193,122,.05); }
+.stat-process  { border-color: rgba(110,155,255,.25); background: rgba(110,155,255,.04); }
+.stat-approved { border-color: rgba(146,168,148,.3);  background: rgba(146,168,148,.06); }
+.stat-rejected { border-color: rgba(208,96,96,.2);    background: rgba(208,96,96,.04); }
+.stat-total    { border-color: #EAEEEA; }
+
+/* ═══════════════════════════════════════
+   FILTROS
+═══════════════════════════════════════ */
+.filters-panel {
+  background: white;
+  border-radius: 18px;
+  padding: 16px 20px;
+  margin-bottom: 20px;
+  border: 1px solid #EEF3EE;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+}
+
+.filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.filter-group-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: #9AA89C;
+  text-transform: uppercase;
+  letter-spacing: .5px;
   white-space: nowrap;
 }
 
-.approve { background: #E7F1E8; color: #567058; }
-.reject  { background: #FCE8E8; color: #C45252; }
-.view    { background: #3A473C; color: white; }
-
-.action-btn:hover {
-  transform: translateY(-2px);
-  opacity: 0.92;
-}
-
-/* ── MODAL ── */
-.modal-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(15, 23, 17, 0.4);
-  backdrop-filter: blur(4px);
+.tab-group {
   display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 24px;
-  z-index: 999;
+  gap: 4px;
+  background: #F0F4F0;
+  padding: 3px;
+  border-radius: 12px;
 }
-
-.detail-modal {
-  width: 100%;
-  max-width: 920px;
-  max-height: 85vh;
-  overflow-y: auto;
+.tab-btn {
+  padding: 6px 14px;
+  border-radius: 9px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  color: #7A847C;
+  cursor: pointer;
+  transition: all .18s;
+  white-space: nowrap;
+}
+.tab-btn:hover { color: #2D3A2E; background: rgba(255,255,255,.6); }
+.tab-btn.tab-active {
   background: white;
-  border-radius: 36px;
-  padding: 40px;
-  box-shadow: 0 20px 50px rgba(0,0,0,0.08);
+  color: #2D3A2E;
+  box-shadow: 0 1px 6px rgba(0,0,0,.08);
 }
 
-.detail-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 36px;
-  border-bottom: 1px solid #EEF3EE;
-  padding-bottom: 24px;
+/* ═══════════════════════════════════════
+   TABLA
+═══════════════════════════════════════ */
+.table-card {
+  background: white;
+  border-radius: 20px;
+  border: 1px solid #EEF3EE;
+  overflow: hidden;
+  margin-bottom: 32px;
 }
 
-.modal-badge-container {
+.table-header-row {
+  padding: 16px 20px;
+  border-bottom: 1px solid #F0F4F0;
+}
+.table-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: #9AA89C;
+}
+
+.table-scroll {
+  overflow-x: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 680px;
+}
+
+.data-table th {
+  padding: 12px 16px;
+  font-size: 11px;
+  font-weight: 800;
+  color: #9AA89C;
+  text-transform: uppercase;
+  letter-spacing: .6px;
+  background: #FAFCFA;
+  text-align: center;
+  white-space: nowrap;
+}
+.th-right { text-align: right; }
+
+.data-table td {
+  padding: 13px 16px;
+  font-size: 14px;
+  border-bottom: 1px solid #F5F8F5;
+  vertical-align: middle;
+}
+.td-right { text-align: right; }
+
+.table-row { transition: background .15s; }
+.table-row:hover { background: #FAFCFA; }
+.table-row:last-child td { border-bottom: none; }
+
+/* Celdas */
+.id-chip {
+  font-size: 11px;
+  font-family: monospace;
+  background: #F0F4F0;
+  color: #3A473C;
+  padding: 3px 8px;
+  border-radius: 7px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.pet-chip {
+  font-size: 12px;
+  font-weight: 600;
+  color: #4A6E4C;
+  background: rgba(146,168,148,.12);
+  padding: 3px 10px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+
+.name-cell  { font-weight: 600; color: #2D3A2E; white-space: nowrap; }
+.muted-cell { color: #9AA89C; white-space: nowrap; font-size: 13px; }
+.phone-cell { font-weight: 600; color: #4A544C; white-space: nowrap; }
+
+/* Badges */
+.badge {
+  padding: 5px 11px;
+  border-radius: 9px;
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-block;
+  white-space: nowrap;
+}
+.badge-peach { background: rgba(249,193,122,.2);  color: #C88A30; }
+.badge-blue  { background: rgba(110,155,255,.14); color: #4F73B8; }
+.badge-green { background: rgba(146,168,148,.18); color: #4A6E4C; }
+.badge-red   { background: rgba(208,96,96,.1);    color: #B04040; }
+.badge-gray  { background: #F0F4F0;              color: #7A847C; }
+
+/* Botones de acción */
+.action-group {
   display: flex;
-  gap: 8px;
-  align-items: center;
-  margin-bottom: 8px;
+  gap: 6px;
+  justify-content: flex-end;
   flex-wrap: wrap;
 }
 
-.detail-tag {
-  color: #92A894;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 1px;
-  background: #F4F6F4;
-  padding: 4px 10px;
-  border-radius: 6px;
-}
-
-.pet-interest-badge {
-  background: rgba(146, 168, 148, 0.12);
-  color: #4A574C;
+.act-pill {
+  height: 30px;
+  padding: 0 13px;
+  border-radius: 9px;
+  border: 1.5px solid transparent;
   font-size: 12px;
   font-weight: 700;
-  padding: 4px 12px;
-  border-radius: 6px;
-}
-
-.detail-header h2 {
-  font-size: 38px;
-  font-weight: 800;
-  color: #2F3B31;
-  margin: 4px 0 0 0;
-}
-
-.detail-content {
-  display: flex;
-  flex-direction: column;
-  gap: 32px;
-}
-
-.section-block {
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-
-.section-title {
-  font-size: 14px;
-  font-weight: 800;
-  color: #92A894;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  margin: 0;
-  border-left: 3px solid #92A894;
-  padding-left: 10px;
-}
-
-.grid-3-cols {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-}
-
-.grid-mixed {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 14px;
-}
-
-.detail-card {
-  background: #FAFAFA;
-  border-radius: 16px;
-  padding: 16px 20px;
-  border: 1px solid #F4F6F4;
-  transition: all 0.2s ease;
-}
-
-.detail-card:hover {
-  background: #FDFDFD;
-  border-color: #E2EAE3;
-}
-
-.detail-card.full          { grid-column: span 3; }
-.detail-card.full-from-two { grid-column: span 2; }
-
-.question-highlight {
-  background: #FCFDFD;
-  border-left: 4px solid #92A894;
-}
-
-.detail-label {
-  display: block;
-  margin-bottom: 6px;
-  color: #7E8880;
-  font-weight: 700;
-  font-size: 12px;
-}
-
-.data-text {
-  color: #2F3B31;
-  font-weight: 600;
-  font-size: 15px;
-  margin: 0;
-}
-
-.long-text {
-  line-height: 1.6;
-  font-weight: 500;
-  color: #38453A;
-}
-
-.italic-quote {
-  font-style: italic;
-  color: #435245;
-  font-size: 15px;
-}
-
-.close-btn {
-  width: 44px;
-  height: 44px;
-  border: none;
-  border-radius: 14px;
-  background: #F4F6F4;
-  font-size: 24px;
-  color: #6C756D;
   cursor: pointer;
+  transition: all .15s;
+  white-space: nowrap;
+}
+.act-pill:hover { transform: translateY(-1px); }
+
+.act-process {
+  background: rgba(110,155,255,.1);
+  border-color: rgba(110,155,255,.3);
+  color: #4F73B8;
+}
+.act-process:hover { background: rgba(110,155,255,.18); }
+
+.act-approve {
+  background: rgba(146,168,148,.12);
+  border-color: rgba(146,168,148,.35);
+  color: #4A6E4C;
+}
+.act-approve:hover { background: rgba(146,168,148,.2); }
+
+.act-reject {
+  background: rgba(208,96,96,.08);
+  border-color: rgba(208,96,96,.25);
+  color: #B04040;
+}
+.act-reject:hover { background: rgba(208,96,96,.14); }
+
+.act-view {
+  background: #3A473C;
+  border-color: #3A473C;
+  color: white;
+}
+.act-view:hover { background: #2D372F; }
+
+/* Empty */
+.empty-state {
+  text-align: center;
+  padding: 52px 20px;
+}
+.empty-icon { font-size: 36px; margin-bottom: 12px; }
+.empty-state p { color: #9AA89C; font-size: 14px; margin: 0; }
+
+/* ═══════════════════════════════════════
+   MODAL
+═══════════════════════════════════════ */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(20,28,22,.45);
+  backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: 0.2s;
+  z-index: 1000;
+  padding: 20px;
 }
 
-.close-btn:hover {
-  background: #2F3B31;
-  color: white;
-}
-
-.empty-state {
+.modal-box {
   background: white;
-  border-radius: 24px;
-  padding: 50px;
-  text-align: center;
-  color: #6C756D;
+  border-radius: 20px;
+  padding: 28px;
+  width: 100%;
+  max-width: 480px;
+  max-height: 88vh;
+  overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(0,0,0,.18);
+}
+.modal-large { max-width: 760px; }
+
+.modal-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1.5px solid #F0F4F0;
+}
+
+.modal-meta {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.modal-title-large {
+  font-size: 24px;
+  font-weight: 800;
+  color: #2D3A2E;
+  margin: 0;
+  letter-spacing: -0.3px;
+}
+
+.modal-close {
+  width: 34px; height: 34px;
+  border-radius: 9px;
+  border: 1.5px solid #EEF3EE;
+  background: transparent;
+  color: #9AA89C;
+  font-size: 14px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+  transition: all .15s;
+}
+.modal-close:hover { background: #F0F4F0; color: #2D3A2E; }
+
+/* Secciones del modal */
+.modal-sections {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+  margin-bottom: 4px;
+}
+
+.modal-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.modal-section-title {
+  font-size: 11px;
+  font-weight: 800;
+  color: #9AA89C;
+  text-transform: uppercase;
+  letter-spacing: .7px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.modal-section-title::before {
+  content: '';
+  display: block;
+  width: 3px;
+  height: 14px;
+  background: #92A894;
+  border-radius: 2px;
+}
+
+.detail-grid {
+  display: grid;
+  gap: 10px;
+}
+.detail-grid-3 { grid-template-columns: repeat(3, 1fr); }
+.detail-grid-1 { grid-template-columns: 1fr; }
+
+.detail-item {
+  background: #F7FAF7;
+  border-radius: 12px;
+  padding: 12px 14px;
+  border: 1px solid #EEF3EE;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.detail-item-highlight {
+  background: #FAFCFA;
+  border-left: 3px solid #92A894;
+}
+
+.detail-item-span2 {
+  grid-column: span 2;
+}
+
+.detail-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #9AA89C;
+  text-transform: uppercase;
+  letter-spacing: .4px;
+}
+
+.detail-val {
+  font-size: 14px;
   font-weight: 600;
+  color: #2D3A2E;
+  line-height: 1.5;
+}
+.detail-val-quote {
+  font-style: italic;
+  font-weight: 500;
+  color: #3A4C3C;
+  font-size: 14px;
 }
 
-@media (max-width: 850px) {
-  .summary-row { grid-template-columns: 1fr 1fr; }
-  .grid-3-cols { grid-template-columns: 1fr 1fr; }
-  .grid-mixed  { grid-template-columns: 1fr; }
-  .detail-card.full, .detail-card.full-from-two { grid-column: span 1; }
+/* Actions bar */
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  padding-top: 16px;
+  border-top: 1px solid #F0F4F0;
+  margin-top: 20px;
 }
 
-@media (max-width: 550px) {
-  .grid-3-cols { grid-template-columns: 1fr; }
+.btn-ghost {
+  padding: 11px 22px;
+  border-radius: 12px;
+  border: 1.5px solid #EEF3EE;
+  background: transparent;
+  color: #7A847C;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .2s;
+}
+.btn-ghost:hover { background: #F0F4F0; color: #2D3A2E; }
+
+/* Animaciones */
+.modal-fade-enter-active { transition: all .22s ease; }
+.modal-fade-leave-active { transition: all .16s ease; }
+.modal-fade-enter-from   { opacity: 0; }
+.modal-fade-leave-to     { opacity: 0; }
+.modal-fade-enter-from .modal-box { transform: scale(.97) translateY(8px); }
+
+/* ═══════════════════════════════════════
+   RESPONSIVO
+═══════════════════════════════════════ */
+@media (max-width: 1100px) {
+  .stats-grid { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 750px) {
+  .stats-grid { grid-template-columns: repeat(2, 1fr); }
+  .detail-grid-3 { grid-template-columns: 1fr 1fr; }
+  .detail-item-span2 { grid-column: span 1; }
+}
+@media (max-width: 500px) {
+  .stats-grid { grid-template-columns: 1fr; }
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .tab-btn { padding: 5px 10px; font-size: 12px; }
+  .detail-grid-3 { grid-template-columns: 1fr; }
+  .modal-box { padding: 20px; }
+  .modal-title-large { font-size: 20px; }
 }
 </style>

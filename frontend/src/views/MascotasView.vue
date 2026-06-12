@@ -198,7 +198,7 @@ function clearFilters() {
   <!-- ══ HISTORIAS FELICES ══ -->
   <section v-if="adoptedPets.length > 0" class="happy-section container">
     <div class="happy-header">
-      <span class="happy-emoji">🏠</span>
+      <span class="happy-emoji"></span>
       <div>
         <h2 class="happy-title">Historias felices</h2>
         <p class="happy-sub">Estas mascotas ya encontraron un hogar para siempre.</p>
@@ -230,7 +230,7 @@ function clearFilters() {
   position: relative;
   background-image:
     linear-gradient(rgba(58,71,60,.45), rgba(58,71,60,.48)),
-    url('/img-mascotas/mascotas.jpg');
+    url('/img-mascotas/heromascotas.PNG');
   background-size: cover;
   background-position: center 38%;
   height: 520px;
@@ -274,26 +274,37 @@ function clearFilters() {
   outline: none;
   box-sizing: border-box;
 }
-.search-input:focus { border-color: #92A894; box-shadow: 0 0 0 4px rgba(146,168,148,.12); }
-.search-icon { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); font-size: 22px; color: #92A894; }
+.search-input:focus { border-color: #3A473C; box-shadow: 0 0 0 4px rgba(146,168,148,.12); }
+.search-icon { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); font-size: 22px; color: #3A473C; }
 
 .filters-grid { display: flex; flex-wrap: wrap; gap: 36px; }
 .filter-group { display: flex; flex-direction: column; gap: 10px; }
 .filter-group label { font-size: 14px; font-weight: 700; color: #3A473C; }
 .filter-chips { display: flex; gap: 10px; flex-wrap: wrap; }
 .chip { border: none; padding: 10px 18px; border-radius: 999px; background: #F4F6F4; color: #5E6A60; font-size: 14px; font-weight: 600; cursor: pointer; transition: all .2s; }
-.chip.active { background: #92A894; color: white; }
+.chip.active { background: #3A473C; color: white; }
 .chip:hover:not(.active) { background: #E8EDE8; }
 
 .results-top { display: flex; justify-content: space-between; align-items: center; margin: 36px 0 24px; }
 .results-count { font-size: 15px; font-weight: 600; color: #6C756D; }
-.clear-btn { border: none; background: transparent; color: #92A894; font-weight: 700; cursor: pointer; font-size: 14px; }
+.clear-btn { border: none; background: transparent; color: #3A473C; font-weight: 700; cursor: pointer; font-size: 14px; }
 .clear-btn:hover { color: #5A7A5C; }
 
 .pets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 26px; }
 
 /* ══ Tarjeta de mascota ══ */
-.pet-card { background: white; border-radius: 26px; overflow: hidden; border: 1px solid rgba(146,168,148,.10); transition: .35s ease; box-shadow: 0 10px 30px rgba(58,71,60,.05); }
+.pet-card {
+  background: white;
+  border-radius: 26px;
+  overflow: hidden;
+  border: 1px solid rgba(146,168,148,.10);
+  transition: .35s ease;
+  box-shadow: 0 10px 30px rgba(58,71,60,.05);
+
+  display: flex;
+  flex-direction: column;
+}
+
 .pet-card:hover { transform: translateY(-8px); box-shadow: 0 22px 50px rgba(58,71,60,.10); }
 
 .pet-photo { position: relative; width: 100%; height: 240px; overflow: hidden; background: #F4F6F4; }
@@ -306,23 +317,45 @@ function clearFilters() {
 .dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.5); }
 .dot.active { background: white; }
 
-.pet-body { padding: 20px; }
+.pet-body {
+  padding: 20px;
+
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
 .pet-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
 .pet-name { font-size: 22px; font-weight: 800; color: #3A473C; }
-.pet-age  { font-size: 13px; color: #92A894; font-weight: 600; }
+.pet-age  { font-size: 13px; color: #3A473C; font-weight: 600; }
 .pet-meta { color: #7A847B; font-size: 14px; margin-bottom: 10px; }
 
 .pet-personality { margin-bottom: 10px; }
 .pill-tag { background: rgba(146,168,148,.15); color: #5A6E5C; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 999px; }
 
-.pet-desc { font-size: 14px; line-height: 1.7; color: #5F6A61; margin-bottom: 12px; }
+.pet-desc {
+  font-size: 14px;
+  line-height: 1.7;
+  color: #5F6A61;
+  margin-bottom: 12px;
 
-.pet-health { font-size: 13px; color: #6C756D; margin-bottom: 16px; display: flex; align-items: center; gap: 6px; }
-.health-icon { color: #92A894; font-size: 14px; }
+  min-height: 140px;
+}
 
-.pet-btn { width: 100%; height: 48px; border: none; border-radius: 14px; background: #92A894; color: white; font-weight: 700; font-size: 14px; cursor: pointer; transition: all .2s; }
+.pet-health {
+  font-size: 13px;
+  color: #6C756D;
+  margin-bottom: 16px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+
+  min-height: 48px;
+}
+.health-icon { color: #3A473C; font-size: 14px; }
+
+.pet-btn { width: 100%; height: 48px; border: none; border-radius: 14px; background: #3A473C; color: white; font-weight: 700; font-size: 14px; cursor: pointer; transition: all .2s; }
 .pet-btn:hover { background: #7E9580; }
-.pet-btn.pet-btn-secondary { background: transparent; border: 2px solid #92A894; color: #5A7A5C; }
+.pet-btn.pet-btn-secondary { background: transparent; border: 2px solid #3A473C; color: #5A7A5C; }
 .pet-btn.pet-btn-secondary:hover { background: rgba(146,168,148,.1); }
 
 .en-proceso-block { }
@@ -336,7 +369,7 @@ function clearFilters() {
 
 /* ══ Estado vacío ══ */
 .empty-state { text-align: center; padding: 100px 20px; }
-.empty-state i { font-size: 70px; color: #92A894; margin-bottom: 18px; display: block; }
+.empty-state i { font-size: 70px; color: #3A473C; margin-bottom: 18px; display: block; }
 .empty-state h3 { font-size: 28px; color: #3A473C; margin-bottom: 10px; }
 .empty-state p  { color: #6C756D; }
 
@@ -355,7 +388,14 @@ function clearFilters() {
 .happy-photo { position: relative; height: 180px; }
 .happy-photo img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(.7); }
 .happy-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(58,71,60,.6) 0%, transparent 50%); display: flex; align-items: flex-end; padding: 12px; }
-.happy-badge { background: rgba(130,160,180,.85); color: white; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 999px; }
+.happy-badge {
+  background: #3A473C;
+  color: #F9C17A;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 4px 12px;
+  border-radius: 999px;
+}
 .happy-body { padding: 12px 14px; }
 .happy-name { font-weight: 800; color: #3A473C; font-size: 15px; margin: 0 0 2px; }
 .happy-meta { font-size: 13px; color: #6C756D; margin: 0; }

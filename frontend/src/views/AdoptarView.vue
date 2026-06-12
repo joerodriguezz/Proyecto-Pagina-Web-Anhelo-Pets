@@ -915,7 +915,7 @@ function goBack() {
   font-size: 11px;
   text-transform: uppercase;
   letter-spacing: 2px;
-  color: #92A894;
+  color: #C9A06A;
   font-weight: 700;
   margin-bottom: 12px;
 }
@@ -931,7 +931,7 @@ function goBack() {
 .hero-divider-line {
   width: 40px;
   height: 2px;
-  background: #92A894;
+  background: #C9A06A;
   margin-bottom: 16px;
   border-radius: 2px;
 }
@@ -966,6 +966,8 @@ function goBack() {
   border-radius: 24px;
   overflow: hidden;
   margin-bottom: 34px;
+  border: 1px solid rgba(58,71,60,0.08);
+  box-shadow: 0 10px 30px rgba(58,71,60,0.04);
 }
 
 .carousel-container {
@@ -1044,6 +1046,7 @@ function goBack() {
   font-size: 32px;
   font-weight: 800;
   color: #3A473C;
+  letter-spacing: -1px;
   margin: 8px 0;
 }
 
@@ -1083,8 +1086,8 @@ function goBack() {
 }
 
 .form-input:focus {
-  border-color: #92A894;
-  box-shadow: 0 0 0 4px rgba(146,168,148,0.12);
+  border-color: #3A473C;
+  box-shadow: 0 0 0 4px rgba(58,71,60,0.10);
 }
 
 textarea.form-input {
@@ -1162,7 +1165,7 @@ textarea.form-input {
 }
 
 .dropdown-country-code {
-  color: #92A894;
+  color: #C9A06A;
   font-weight: 700;
 }
 
@@ -1190,8 +1193,10 @@ textarea.form-input {
 }
 
 .radio-card.active {
-  border-color: #92A894;
+  border-color: #3A473C;
   background: #F4F6F4;
+  color: #3A473C;
+  font-weight: 700;
 }
 
 .dynamic-field {
@@ -1230,7 +1235,7 @@ textarea.form-input {
 .form-divider {
   border: none;
   height: 1px;
-  background: rgba(146,168,148,0.18);
+  background: rgba(58,71,60,0.12);
   margin: 34px 0;
 }
 
@@ -1244,7 +1249,7 @@ textarea.form-input {
 .terms-btn-link {
   border: none;
   background: transparent;
-  color: #92A894;
+  color: #C9A06A;
   text-decoration: underline;
   cursor: pointer;
   font-weight: 700;
@@ -1267,15 +1272,28 @@ textarea.form-input {
 }
 
 .pet-btn {
+  width: 100%;
+  height: 48px;
   border: none;
+  border-radius: 14px;
   background: #3A473C;
   color: white;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all .2s;
+
+  margin-top: auto;
+}
+
+.pet-card:hover .pet-btn {
+  background: #3A473C;
+  color: #FFFFFF;
 }
 
 .pet-btn:hover {
-  background: #2E382F;
+  background: #2D372F;
 }
-
 .pet-btn-outline {
   background: transparent;
   border: 2px solid #3A473C;
@@ -1295,7 +1313,7 @@ textarea.form-input {
   font-size: 11px;
   letter-spacing: 2px;
   text-transform: uppercase;
-  color: #92A894;
+  color: #C9A06A;
   font-weight: 700;
 }
 
