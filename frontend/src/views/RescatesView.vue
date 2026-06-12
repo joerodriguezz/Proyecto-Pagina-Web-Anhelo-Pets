@@ -26,7 +26,29 @@ const stories = [
 ]
 
 // Formulario de registro de rescates
-// El formulario de registro de rescates se eliminó de esta vista
+const formRescate = ref({
+  fecha: '',
+  ubicacion: '',
+  descripcion: ''
+})
+
+const mensajeExito = ref('')
+
+const registrarRescate = () => {
+  if (!formRescate.value.fecha || !formRescate.value.ubicacion || !formRescate.value.descripcion) {
+    alert('Por favor completa todos los campos')
+    return
+  }
+
+  // TODO: enviar al backend cuando exista la API
+  console.log('Rescate registrado:', formRescate.value)
+  mensajeExito.value = '✓ Rescate registrado exitosamente'
+
+  // limpiar formulario
+  formRescate.value = { fecha: '', ubicacion: '', descripcion: '' }
+
+  setTimeout(() => { mensajeExito.value = '' }, 3000)
+}
 </script>
 
 <template>
@@ -47,10 +69,6 @@ const stories = [
       <div class="hero-overlay"></div>
 
       <div class="hero-content">
-
-        <span class="hero-tag">
-          HISTORIAS REALES
-        </span>
 
         <h1>
           Cada rescate
@@ -75,9 +93,7 @@ const stories = [
 
         <div class="stories-header">
 
-          <span>
-            RESCATES
-          </span>
+    
 
           <h2>
             Historias que
@@ -110,9 +126,7 @@ const stories = [
 
             <div class="story-content">
 
-              <span class="story-label">
-                Rescate
-              </span>
+            
 
               <h3>
                 {{ story.title }}
@@ -128,54 +142,100 @@ const stories = [
 
         </div>
 
-        <!-- IMPACT -->
-
-        <div class="impact-grid">
-
-          <div class="impact-item">
-
-            <h3>
-              +350
-            </h3>
-
-            <p>
-              Mascotas rescatadas
-            </p>
-
-          </div>
-
-          <div class="impact-item">
-
-            <h3>
-              +120
-            </h3>
-
-            <p>
-              Adopciones exitosas
-            </p>
-
-          </div>
-
-          <div class="impact-item">
-
-            <h3>
-              +80
-            </h3>
-
-            <p>
-              Voluntarios activos
-            </p>
-
-          </div>
-
-        </div>
+      
 
 
       </div>
 
     </section>
 
-    <!-- Se removió el formulario de registro de rescates de esta vista -->
+    <!-- FORMULARIO DE REGISTRO DE RESCATES -->
+
+    <section class="registro-rescates-section">
+
+      <div class="container">
+
+        <div class="registro-header">
+
+          <span>REGISTRA UN RESCATE</span>
+
+          <h2>Ayuda a registrar un rescate</h2>
+
+          <p>Comparte los detalles de un rescate realizado para mantener un registro completo y ayudar al seguimiento del animal.</p>
+
+        </div>
+
+        <div class="form-wrapper">
+
+          <form class="rescate-form" @submit.prevent="registrarRescate">
+
+            <div class="form-group">
+
+              <label for="fecha">Fecha del rescate *</label>
+
+              <input
+                type="date"
+                id="fecha"
+                v-model="formRescate.fecha"
+                class="form-input"
+                required
+              >
+
+            </div>
+
+            <div class="form-group">
+
+              <label for="ubicacion">Ubicación *</label>
+
+              <input
+                type="text"
+                id="ubicacion"
+                v-model="formRescate.ubicacion"
+                class="form-input"
+                placeholder="Ej: San José, Barrio La California"
+                required
+              >
+
+            </div>
+
+            <div class="form-group full-width">
+
+              <label for="descripcion">Descripción del rescate *</label>
+
+              <textarea
+                id="descripcion"
+                v-model="formRescate.descripcion"
+                class="form-textarea"
+                placeholder="Cuéntanos los detalles del rescate, estado del animal, condiciones encontradas, etc."
+                rows="6"
+                required
+              ></textarea>
+
+            </div>
+
+            <div class="form-actions">
+
+              <button type="submit" class="btn-registrar">
+
+                Registrar rescate
+
+              </button>
+
+            </div>
+
+          </form>
+
+          <div v-if="mensajeExito" class="mensaje-exito">
+
+            {{ mensajeExito }}
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
 
     <FooterBar />
 
@@ -189,7 +249,7 @@ const stories = [
 
 .rescates-page {
 
-  background: #FAFAFA;
+  background: #FFFFFF;
 }
 
 /* HERO */
@@ -227,12 +287,12 @@ const stories = [
   inset: 0;
 
   background:
-    linear-gradient(
-      90deg,
-      rgba(58,71,60,0.82) 0%,
-      rgba(58,71,60,0.45) 45%,
-      rgba(58,71,60,0.10) 100%
-    );
+  linear-gradient(
+    90deg,
+    rgba(58,71,60,0.88) 0%,
+    rgba(58,71,60,0.58) 45%,
+    rgba(58,71,60,0.18) 100%
+  );
 }
 
 .hero-content {
@@ -291,7 +351,7 @@ const stories = [
 
 .hero-content h1 span {
 
-  color: #F9C17A;
+  color: #C9A06A;
 }
 
 .hero-content p {
@@ -309,11 +369,12 @@ const stories = [
 
 .stories-section {
 
-  padding:
-    130px 24px
-    170px;
-}
+  background: #FAF8F5;
 
+  padding:
+    100px 24px
+    120px;
+}
 .container {
 
   max-width: 1240px;
@@ -330,7 +391,7 @@ const stories = [
 
 .stories-header span {
 
-  color: #92A894;
+  color: #C9A06A;
 
   font-size: 12px;
 
@@ -380,14 +441,13 @@ const stories = [
 
 .story-card {
 
-  background: white;
+  background: #FFFFFF;
 
   border-radius: 30px;
 
   overflow: hidden;
 
-  border:
-    1px solid rgba(146,168,148,0.10);
+  border: 2px solid #F4F6F4;
 
   transition: 0.4s ease;
 
@@ -396,12 +456,9 @@ const stories = [
 }
 
 .story-card:hover {
-
-  transform:
-    translateY(-8px);
-
-  box-shadow:
-    0 16px 42px rgba(58,71,60,0.10);
+  transform: translateY(-8px);
+  border-color: #92A894;
+  box-shadow: 0 16px 42px rgba(58,71,60,0.08);
 }
 
 .story-image-wrap {
@@ -440,9 +497,9 @@ const stories = [
 
   border-radius: 999px;
 
-  background: #FFF1DD;
+  background: #F5E6D3;
 
-  color: #D89A47;
+  color: #A07A52;
 
   font-size: 12px;
 
@@ -489,7 +546,7 @@ const stories = [
 
 .impact-item {
 
-  background: white;
+  background: #F4F6F4;
 
   border-radius: 28px;
 
@@ -497,8 +554,7 @@ const stories = [
 
   text-align: center;
 
-  border:
-    1px solid rgba(146,168,148,0.10);
+  border: 1px solid #EEF3F0;
 
   box-shadow:
     0 10px 35px rgba(58,71,60,0.04);
@@ -508,7 +564,7 @@ const stories = [
 
   font-size: 54px;
 
-  color: #92A894;
+  color: #3A473C;
 
   font-weight: 800;
 
@@ -524,7 +580,240 @@ const stories = [
   line-height: 1.7;
 }
 
-/* Estilos del formulario de registro eliminados porque no se muestran en esta vista */
+/* FORMULARIO DE REGISTRO */
+
+.registro-rescates-section {
+
+  padding: 100px 24px;
+
+  background: linear-gradient(135deg, #FAFAFA 0%, #F5F7F6 100%);
+}
+
+.registro-header {
+
+  text-align: center;
+
+  margin-bottom: 60px;
+}
+
+.registro-header span {
+
+  color: #92A894;
+
+  font-size: 12px;
+
+  font-weight: 700;
+
+  letter-spacing: 1.5px;
+
+  text-transform: uppercase;
+}
+
+.registro-header h2 {
+
+  font-size: 48px;
+
+  line-height: 1;
+
+  letter-spacing: -2px;
+
+  color: #3A473C;
+
+  font-weight: 800;
+
+  margin: 16px 0;
+}
+
+.registro-header p {
+
+  color: #6C756D;
+
+  font-size: 16px;
+
+  line-height: 1.8;
+
+  max-width: 600px;
+
+  margin: auto;
+}
+
+.form-wrapper {
+
+  max-width: 700px;
+
+  margin: auto;
+
+  background: white;
+
+  border-radius: 24px;
+
+  padding: 50px;
+
+  border: 1px solid rgba(146,168,148,0.15);
+
+  box-shadow: 0 8px 32px rgba(58,71,60,0.06);
+}
+
+.rescate-form {
+
+  display: grid;
+
+  gap: 28px;
+}
+
+.form-group {
+
+  display: flex;
+
+  flex-direction: column;
+
+  gap: 10px;
+}
+
+.form-group.full-width {
+
+  grid-column: 1;
+}
+
+.form-group label {
+
+  color: #3A473C;
+
+  font-size: 14px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.5px;
+}
+
+.form-input,
+.form-textarea {
+
+  padding: 14px 18px;
+
+  border-radius: 12px;
+
+  border: 2px solid rgba(146,168,148,0.20);
+
+  font-family: inherit;
+
+  font-size: 15px;
+
+  color: #3A473C;
+
+  transition: 0.3s ease;
+
+  background: #FAFAFA;
+}
+
+.form-input:focus,
+.form-textarea:focus {
+
+  outline: none;
+
+  border-color: #92A894;
+
+  background: white;
+
+  box-shadow: 0 0 0 3px rgba(146,168,148,0.10);
+}
+
+.form-textarea {
+
+  resize: vertical;
+
+  font-size: 14px;
+
+  line-height: 1.6;
+}
+
+.form-textarea::placeholder,
+.form-input::placeholder {
+
+  color: #92A894;
+}
+
+.form-actions {
+
+  display: flex;
+
+  justify-content: center;
+
+  margin-top: 20px;
+}
+
+.btn-registrar {
+
+  padding: 14px 48px;
+
+  border-radius: 12px;
+
+  border: none;
+
+  background: linear-gradient(135deg, #92A894 0%, #7A8F7C 100%);
+
+  color: white;
+
+  font-size: 15px;
+
+  font-weight: 700;
+
+  letter-spacing: 0.5px;
+
+  cursor: pointer;
+
+  transition: 0.3s ease;
+
+  box-shadow: 0 4px 16px rgba(146,168,148,0.25);
+}
+
+.btn-registrar:hover {
+
+  transform: translateY(-2px);
+
+  box-shadow: 0 6px 24px rgba(146,168,148,0.35);
+}
+
+.btn-registrar:active {
+
+  transform: translateY(0);
+}
+
+.mensaje-exito {
+
+  margin-top: 20px;
+
+  padding: 16px 20px;
+
+  background: #E8F5E9;
+
+  border-radius: 12px;
+
+  color: #2E7D32;
+
+  text-align: center;
+
+  font-weight: 600;
+
+  animation: slideIn 0.3s ease;
+}
+
+@keyframes slideIn {
+
+  from {
+
+    opacity: 0;
+
+    transform: translateY(-10px);
+  }
+
+  to {
+
+    opacity: 1;
+
+    transform: translateY(0);
+  }
+}
 
 /* RESPONSIVE */
 
@@ -564,11 +853,12 @@ const stories = [
     font-size: 40px;
   }
 
+
   .stories-section {
 
     padding:
-      90px 20px
-      120px;
+      70px 20px
+      90px;
   }
 
 }
