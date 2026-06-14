@@ -85,18 +85,18 @@ const TYPE_TABS      = ['Todos', 'Perro', 'Gato']
 // Badges
 // ─────────────────────────────────────────────
 const statusBadgeClass = s => ({
-  'Disponible':  'mc-badge-green',
-  'En proceso':  'mc-badge-peach',
-  'Adoptada':    'mc-badge-blue',
-  'Inactiva':    'mc-badge-gray',
-  'En rescate':  'mc-badge-orange',
-}[s] || 'mc-badge-gray')
+  'Disponible':  'badge-aprobada',
+  'En proceso':  'badge-pendiente',
+  'Adoptada':    'badge-adoptada',
+  'Inactiva':    'badge-inactiva',
+  'En rescate':  'badge-rescate',
+}[s] || 'badge-inactiva')
 
 // ─────────────────────────────────────────────
 // Estadísticas
 // ─────────────────────────────────────────────
 const stats = computed(() => ({
-  total:     store.pets.length,
+  total:      store.pets.length,
   disponible: store.pets.filter(p => p.status === 'Disponible').length,
   enProceso:  store.pets.filter(p => p.status === 'En proceso').length,
   adoptada:   store.pets.filter(p => p.status === 'Adoptada').length,
@@ -320,13 +320,13 @@ function getNombreCasaCuna(pet) {
 </script>
 
 <template>
-  <div class="mc-root">
+  <div class="view-container">
 
     <!-- ── Toast ── -->
     <Teleport to="body">
-      <Transition name="mc-toast-anim">
-        <div v-if="toast.show" class="mc-toast" :class="toast.type">
-          <span class="mc-toast-dot"></span>
+      <Transition name="toast-fade">
+        <div v-if="toast.show" class="don-toast" :class="toast.type">
+          <span class="don-toast-dot"></span>
           {{ toast.message }}
         </div>
       </Transition>
@@ -335,184 +335,209 @@ function getNombreCasaCuna(pet) {
     <!-- ══════════════════════════════════════
          FORMULARIO — pantalla independiente
     ══════════════════════════════════════ -->
-    <Transition name="mc-slide">
-      <div v-if="showForm" class="mc-form-screen">
+    <Transition name="form-slide">
+      <div v-if="showForm" class="form-screen">
 
         <!-- Header del formulario -->
-        <header class="mc-header">
-          <div class="mc-header-left">
-            <h1 class="mc-title">{{ editMode ? 'Editar mascota' : 'Nueva mascota' }}</h1>
-            <p class="mc-sub">{{ editMode ? 'Modifica los datos del animal' : 'Completa la información del animal para el catálogo' }}</p>
+        <header class="page-header">
+          <div>
+            <h1 class="admin-page-title">{{ editMode ? 'Editar mascota' : 'Nueva mascota' }}</h1>
+            <p class="admin-page-sub">{{ editMode ? 'Modifica los datos del animal' : 'Completa la información del animal para el catálogo' }}</p>
           </div>
-          <button class="mc-btn-cancel" @click="closeForm">
+          <button class="btn-cancelar" @click="closeForm">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             Cancelar
           </button>
         </header>
 
-        <div class="mc-form-panel">
+        <div class="form-panel">
 
           <!-- Sección 1: Información básica -->
-          <div class="mc-section-label">
-            <span class="mc-section-num">1</span> Información básica
+          <div class="section-label">
+            <span class="section-num">1</span> Información básica
           </div>
-          <div class="mc-form-grid mc-form-grid--4" style="margin-bottom:28px">
-            <div class="mc-fg">
-              <label>Nombre <span class="mc-req">*</span></label>
+          <div class="form-grid form-grid--4" style="margin-bottom:28px">
+            <div class="fg">
+              <label>Nombre <span class="req">*</span></label>
               <input
                 v-model="formData.name"
                 placeholder="Nombre del animal"
-                class="mc-input"
+                class="filtro-input"
                 :class="{ 'is-error': formErrors.name }"
                 @input="clearErr('name')"
               />
-              <p v-if="formErrors.name" class="mc-err-msg">{{ formErrors.name }}</p>
+              <p v-if="formErrors.name" class="err-msg">{{ formErrors.name }}</p>
             </div>
-            <div class="mc-fg">
-              <label>Tipo <span class="mc-req">*</span></label>
-              <select v-model="formData.type" class="mc-input">
-                <option>Perro</option>
-                <option>Gato</option>
-              </select>
+            <div class="fg">
+              <label>Tipo <span class="req">*</span></label>
+              <div class="filtro-input-wrap">
+                <select v-model="formData.type" class="filtro-input filtro-select">
+                  <option>Perro</option>
+                  <option>Gato</option>
+                </select>
+                <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </span>
+              </div>
             </div>
-            <div class="mc-fg">
-              <label>Raza <span class="mc-req">*</span></label>
+            <div class="fg">
+              <label>Raza <span class="req">*</span></label>
               <input
                 v-model="formData.breed"
                 placeholder="Raza"
-                class="mc-input"
+                class="filtro-input"
                 :class="{ 'is-error': formErrors.breed }"
                 @input="clearErr('breed')"
               />
-              <p v-if="formErrors.breed" class="mc-err-msg">{{ formErrors.breed }}</p>
+              <p v-if="formErrors.breed" class="err-msg">{{ formErrors.breed }}</p>
             </div>
-            <div class="mc-fg">
-              <label>Edad <span class="mc-req">*</span></label>
+            <div class="fg">
+              <label>Edad <span class="req">*</span></label>
               <input
                 v-model="formData.age"
                 placeholder="Ej. 2 años"
-                class="mc-input"
+                class="filtro-input"
                 :class="{ 'is-error': formErrors.age }"
                 @input="clearErr('age')"
               />
-              <p v-if="formErrors.age" class="mc-err-msg">{{ formErrors.age }}</p>
+              <p v-if="formErrors.age" class="err-msg">{{ formErrors.age }}</p>
             </div>
-            <div class="mc-fg">
+            <div class="fg">
               <label>Sexo</label>
-              <select v-model="formData.sex" class="mc-input">
-                <option>Macho</option>
-                <option>Hembra</option>
-              </select>
+              <div class="filtro-input-wrap">
+                <select v-model="formData.sex" class="filtro-input filtro-select">
+                  <option>Macho</option>
+                  <option>Hembra</option>
+                </select>
+                <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </span>
+              </div>
             </div>
-            <div class="mc-fg">
+            <div class="fg">
               <label>Tamaño</label>
-              <select v-model="formData.size" class="mc-input">
-                <option>Pequeño</option>
-                <option>Mediano</option>
-                <option>Grande</option>
-              </select>
+              <div class="filtro-input-wrap">
+                <select v-model="formData.size" class="filtro-input filtro-select">
+                  <option>Pequeño</option>
+                  <option>Mediano</option>
+                  <option>Grande</option>
+                </select>
+                <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </span>
+              </div>
             </div>
-            <div class="mc-fg">
+            <div class="fg">
               <label>Estado</label>
-              <select v-model="formData.status" class="mc-input">
-                <option v-for="s in STATUS_OPTIONS" :key="s">{{ s }}</option>
-              </select>
+              <div class="filtro-input-wrap">
+                <select v-model="formData.status" class="filtro-input filtro-select">
+                  <option v-for="s in STATUS_OPTIONS" :key="s">{{ s }}</option>
+                </select>
+                <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </span>
+              </div>
             </div>
-            <div class="mc-fg">
-              <label>Salud básica <span class="mc-req">*</span></label>
+            <div class="fg">
+              <label>Salud básica <span class="req">*</span></label>
               <input
                 v-model="formData.healthBasic"
                 placeholder="Ej. Vacunado, desparasitado"
-                class="mc-input"
+                class="filtro-input"
                 :class="{ 'is-error': formErrors.healthBasic }"
                 @input="clearErr('healthBasic')"
               />
-              <p v-if="formErrors.healthBasic" class="mc-err-msg">{{ formErrors.healthBasic }}</p>
+              <p v-if="formErrors.healthBasic" class="err-msg">{{ formErrors.healthBasic }}</p>
             </div>
-            <div class="mc-fg">
+            <div class="fg">
               <label>Personalidad</label>
               <input
                 v-model="formData.personality"
                 placeholder="Ej. Juguetón, tranquilo"
-                class="mc-input"
+                class="filtro-input"
               />
             </div>
-            <div class="mc-fg mc-fg--span2">
+            <div class="fg fg--span2">
               <label>Casa cuna asignada</label>
-              <select
-                class="mc-input"
-                :value="formData.casaCunaId"
-                @change="onCasaCunaChange"
-              >
-                <option value="">Sin asignar</option>
-                <option
-                  v-for="cc in casasCuna"
-                  :key="cc.id"
-                  :value="cc.id"
-                >{{ cc.nombre || cc.name }}</option>
-              </select>
+              <div class="filtro-input-wrap">
+                <select
+                  class="filtro-input filtro-select"
+                  :value="formData.casaCunaId"
+                  @change="onCasaCunaChange"
+                >
+                  <option value="">Sin asignar</option>
+                  <option
+                    v-for="cc in casasCuna"
+                    :key="cc.id"
+                    :value="cc.id"
+                  >{{ cc.nombre || cc.name }}</option>
+                </select>
+                <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </span>
+              </div>
             </div>
           </div>
 
           <!-- Sección 2: Contenido público -->
-          <div class="mc-section-label">
-            <span class="mc-section-num">2</span> Contenido público
+          <div class="section-label">
+            <span class="section-num">2</span> Contenido público
           </div>
-          <div class="mc-form-grid mc-form-grid--4" style="margin-bottom:28px">
-            <div class="mc-fg mc-fg--full">
+          <div class="form-grid form-grid--4" style="margin-bottom:28px">
+            <div class="fg fg--full">
               <label>Descripción pública</label>
               <textarea
                 v-model="formData.description"
                 placeholder="Descripción visible en el catálogo..."
-                class="mc-textarea"
+                class="form-textarea"
               ></textarea>
             </div>
           </div>
 
           <!-- Sección 3: Notas internas -->
-          <div class="mc-section-label">
-            <span class="mc-section-num">3</span> Notas internas
-            <span class="mc-private-badge">🔒 Solo admin</span>
+          <div class="section-label">
+            <span class="section-num">3</span> Notas internas
+            <span class="private-badge">🔒 Solo admin</span>
           </div>
-          <div class="mc-form-grid mc-form-grid--4" style="margin-bottom:28px">
-            <div class="mc-fg mc-fg--full">
+          <div class="form-grid form-grid--4" style="margin-bottom:28px">
+            <div class="fg fg--full">
               <textarea
                 v-model="formData.internalNotes"
                 placeholder="Historial médico, ubicación exacta, observaciones privadas..."
-                class="mc-textarea mc-textarea--private"
+                class="form-textarea form-textarea--private"
               ></textarea>
             </div>
           </div>
 
           <!-- Sección 4: Fotos -->
-          <div class="mc-section-label">
-            <span class="mc-section-num">4</span> Fotos <span class="mc-req">*</span>
+          <div class="section-label">
+            <span class="section-num">4</span> Fotos <span class="req">*</span>
           </div>
 
-          <div v-if="formData.images.length > 0" class="mc-image-previews" style="margin-bottom:28px">
-            <div v-for="(img, i) in formData.images" :key="i" class="mc-image-preview-item">
+          <div v-if="formData.images.length > 0" class="image-previews" style="margin-bottom:28px">
+            <div v-for="(img, i) in formData.images" :key="i" class="image-preview-item">
               <img :src="img.preview" :alt="img.name" />
-              <button class="mc-remove-image-btn" @click="removeImage(i)" title="Eliminar">×</button>
-              <span v-if="i === 0" class="mc-main-photo-label">Principal</span>
+              <button class="remove-image-btn" @click="removeImage(i)" title="Eliminar">×</button>
+              <span v-if="i === 0" class="main-photo-label">Principal</span>
             </div>
-            <button class="mc-add-more-btn" @click="imageInputRef.click()">
-              <span class="mc-add-more-icon">+</span>
+            <button class="add-more-btn" @click="imageInputRef.click()">
+              <span class="add-more-icon">+</span>
               <span>Agregar</span>
             </button>
           </div>
 
           <div
             v-else
-            class="mc-upload-zone"
+            class="upload-zone"
             :class="{ 'is-error': formErrors.images }"
             @click="imageInputRef.click()"
             style="margin-bottom:8px"
           >
-            <div class="mc-upload-icon">📷</div>
-            <p class="mc-upload-title">Subir fotos del animal</p>
-            <p class="mc-upload-sub">Haz clic para seleccionar · JPG, PNG, WebP</p>
+            <div class="upload-icon">📷</div>
+            <p class="upload-title">Subir fotos del animal</p>
+            <p class="upload-sub">Haz clic para seleccionar · JPG, PNG, WebP</p>
           </div>
-          <p v-if="formErrors.images" class="mc-err-msg" style="margin-bottom:20px">{{ formErrors.images }}</p>
+          <p v-if="formErrors.images" class="err-msg" style="margin-bottom:20px">{{ formErrors.images }}</p>
 
           <input
             ref="imageInputRef"
@@ -523,16 +548,16 @@ function getNombreCasaCuna(pet) {
             @change="handleImageUpload"
           />
 
-          <div class="mc-immutable-note">
+          <div class="immutable-note">
             <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             Todos los campos marcados con * son obligatorios para publicar la mascota en el catálogo
           </div>
         </div>
 
         <!-- Footer del formulario -->
-        <div class="mc-form-footer">
-          <button class="mc-btn-cancel-ghost" @click="closeForm">Cancelar</button>
-          <button class="mc-btn-save" @click="savePet">
+        <div class="form-footer">
+          <button class="btn-limpiar btn-limpiar--activo" @click="closeForm">Cancelar</button>
+          <button class="btn-guardar" @click="savePet">
             <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             {{ editMode ? 'Guardar cambios' : 'Registrar mascota' }}
           </button>
@@ -541,310 +566,292 @@ function getNombreCasaCuna(pet) {
     </Transition>
 
     <!-- ══════════════════════════════════════
-         VISTA PRINCIPAL (tabla + filtros + stats)
+         VISTA PRINCIPAL
     ══════════════════════════════════════ -->
     <div v-if="!showForm">
 
-      <!-- ── Header ── -->
-      <header class="mc-header">
-        <div class="mc-header-left">
-          <h1 class="mc-title">Gestión de Mascotas</h1>
-          <p class="mc-sub">Registro y administración de animales de la fundación</p>
+      <!-- CABECERA -->
+      <header class="page-header">
+        <div>
+          <h1 class="admin-page-title">Gestión de Mascotas</h1>
+          <p class="admin-page-sub">Registro y administración de animales de la fundación</p>
         </div>
-        <button class="mc-btn-new" @click="openForm">
+        <button class="btn-nuevo" @click="openForm">
           <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Nueva mascota
         </button>
       </header>
 
-      <!-- ── Estadísticas ── -->
-      <div class="mc-stats-grid">
-        <div class="mc-stat-card mc-stat-total">
-          <div class="mc-stat-body">
-            <div class="mc-stat-value">{{ stats.total }}</div>
-            <div class="mc-stat-label">Total mascotas</div>
-            <div class="mc-stat-desc">En el sistema</div>
-          </div>
+      <!-- TARJETAS RESUMEN -->
+      <div class="don-summary">
+        <div class="don-card total-card">
+          <span class="don-label">Total mascotas</span>
+          <strong class="don-value">{{ stats.total }}</strong>
+          <span class="don-desc">En el sistema</span>
         </div>
-        <div class="mc-stat-card mc-stat-disponible">
-          <div class="mc-stat-body">
-            <div class="mc-stat-value">{{ stats.disponible }}</div>
-            <div class="mc-stat-label">Disponibles</div>
-            <div class="mc-stat-desc">Visibles en catálogo</div>
-          </div>
+        <div class="don-card disponible-card">
+          <span class="don-label">Disponibles</span>
+          <strong class="don-value">{{ stats.disponible }}</strong>
+          <span class="don-desc">Visibles en catálogo</span>
         </div>
-        <div class="mc-stat-card mc-stat-proceso">
-          <div class="mc-stat-body">
-            <div class="mc-stat-value">{{ stats.enProceso }}</div>
-            <div class="mc-stat-label">En proceso</div>
-            <div class="mc-stat-desc">Evaluando solicitudes</div>
-          </div>
+        <div class="don-card proceso-card">
+          <span class="don-label">En proceso</span>
+          <strong class="don-value">{{ stats.enProceso }}</strong>
+          <span class="don-desc">Evaluando solicitudes</span>
         </div>
-        <div class="mc-stat-card mc-stat-adoptada">
-          <div class="mc-stat-body">
-            <div class="mc-stat-value">{{ stats.adoptada }}</div>
-            <div class="mc-stat-label">Adoptadas</div>
-            <div class="mc-stat-desc">Historias felices</div>
-          </div>
+        <div class="don-card adoptada-card">
+          <span class="don-label">Adoptadas</span>
+          <strong class="don-value">{{ stats.adoptada }}</strong>
+          <span class="don-desc">Historias felices</span>
         </div>
-        <div class="mc-stat-card mc-stat-inactiva">
-          <div class="mc-stat-body">
-            <div class="mc-stat-value">{{ stats.inactiva }}</div>
-            <div class="mc-stat-label">Inactivas</div>
-            <div class="mc-stat-desc">Ocultas del público</div>
-          </div>
+        <div class="don-card inactiva-card">
+          <span class="don-label">Inactivas</span>
+          <strong class="don-value">{{ stats.inactiva }}</strong>
+          <span class="don-desc">Ocultas del público</span>
         </div>
       </div>
 
-      <!-- ── Toolbar (filtros) ── -->
-      <div class="mc-toolbar">
-        <div class="mc-tabs-row">
-          <!-- Tipo -->
-          <div class="mc-filter-group">
-            <span class="mc-filter-label">Tipo</span>
-            <div class="mc-tabs">
-              <button
-                v-for="t in TYPE_TABS"
-                :key="t"
-                class="mc-tab"
-                :class="{ active: filterType === t }"
-                @click="filterType = t"
-              >{{ t }}</button>
-            </div>
-          </div>
-          <!-- Estado -->
-          <div class="mc-filter-group">
-            <span class="mc-filter-label">Estado</span>
-            <div class="mc-tabs">
-              <button
-                v-for="s in STATUS_TABS"
-                :key="s"
-                class="mc-tab"
-                :class="{ active: filterStatus === s }"
-                @click="filterStatus = s"
-              >{{ s }}</button>
-            </div>
+      <!-- FILTROS -->
+      <div class="filtros-panel">
+
+        <!-- Tipo tabs -->
+        <div class="filtro-group filtro-group--tabs">
+          <label class="filtro-label">Tipo</label>
+          <div class="tabs-wrap">
+            <button
+              v-for="t in TYPE_TABS"
+              :key="t"
+              class="tab-btn"
+              :class="{ active: filterType === t }"
+              @click="filterType = t"
+            >{{ t }}</button>
           </div>
         </div>
 
-        <div class="mc-filters">
-          <div class="mc-search-wrap">
-            <svg class="mc-search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        <!-- Estado tabs -->
+        <div class="filtro-group filtro-group--tabs">
+          <label class="filtro-label">Estado</label>
+          <div class="tabs-wrap">
+            <button
+              v-for="s in STATUS_TABS"
+              :key="s"
+              class="tab-btn"
+              :class="{ active: filterStatus === s }"
+              @click="filterStatus = s"
+            >{{ s }}</button>
+          </div>
+        </div>
+
+        <!-- Buscar -->
+        <div class="filtro-group">
+          <label class="filtro-label">Buscar</label>
+          <div class="filtro-input-wrap">
             <input
-              class="mc-search"
               v-model="searchQuery"
-              placeholder="Buscar por ID o nombre..."
+              placeholder="ID, nombre o raza..."
+              class="filtro-input filtro-input--icon"
             />
+            <span class="filtro-icon filtro-icon--right">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
           </div>
+        </div>
+
+        <!-- Limpiar -->
+        <div class="filtro-group filtro-group--btn">
           <button
-            v-if="hayFiltros"
-            class="mc-clear"
+            class="btn-limpiar"
+            :class="{ 'btn-limpiar--activo': hayFiltros }"
             @click="searchQuery = ''; filterStatus = 'Todos'; filterType = 'Todos'"
-          >Limpiar</button>
+          >Limpiar filtros</button>
         </div>
       </div>
 
-      <!-- ── Tabla ── -->
-      <div class="mc-table-wrap">
-        <table class="mc-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Foto</th>
-              <th>Nombre</th>
-              <th>Tipo</th>
-              <th>Estado</th>
-              <th>Casa cuna asignada</th>
-              <th>Acciones</th>
-              <th></th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="p in filteredPets"
-              :key="p.id"
-              :class="{ 'mc-row-inactive': p.status === 'Inactiva' }"
-            >
-              <!-- ID -->
-              <td>
-                <span class="mc-id-badge">{{ p.id }}</span>
-              </td>
-
-              <!-- Foto -->
-              <td>
-                <div class="mc-avatar">
-                  <img
-                    v-if="p.images?.length > 0"
-                    :src="p.images[0].preview"
-                    class="mc-avatar-img"
-                    :alt="p.name"
-                  />
-                  <span v-else class="mc-avatar-ini">{{ p.name?.charAt(0) }}</span>
-                </div>
-              </td>
-
-              <!-- Nombre -->
-              <td>
-                <div class="mc-pet-info">
-                  <span class="mc-pet-name">{{ p.name }}</span>
-                  <span class="mc-pet-sub">{{ p.breed }}</span>
-                </div>
-              </td>
-
-              <!-- Tipo -->
-              <td>
-                <span class="mc-type-chip">{{ p.type }}</span>
-              </td>
-
-              <!-- Estado -->
-              <td>
-                <span class="mc-badge" :class="statusBadgeClass(p.status)">{{ p.status }}</span>
-              </td>
-
-              <!-- Casa cuna -->
-              <td class="mc-td-sec">{{ getNombreCasaCuna(p) }}</td>
-
-              <!-- Acciones -->
-              <td>
-                <div class="mc-action-group">
-                  <button class="mc-act-btn" @click="openView(p)" title="Ver mascota">
-                    <Icon name="Eye" />
-                  </button>
-                  <button class="mc-act-btn" @click="openEdit(p)" title="Editar">
-                    <Icon name="Edit" />
-                  </button>
-                  <button class="mc-act-btn" @click="openRequests(p)" title="Ver solicitudes">
-                    <Icon name="Clipboard" />
-                  </button>
-                  <button
-                    class="mc-act-btn"
-                    @click="toggleActive(p)"
-                    :title="p.status === 'Inactiva' ? 'Activar mascota' : 'Desactivar mascota'"
-                  >
-                    <Icon :name="p.status === 'Inactiva' ? 'CheckCircle' : 'Archive'" />
-                  </button>
-                </div>
-              </td>
-            </tr>
-
-            <tr v-if="filteredPets.length === 0">
-              <td colspan="7" class="mc-empty">
-                <div class="mc-empty-inner">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3l-4 4-4-4"/></svg>
-                  <p>{{ hayFiltros ? 'Sin resultados para los filtros aplicados' : 'No hay mascotas registradas aún' }}</p>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+      <!-- ESTADO VACÍO -->
+      <div v-if="filteredPets.length === 0" class="empty-state">
+        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20 7H4a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2z"/><path d="M16 3l-4 4-4-4"/></svg>
+        <p class="empty-title">{{ hayFiltros ? 'Sin resultados para los filtros aplicados' : 'No hay mascotas registradas aún' }}</p>
+        <p class="empty-sub">{{ hayFiltros ? 'Ajusta los filtros para ver más resultados.' : 'Registra la primera mascota con el botón superior.' }}</p>
       </div>
 
-    </div><!-- /v-if="!showForm" -->
+      <!-- TABLA -->
+      <div v-else class="table-wrapper">
+        <div class="table-scroll">
+          <table class="don-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Foto</th>
+                <th>Nombre</th>
+                <th>Tipo</th>
+                <th>Estado</th>
+                <th>Casa cuna</th>
+                <th>Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="p in filteredPets"
+                :key="p.id"
+                class="don-row"
+                :class="{ 'row-inactive': p.status === 'Inactiva' }"
+              >
+                <!-- ID -->
+                <td><span class="id-pill">{{ p.id }}</span></td>
+
+                <!-- Foto -->
+                <td>
+                  <div class="pet-avatar">
+                    <img
+                      v-if="p.images?.length > 0"
+                      :src="p.images[0].preview"
+                      class="pet-avatar-img"
+                      :alt="p.name"
+                    />
+                    <span v-else class="pet-avatar-ini">{{ p.name?.charAt(0) }}</span>
+                  </div>
+                </td>
+
+                <!-- Nombre -->
+                <td>
+                  <span class="donor-name">{{ p.name }}</span>
+                  <span class="donor-mail">{{ p.breed }}</span>
+                </td>
+
+                <!-- Tipo -->
+                <td><span class="type-chip">{{ p.type }}</span></td>
+
+                <!-- Estado -->
+                <td><span class="estado-badge" :class="statusBadgeClass(p.status)">{{ p.status }}</span></td>
+
+                <!-- Casa cuna -->
+                <td><span class="fecha-text">{{ getNombreCasaCuna(p) }}</span></td>
+
+                <!-- Acciones -->
+                <td>
+                  <div class="action-group">
+                    <button class="btn-accion" @click="openView(p)" title="Ver mascota">
+                      <Icon name="Eye" />
+                    </button>
+                    <button class="btn-accion" @click="openEdit(p)" title="Editar">
+                      <Icon name="Edit" />
+                    </button>
+                    <button class="btn-accion" @click="openRequests(p)" title="Ver solicitudes">
+                      <Icon name="Clipboard" />
+                    </button>
+                    <button
+                      class="btn-accion"
+                      @click="toggleActive(p)"
+                      :title="p.status === 'Inactiva' ? 'Activar mascota' : 'Desactivar mascota'"
+                    >
+                      <Icon :name="p.status === 'Inactiva' ? 'CheckCircle' : 'Archive'" />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-footer">
+          {{ filteredPets.length }} mascota{{ filteredPets.length !== 1 ? 's' : '' }} encontrada{{ filteredPets.length !== 1 ? 's' : '' }}
+        </div>
+      </div>
+
+    </div>
 
 
     <!-- ══════════════════════════════════════
          MODAL: Ver mascota
     ══════════════════════════════════════ -->
     <Teleport to="body">
-      <Transition name="mc-overlay-anim">
-        <div v-if="showViewModal && viewTarget" class="mc-overlay" @click.self="showViewModal = false">
-          <div class="mc-modal mc-modal--lg">
+      <Transition name="modal-fade">
+        <div v-if="showViewModal && viewTarget" class="modal-overlay" @click.self="showViewModal = false">
+          <div class="modal-box">
+            <button class="modal-close" @click="showViewModal = false">✕</button>
 
-            <div class="mc-modal-header">
-              <div>
-                <p class="mc-modal-eyebrow">Detalle de mascota</p>
-                <h2 class="mc-modal-title">{{ viewTarget.name }}</h2>
+            <div class="modal-header">
+              <div class="pet-avatar pet-avatar--lg">
+                <img
+                  v-if="viewTarget.images?.length > 0"
+                  :src="viewTarget.images[0].preview"
+                  class="pet-avatar-img"
+                  :alt="viewTarget.name"
+                />
+                <span v-else class="pet-avatar-ini pet-avatar-ini--lg">{{ viewTarget.name?.charAt(0) }}</span>
               </div>
-              <button class="mc-modal-close" @click="showViewModal = false">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
+              <div class="modal-header-info">
+                <p class="modal-eyebrow">Detalle de mascota</p>
+                <h2 class="modal-title">{{ viewTarget.name }}</h2>
+                <p class="modal-sub">{{ viewTarget.breed }}</p>
+              </div>
+              <div class="modal-header-badges">
+                <span class="id-pill">{{ viewTarget.id }}</span>
+                <span class="estado-badge" :class="statusBadgeClass(viewTarget.status)">{{ viewTarget.status }}</span>
+              </div>
             </div>
 
-            <div class="mc-modal-body">
-
-              <!-- Pet header -->
-              <div class="mc-ver-pet">
-                <div class="mc-avatar mc-avatar--lg">
-                  <img
-                    v-if="viewTarget.images?.length > 0"
-                    :src="viewTarget.images[0].preview"
-                    class="mc-avatar-img"
-                    :alt="viewTarget.name"
-                  />
-                  <span v-else class="mc-avatar-ini">{{ viewTarget.name?.charAt(0) }}</span>
+            <div class="modal-section">
+              <h4 class="modal-section-title">Información general</h4>
+              <div class="modal-grid modal-grid--3">
+                <div class="modal-field">
+                  <span class="modal-field-label">Tipo</span>
+                  <strong class="modal-field-value">{{ viewTarget.type }}</strong>
                 </div>
-                <div>
-                  <p class="mc-ver-pname">{{ viewTarget.name }}</p>
-                  <p class="mc-ver-pspec">{{ viewTarget.breed }}</p>
+                <div class="modal-field">
+                  <span class="modal-field-label">Edad</span>
+                  <strong class="modal-field-value">{{ viewTarget.age }}</strong>
                 </div>
-                <div class="mc-ver-badges">
-                  <span class="mc-id-badge">{{ viewTarget.id }}</span>
-                  <span class="mc-badge" :class="statusBadgeClass(viewTarget.status)">{{ viewTarget.status }}</span>
+                <div class="modal-field">
+                  <span class="modal-field-label">Sexo</span>
+                  <strong class="modal-field-value">{{ viewTarget.sex }}</strong>
                 </div>
-              </div>
-
-              <!-- Info grid -->
-              <div class="mc-ver-card">
-                <div class="mc-ver-grid">
-                  <div class="mc-ver-item">
-                    <span class="mc-ver-label">Tipo</span>
-                    <span class="mc-ver-val">{{ viewTarget.type }}</span>
-                  </div>
-                  <div class="mc-ver-item">
-                    <span class="mc-ver-label">Edad</span>
-                    <span class="mc-ver-val">{{ viewTarget.age }}</span>
-                  </div>
-                  <div class="mc-ver-item">
-                    <span class="mc-ver-label">Sexo</span>
-                    <span class="mc-ver-val">{{ viewTarget.sex }}</span>
-                  </div>
-                  <div class="mc-ver-item">
-                    <span class="mc-ver-label">Tamaño</span>
-                    <span class="mc-ver-val">{{ viewTarget.size }}</span>
-                  </div>
-                  <div class="mc-ver-item">
-                    <span class="mc-ver-label">Salud básica</span>
-                    <span class="mc-ver-val">{{ viewTarget.healthBasic }}</span>
-                  </div>
-                  <div class="mc-ver-item">
-                    <span class="mc-ver-label">Casa cuna</span>
-                    <span class="mc-ver-val">{{ getNombreCasaCuna(viewTarget) }}</span>
-                  </div>
-                  <div v-if="viewTarget.personality" class="mc-ver-item">
-                    <span class="mc-ver-label">Personalidad</span>
-                    <span class="mc-ver-val">{{ viewTarget.personality }}</span>
-                  </div>
+                <div class="modal-field">
+                  <span class="modal-field-label">Tamaño</span>
+                  <strong class="modal-field-value">{{ viewTarget.size }}</strong>
                 </div>
-
-                <div v-if="viewTarget.description" class="mc-ver-row mc-ver-row--block" style="margin-top:12px">
-                  <span class="mc-ver-label">Descripción pública</span>
-                  <span class="mc-ver-val" style="line-height:1.5">{{ viewTarget.description }}</span>
+                <div class="modal-field">
+                  <span class="modal-field-label">Salud básica</span>
+                  <strong class="modal-field-value">{{ viewTarget.healthBasic }}</strong>
                 </div>
-
-                <div v-if="viewTarget.internalNotes" class="mc-ver-private" style="margin-top:12px">
-                  <span class="mc-ver-label">🔒 Notas internas</span>
-                  <span class="mc-ver-val" style="line-height:1.5">{{ viewTarget.internalNotes }}</span>
+                <div class="modal-field">
+                  <span class="modal-field-label">Casa cuna</span>
+                  <strong class="modal-field-value">{{ getNombreCasaCuna(viewTarget) }}</strong>
+                </div>
+                <div v-if="viewTarget.personality" class="modal-field">
+                  <span class="modal-field-label">Personalidad</span>
+                  <strong class="modal-field-value">{{ viewTarget.personality }}</strong>
                 </div>
               </div>
+            </div>
 
-              <!-- Galería adicional -->
-              <div v-if="viewTarget.images?.length > 1" class="mc-gallery" style="margin-top:16px">
+            <div v-if="viewTarget.description" class="modal-section">
+              <h4 class="modal-section-title">Descripción pública</h4>
+              <p class="modal-mensaje">{{ viewTarget.description }}</p>
+            </div>
+
+            <div v-if="viewTarget.internalNotes" class="modal-section">
+              <h4 class="modal-section-title">🔒 Notas internas</h4>
+              <p class="modal-mensaje modal-mensaje--private">{{ viewTarget.internalNotes }}</p>
+            </div>
+
+            <div v-if="viewTarget.images?.length > 1" class="modal-section">
+              <h4 class="modal-section-title">Galería</h4>
+              <div class="modal-gallery">
                 <img
                   v-for="(img, i) in viewTarget.images.slice(1)"
                   :key="i"
                   :src="img.preview"
                   :alt="viewTarget.name"
-                  class="mc-gallery-img"
+                  class="gallery-img"
                 />
               </div>
-
             </div>
 
-            <div class="mc-modal-footer">
-              <button class="mc-btn-cancel-modal" @click="showViewModal = false">Cerrar</button>
-              <button class="mc-btn-save" @click="openEdit(viewTarget)">
+            <div class="modal-acciones">
+              <button class="btn-limpiar btn-limpiar--activo" @click="showViewModal = false">Cerrar</button>
+              <button class="btn-guardar" @click="openEdit(viewTarget)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                Editar
+                Editar mascota
               </button>
             </div>
           </div>
@@ -857,29 +864,27 @@ function getNombreCasaCuna(pet) {
          MODAL: Cambiar estado
     ══════════════════════════════════════ -->
     <Teleport to="body">
-      <Transition name="mc-overlay-anim">
-        <div v-if="showStatusModal" class="mc-overlay" @click.self="showStatusModal = false">
-          <div class="mc-modal mc-modal--sm">
-            <div class="mc-modal-header">
-              <div>
-                <p class="mc-modal-eyebrow">Cambiar estado</p>
-                <h2 class="mc-modal-title">{{ statusTargetPet?.name }}</h2>
+      <Transition name="modal-fade">
+        <div v-if="showStatusModal" class="modal-overlay" @click.self="showStatusModal = false">
+          <div class="modal-box modal-box--sm">
+            <button class="modal-close" @click="showStatusModal = false">✕</button>
+            <div class="modal-header">
+              <div class="modal-header-info">
+                <p class="modal-eyebrow">Cambiar estado</p>
+                <h2 class="modal-title">{{ statusTargetPet?.name }}</h2>
               </div>
-              <button class="mc-modal-close" @click="showStatusModal = false">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
             </div>
-            <div class="mc-modal-body">
-              <div class="mc-status-options">
+            <div class="modal-section">
+              <div class="status-options">
                 <label
                   v-for="s in STATUS_OPTIONS"
                   :key="s"
-                  class="mc-status-option"
+                  class="status-option"
                   :class="{ selected: pendingStatus === s }"
                 >
                   <input type="radio" :value="s" v-model="pendingStatus" />
-                  <span class="mc-badge" :class="statusBadgeClass(s)">{{ s }}</span>
-                  <span class="mc-status-desc">
+                  <span class="estado-badge" :class="statusBadgeClass(s)">{{ s }}</span>
+                  <span class="status-desc">
                     <template v-if="s === 'Disponible'">Visible en catálogo, acepta solicitudes</template>
                     <template v-else-if="s === 'En proceso'">Visible, evaluando solicitudes</template>
                     <template v-else-if="s === 'Adoptada'">Se mueve a «Historias felices»</template>
@@ -888,9 +893,9 @@ function getNombreCasaCuna(pet) {
                 </label>
               </div>
             </div>
-            <div class="mc-modal-footer">
-              <button class="mc-btn-cancel-modal" @click="showStatusModal = false">Cancelar</button>
-              <button class="mc-btn-save" @click="confirmStatusChange">
+            <div class="modal-acciones">
+              <button class="btn-limpiar btn-limpiar--activo" @click="showStatusModal = false">Cancelar</button>
+              <button class="btn-guardar" @click="confirmStatusChange">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 Confirmar
               </button>
@@ -905,27 +910,25 @@ function getNombreCasaCuna(pet) {
          MODAL: Confirmar desactivar
     ══════════════════════════════════════ -->
     <Teleport to="body">
-      <Transition name="mc-overlay-anim">
-        <div v-if="showDeactivateModal" class="mc-overlay" @click.self="showDeactivateModal = false">
-          <div class="mc-modal mc-modal--sm">
-            <div class="mc-modal-header">
-              <div>
-                <p class="mc-modal-eyebrow">Desactivar mascota</p>
-                <h2 class="mc-modal-title">{{ deactivateTarget?.name }}</h2>
+      <Transition name="modal-fade">
+        <div v-if="showDeactivateModal" class="modal-overlay" @click.self="showDeactivateModal = false">
+          <div class="modal-box modal-box--sm">
+            <button class="modal-close" @click="showDeactivateModal = false">✕</button>
+            <div class="modal-header">
+              <div class="modal-header-info">
+                <p class="modal-eyebrow">Desactivar mascota</p>
+                <h2 class="modal-title">{{ deactivateTarget?.name }}</h2>
               </div>
-              <button class="mc-modal-close" @click="showDeactivateModal = false">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
             </div>
-            <div class="mc-modal-body">
-              <div class="mc-info-box">
+            <div class="modal-section">
+              <div class="info-box">
                 <p>🔒 <strong>No se eliminará</strong> del sistema. Se conservará todo su historial, solicitudes y registros.</p>
                 <p>La mascota pasará a estado <strong>Inactiva</strong> y dejará de ser visible en el catálogo público.</p>
               </div>
             </div>
-            <div class="mc-modal-footer">
-              <button class="mc-btn-cancel-modal" @click="showDeactivateModal = false">Cancelar</button>
-              <button class="mc-btn-danger" @click="confirmDeactivate">Desactivar</button>
+            <div class="modal-acciones">
+              <button class="btn-limpiar btn-limpiar--activo" @click="showDeactivateModal = false">Cancelar</button>
+              <button class="btn-rechazar" @click="confirmDeactivate">Desactivar</button>
             </div>
           </div>
         </div>
@@ -937,65 +940,64 @@ function getNombreCasaCuna(pet) {
          MODAL: Solicitudes de adopción
     ══════════════════════════════════════ -->
     <Teleport to="body">
-      <Transition name="mc-overlay-anim">
-        <div v-if="showRequestsModal" class="mc-overlay" @click.self="showRequestsModal = false">
-          <div class="mc-modal mc-modal--lg">
-            <div class="mc-modal-header">
-              <div>
-                <p class="mc-modal-eyebrow">Solicitudes de adopción</p>
-                <h2 class="mc-modal-title">{{ requestsTarget?.name }}</h2>
+      <Transition name="modal-fade">
+        <div v-if="showRequestsModal" class="modal-overlay" @click.self="showRequestsModal = false">
+          <div class="modal-box">
+            <button class="modal-close" @click="showRequestsModal = false">✕</button>
+            <div class="modal-header">
+              <div class="modal-header-info">
+                <p class="modal-eyebrow">Solicitudes de adopción</p>
+                <h2 class="modal-title">{{ requestsTarget?.name }}</h2>
               </div>
-              <button class="mc-modal-close" @click="showRequestsModal = false">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
             </div>
 
-            <div class="mc-modal-body">
-              <div v-if="solicitudesMascota.length" class="mc-requests-list">
-                <div v-for="s in solicitudesMascota" :key="s.id" class="mc-request-card">
-                  <div class="mc-request-header">
-                    <div class="mc-avatar mc-avatar--md">
-                      <span class="mc-avatar-ini">{{ s.solicitante?.substring(0,1).toUpperCase() }}</span>
+            <div class="modal-section">
+              <div v-if="solicitudesMascota.length" class="requests-list">
+                <div v-for="s in solicitudesMascota" :key="s.id" class="request-card">
+                  <div class="request-header">
+                    <div class="pet-avatar">
+                      <span class="pet-avatar-ini">{{ s.solicitante?.substring(0,1).toUpperCase() }}</span>
                     </div>
-                    <div class="mc-request-user">
+                    <div class="request-user">
                       <h4>{{ s.solicitante }}</h4>
-                      <span class="mc-id-badge">{{ s.id }}</span>
+                      <span class="id-pill">{{ s.id }}</span>
                     </div>
                     <span
-                      class="mc-req-status"
+                      class="estado-badge"
                       :class="{
-                        'rs-approved': s.estado === 'Aprobada',
-                        'rs-pending':  s.estado === 'Pendiente',
-                        'rs-process':  s.estado === 'En proceso',
-                        'rs-rejected': s.estado === 'Rechazada',
+                        'badge-aprobada': s.estado === 'Aprobada',
+                        'badge-pendiente': s.estado === 'Pendiente',
+                        'badge-proceso': s.estado === 'En proceso',
+                        'badge-rechazada': s.estado === 'Rechazada',
                       }"
                     >{{ s.estado }}</span>
                   </div>
-                  <div class="mc-ver-grid" style="margin-top:12px">
-                    <div class="mc-ver-item">
-                      <span class="mc-ver-label">Teléfono</span>
-                      <span class="mc-ver-val">{{ s.telefono }}</span>
+                  <div class="modal-grid" style="margin-top:12px">
+                    <div class="modal-field">
+                      <span class="modal-field-label">Teléfono</span>
+                      <strong class="modal-field-value">{{ s.telefono }}</strong>
                     </div>
-                    <div class="mc-ver-item">
-                      <span class="mc-ver-label">Correo</span>
-                      <span class="mc-ver-val">{{ s.email }}</span>
+                    <div class="modal-field">
+                      <span class="modal-field-label">Correo</span>
+                      <strong class="modal-field-value">{{ s.email }}</strong>
                     </div>
-                    <div class="mc-ver-item">
-                      <span class="mc-ver-label">Fecha</span>
-                      <span class="mc-date-badge">{{ s.fecha }}</span>
+                    <div class="modal-field">
+                      <span class="modal-field-label">Fecha</span>
+                      <strong class="modal-field-value">{{ s.fecha }}</strong>
                     </div>
                   </div>
                 </div>
               </div>
 
-              <div v-else class="mc-empty-inner" style="padding: 40px 20px">
+              <div v-else class="empty-state" style="padding: 40px 20px; border:none; background:transparent;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                <p>Sin solicitudes aún. Las solicitudes del catálogo público aparecerán aquí.</p>
+                <p class="empty-title">Sin solicitudes aún</p>
+                <p class="empty-sub">Las solicitudes del catálogo público aparecerán aquí.</p>
               </div>
             </div>
 
-            <div class="mc-modal-footer">
-              <button class="mc-btn-cancel-modal" @click="showRequestsModal = false">Cerrar</button>
+            <div class="modal-acciones">
+              <button class="btn-limpiar btn-limpiar--activo" @click="showRequestsModal = false">Cerrar</button>
             </div>
           </div>
         </div>
@@ -1006,18 +1008,23 @@ function getNombreCasaCuna(pet) {
 </template>
 
 <style scoped>
-/* ═══════════════════════════════════════
-   ROOT
-═══════════════════════════════════════ */
-.mc-root {
+/* ── Variables ─────────────────────────────────────── */
+.view-container {
+  --verde:     #3A473C;
+  --verde-sec: #92A894;
+  --fondo:     #F7F8F7;
+  --blanco:    #FFFFFF;
+  --texto:     #2F352F;
+  --texto-sec: #6C756D;
+  --borde:     #E8ECE8;
+  --amarillo:  #F5B942;
+  --verde-ok:  #4CAF6A;
   background: transparent;
   padding-bottom: 40px;
 }
 
-/* ═══════════════════════════════════════
-   TOAST
-═══════════════════════════════════════ */
-.mc-toast {
+/* ── Toast ─────────────────────────────────────────── */
+.don-toast {
   position: fixed;
   bottom: 32px;
   right: 32px;
@@ -1032,21 +1039,19 @@ function getNombreCasaCuna(pet) {
   box-shadow: 0 8px 32px rgba(0,0,0,0.16);
   pointer-events: none;
 }
-.mc-toast.success { background: #3A473C; color: #fff; }
-.mc-toast.error   { background: #c0392b; color: #fff; }
-.mc-toast-dot {
+.don-toast.success { background: #3A473C; color: #fff; }
+.don-toast.error   { background: #c0392b; color: #fff; }
+.don-toast-dot {
   width: 8px; height: 8px;
   border-radius: 50%;
   background: rgba(255,255,255,0.5);
   flex-shrink: 0;
 }
-.mc-toast-anim-enter-active, .mc-toast-anim-leave-active { transition: all 0.25s ease; }
-.mc-toast-anim-enter-from, .mc-toast-anim-leave-to { opacity: 0; transform: translateY(10px); }
+.toast-fade-enter-active, .toast-fade-leave-active { transition: all 0.25s ease; }
+.toast-fade-enter-from, .toast-fade-leave-to { opacity: 0; transform: translateY(10px); }
 
-/* ═══════════════════════════════════════
-   HEADER
-═══════════════════════════════════════ */
-.mc-header {
+/* ── Encabezado ────────────────────────────────────── */
+.page-header {
   display: flex;
   justify-content: space-between;
   align-items: flex-start;
@@ -1054,25 +1059,15 @@ function getNombreCasaCuna(pet) {
   gap: 16px;
   flex-wrap: wrap;
 }
-.mc-title {
-  font-size: 28px;
-  font-weight: 800;
-  color: #3A473C;
-  letter-spacing: -0.5px;
-  line-height: 1.1;
-}
-.mc-sub {
-  font-size: 14px;
-  color: #6C756D;
-  margin-top: 5px;
-  font-weight: 500;
-}
-.mc-btn-new {
+.admin-page-title  { font-size: 28px; font-weight: 800; color: var(--verde); letter-spacing: -0.5px; line-height: 1.1; }
+.admin-page-sub    { font-size: 14px; color: var(--texto-sec); margin-top: 4px; font-weight: 500; }
+
+.btn-nuevo {
   display: flex;
   align-items: center;
   gap: 7px;
   padding: 11px 20px;
-  background: #3A473C;
+  background: var(--verde);
   color: #fff;
   border: none;
   border-radius: 12px;
@@ -1082,18 +1077,19 @@ function getNombreCasaCuna(pet) {
   transition: background 0.18s, transform 0.1s;
   white-space: nowrap;
   flex-shrink: 0;
+  font-family: inherit;
 }
-.mc-btn-new:hover { background: #2d3730; }
-.mc-btn-new:active { transform: scale(0.97); }
+.btn-nuevo:hover { background: #2d3730; }
+.btn-nuevo:active { transform: scale(0.97); }
 
-.mc-btn-cancel {
+.btn-cancelar {
   display: flex;
   align-items: center;
   gap: 7px;
   padding: 11px 20px;
-  background: #F4F6F4;
-  color: #6C756D;
-  border: none;
+  background: var(--fondo);
+  color: var(--texto-sec);
+  border: 1.5px solid var(--borde);
   border-radius: 12px;
   font-size: 14px;
   font-weight: 700;
@@ -1101,195 +1097,198 @@ function getNombreCasaCuna(pet) {
   transition: background 0.18s;
   white-space: nowrap;
   flex-shrink: 0;
+  font-family: inherit;
 }
-.mc-btn-cancel:hover { background: #E5EAE6; color: #3A473C; }
+.btn-cancelar:hover { background: #E5EAE6; color: var(--verde); }
 
-/* ═══════════════════════════════════════
-   ESTADÍSTICAS
-═══════════════════════════════════════ */
-.mc-stats-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
+/* ── Tarjetas resumen ──────────────────────────────── */
+.don-summary {
+  display: flex;
   gap: 14px;
-  margin-bottom: 24px;
-}
-.mc-stat-card {
-  background: white;
-  border-radius: 18px;
-  padding: 20px;
-  border: 1.5px solid transparent;
-  transition: box-shadow 0.2s;
-}
-.mc-stat-card:hover { box-shadow: 0 4px 20px rgba(0,0,0,0.06); }
-.mc-stat-value {
-  font-size: 26px;
-  font-weight: 800;
-  color: #2D3A2E;
-  line-height: 1;
-  margin-bottom: 4px;
-}
-.mc-stat-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: #2D3A2E;
-  margin-bottom: 2px;
-}
-.mc-stat-desc { font-size: 12px; color: #9AA89C; }
-
-.mc-stat-total     { border-color: rgba(146,168,148,.3); background: rgba(146,168,148,.06); }
-.mc-stat-disponible{ border-color: rgba(146,168,148,.3); background: rgba(146,168,148,.06); }
-.mc-stat-proceso   { border-color: rgba(249,193,122,.3); background: rgba(249,193,122,.06); }
-.mc-stat-adoptada  { border-color: rgba(130,160,180,.25); background: rgba(130,160,180,.06); }
-.mc-stat-inactiva  { border-color: #EAEEEA; }
-
-/* ═══════════════════════════════════════
-   TOOLBAR (tabs + filtros)
-═══════════════════════════════════════ */
-.mc-toolbar {
-  background: #fff;
-  border-radius: 18px;
-  padding: 18px 20px;
   margin-bottom: 20px;
-  border: 1px solid #E8ECE8;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-}
-.mc-tabs-row {
-  display: flex;
-  align-items: center;
-  gap: 20px;
   flex-wrap: wrap;
 }
-.mc-filter-group {
+.don-card {
+  flex: 1;
+  min-width: 140px;
+  background: var(--blanco);
+  border-radius: 14px;
+  padding: 20px;
+  border: 1px solid var(--borde);
+  border-top: 3px solid var(--borde);
   display: flex;
-  align-items: center;
-  gap: 10px;
+  flex-direction: column;
+  gap: 4px;
 }
-.mc-filter-label {
-  font-size: 12px;
+.total-card      { border-top-color: var(--verde-sec); }
+.disponible-card { border-top-color: var(--verde-ok); }
+.proceso-card    { border-top-color: var(--amarillo); }
+.adoptada-card   { border-top-color: #6BA8C4; }
+.inactiva-card   { border-top-color: var(--texto-sec); }
+
+.don-label { font-size: 11px; color: var(--texto-sec); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+.don-value { font-size: 28px; font-weight: 800; color: var(--verde); line-height: 1; margin: 2px 0; }
+.don-desc  { font-size: 12px; color: #9AA89C; }
+
+/* ── Panel de filtros ──────────────────────────────── */
+.filtros-panel {
+  background: var(--blanco);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid var(--borde);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.filtro-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 130px;
+}
+.filtro-group--tabs {
+  flex: 0 0 auto;
+  min-width: unset;
+}
+.filtro-group--btn {
+  flex: 0 0 auto;
+  min-width: unset;
+}
+
+.filtro-label {
+  font-size: 11px;
   font-weight: 700;
-  color: #3A473C;
+  color: var(--verde);
   text-transform: uppercase;
   letter-spacing: 0.5px;
-  white-space: nowrap;
+  min-height: 16px;
+  display: flex;
+  align-items: flex-end;
 }
-.mc-tabs {
+
+/* Tabs */
+.tabs-wrap {
   display: flex;
   gap: 4px;
-  background: #F4F6F4;
-  border-radius: 12px;
+  background: var(--fondo);
+  border-radius: 10px;
   padding: 4px;
 }
-.mc-tab {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: 9px;
+.tab-btn {
+  padding: 7px 12px;
+  border-radius: 7px;
   border: none;
   background: transparent;
-  color: #6C756D;
-  font-size: 13px;
+  color: var(--texto-sec);
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.18s;
   white-space: nowrap;
   font-family: inherit;
 }
-.mc-tab:hover { color: #3A473C; background: rgba(255,255,255,0.6); }
-.mc-tab.active { background: #fff; color: #3A473C; box-shadow: 0 1px 4px rgba(58,71,60,0.12); }
+.tab-btn:hover { color: var(--verde); background: rgba(255,255,255,0.7); }
+.tab-btn.active { background: var(--blanco); color: var(--verde); box-shadow: 0 1px 4px rgba(58,71,60,0.12); }
 
-.mc-filters {
+/* Inputs */
+.filtro-input-wrap {
+  position: relative;
   display: flex;
   align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
 }
-.mc-search-wrap {
-  position: relative;
-  flex: 1;
-  min-width: 200px;
-}
-.mc-search-icon {
-  position: absolute;
-  left: 12px;
-  top: 50%;
-  transform: translateY(-50%);
-  color: #92A894;
-  pointer-events: none;
-}
-.mc-search {
+.filtro-input {
   width: 100%;
-  box-sizing: border-box;
-  padding: 9px 12px 9px 34px;
-  border: 1.5px solid #E8ECE8;
-  border-radius: 10px;
+  height: 38px;
+  padding: 0 36px 0 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--borde);
+  background: var(--fondo);
   font-size: 13px;
-  color: #3A473C;
-  background: #fff;
-  outline: none;
+  color: var(--texto);
   font-family: inherit;
-  transition: border-color 0.18s;
+  outline: none;
+  transition: border-color 0.18s, background 0.18s;
+  box-sizing: border-box;
 }
-.mc-search:focus { border-color: #92A894; }
-.mc-clear {
-  padding: 8px 14px;
-  border: 1.5px solid #fdd;
-  border-radius: 10px;
-  background: #fff5f5;
-  color: #c0392b;
+.filtro-input:focus { border-color: var(--verde-sec); background: var(--blanco); }
+.filtro-input::placeholder { color: #9CA8A0; }
+.filtro-input.is-error { border-color: #e57373; background: #fff8f8; }
+
+.filtro-select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+.filtro-input--icon { padding-left: 12px; }
+
+.filtro-icon {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  color: var(--texto-sec);
+}
+.filtro-icon--right  { right: 11px; }
+.filtro-icon--no-events { pointer-events: none; }
+
+.btn-limpiar {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: 1.5px solid var(--borde);
+  background: transparent;
+  color: var(--texto-sec);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s;
   white-space: nowrap;
+  transition: all 0.18s;
   font-family: inherit;
 }
-.mc-clear:hover { background: #ffe5e5; }
+.btn-limpiar--activo { border-color: var(--verde); color: var(--verde); }
+.btn-limpiar:hover   { background: var(--verde); color: var(--blanco); border-color: var(--verde); }
 
-/* ═══════════════════════════════════════
-   TABLA
-═══════════════════════════════════════ */
-.mc-table-wrap {
-  background: #fff;
-  border-radius: 20px;
-  box-shadow: 0 2px 16px rgba(58,71,60,0.06);
+/* ── Estado vacío ──────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 72px 24px;
+  background: var(--blanco);
+  border-radius: 14px;
+  border: 1px solid var(--borde);
+  color: var(--verde-sec);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.empty-state svg { opacity: 0.4; }
+.empty-title { font-size: 16px; font-weight: 700; color: var(--texto); margin: 0; }
+.empty-sub   { font-size: 13px; color: var(--texto-sec); margin: 0; }
+
+/* ── Tabla ─────────────────────────────────────────── */
+.table-wrapper {
+  background: var(--blanco);
+  border-radius: 14px;
+  border: 1px solid var(--borde);
   overflow: hidden;
 }
-.mc-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.mc-table thead { background: #F9FAF9; }
-.mc-table th {
-  padding: 14px 20px;
-  font-size: 11px;
-  font-weight: 800;
-  color: #92A894;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  white-space: nowrap;
-  border-bottom: 1.5px solid #F0F2F0;
-  text-align: center;
-}
-.mc-table td {
-  padding: 14px 20px;
-  font-size: 14px;
-  color: #3A473C;
-  border-bottom: 1px solid #F5F7F5;
-  vertical-align: middle;
-  text-align: center;
-}
-.mc-table tbody tr:last-child td { border-bottom: none; }
-.mc-table tbody tr { transition: background 0.12s; }
-.mc-table tbody tr:hover { background: #FAFBFA; }
-.mc-row-inactive { opacity: 0.5; }
+.table-scroll        { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.don-table           { width: 100%; border-collapse: collapse; min-width: 700px; }
+.don-table thead tr  { background: var(--verde); }
+.don-table thead th  { padding: 13px 16px; text-align: left; color: var(--blanco); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; white-space: nowrap; }
+.don-table tbody tr  { border-bottom: 1px solid var(--borde); transition: background 0.15s; }
+.don-table tbody tr:last-child { border-bottom: none; }
+.don-table tbody tr:hover      { background: #F4F6F4; }
+.don-table tbody td  { padding: 13px 16px; vertical-align: middle; }
 
-/* ── Celda foto / avatar ── */
-.mc-avatar {
-  width: 40px;
-  height: 40px;
+.row-inactive { opacity: 0.5; }
+
+/* Avatar mascota */
+.pet-avatar {
+  width: 38px; height: 38px;
   border-radius: 50%;
   overflow: hidden;
   flex-shrink: 0;
@@ -1299,25 +1298,23 @@ function getNombreCasaCuna(pet) {
   justify-content: center;
   border: 1.5px solid #EEF3EE;
 }
-.mc-avatar--md { width: 40px; height: 40px; }
-.mc-avatar--lg { width: 56px; height: 56px; }
-.mc-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.mc-avatar-ini {
-  font-size: 15px;
+.pet-avatar--lg { width: 56px; height: 56px; flex-shrink: 0; }
+.pet-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.pet-avatar-ini {
+  font-size: 14px;
   font-weight: 800;
   color: #5A6E5C;
   text-transform: uppercase;
   line-height: 1;
 }
-.mc-avatar--lg .mc-avatar-ini { font-size: 20px; }
+.pet-avatar-ini--lg { font-size: 20px; }
 
-/* ── Nombre + raza ── */
-.mc-pet-info   { display: flex; flex-direction: column; gap: 2px; }
-.mc-pet-name   { font-weight: 700; font-size: 14px; color: #3A473C; }
-.mc-pet-sub    { font-size: 11px; color: #92A894; }
+.id-pill    { font-size: 11px; font-family: monospace; background: var(--fondo); border: 1px solid var(--borde); padding: 3px 9px; border-radius: 6px; color: var(--verde); font-weight: 700; white-space: nowrap; }
+.donor-name { display: block; font-size: 13px; font-weight: 700; color: var(--texto); line-height: 1.3; }
+.donor-mail { display: block; font-size: 11px; color: var(--texto-sec); margin-top: 2px; }
+.fecha-text { font-size: 13px; color: var(--texto-sec); }
 
-/* ── Chips y badges ── */
-.mc-type-chip {
+.type-chip {
   font-size: 12px;
   font-weight: 600;
   color: #5A6E5C;
@@ -1327,127 +1324,73 @@ function getNombreCasaCuna(pet) {
   white-space: nowrap;
 }
 
-.mc-badge {
-  padding: 5px 11px;
-  border-radius: 9px;
-  font-size: 12px;
-  font-weight: 700;
-  display: inline-block;
-  white-space: nowrap;
-}
-.mc-badge-green  { background: rgba(146,168,148,.18); color: #4A6E4C; }
-.mc-badge-peach  { background: rgba(249,193,122,.2);  color: #C88A30; }
-.mc-badge-blue   { background: rgba(130,160,180,.15); color: #4A6070; }
-.mc-badge-gray   { background: #F0F4F0;               color: #7A847C; }
-.mc-badge-orange { background: rgba(230,150,80,.15);  color: #9A5420; }
+/* Badges */
+.estado-badge    { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; white-space: nowrap; }
+.badge-pendiente { background: #FFF7E0; color: #96650A; }
+.badge-aprobada  { background: #E8F5E9; color: #2E7D32; }
+.badge-rechazada { background: #FDECEA; color: #B71C1C; }
+.badge-adoptada  { background: rgba(130,160,180,.15); color: #4A6070; }
+.badge-inactiva  { background: #F0F4F0; color: #7A847C; }
+.badge-rescate   { background: rgba(230,150,80,.15); color: #9A5420; }
+.badge-proceso   { background: rgba(110,155,255,.12); color: #4F73B8; }
 
-.mc-id-badge {
-  background: #EEF2EE;
-  color: #5A6E5C;
-  padding: 4px 10px;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 700;
-  font-family: monospace;
-  white-space: nowrap;
-}
-
-.mc-date-badge {
-  display: inline-block;
-  padding: 4px 10px;
-  background: #F0F4F0;
-  color: #4A6550;
-  border-radius: 7px;
-  font-size: 12px;
-  font-weight: 600;
-  white-space: nowrap;
-}
-
-.mc-td-sec { color: #7A8A7C; font-size: 13px; }
-
-/* ── Acciones ── */
-.mc-action-group {
+/* Acciones */
+.action-group {
   display: flex;
   gap: 5px;
-  justify-content: center;
+  align-items: center;
 }
-.mc-act-btn {
-  width: 32px; height: 32px;
-  border-radius: 9px;
-  border: 1.5px solid #EAEEEA;
+.btn-accion {
+  width: 30px; height: 30px;
+  border-radius: 8px;
+  border: 1.5px solid var(--borde);
   background: transparent;
-  color: #7A847C;
+  color: var(--texto-sec);
   cursor: pointer;
   display: inline-flex; align-items: center; justify-content: center;
   transition: all 0.15s;
   flex-shrink: 0;
 }
-.mc-act-btn:hover {
-  background: #F5F8F5;
+.btn-accion:hover {
+  background: var(--fondo);
   border-color: #C8D4C8;
-  color: #2D3A2E;
+  color: var(--verde);
   transform: translateY(-1px);
 }
-.mc-act-btn:active { transform: translateY(0); }
 
-/* ── Empty ── */
-.mc-empty { padding: 0; }
-.mc-empty-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 56px 24px;
-  color: #92A894;
-}
-.mc-empty-inner svg { opacity: 0.4; }
-.mc-empty-inner p {
-  font-size: 14px;
-  font-weight: 500;
-  color: #7A8A7C;
-  margin: 0;
-  text-align: center;
-}
+.table-footer { padding: 12px 16px; border-top: 1px solid var(--borde); font-size: 12px; color: var(--texto-sec); font-weight: 500; }
 
-/* ═══════════════════════════════════════
-   FORMULARIO — pantalla independiente
-═══════════════════════════════════════ */
-.mc-form-screen {
-  display: flex;
-  flex-direction: column;
-}
-.mc-form-panel {
-  background: #fff;
-  border-radius: 20px;
+/* ── Formulario pantalla ───────────────────────────── */
+.form-screen { display: flex; flex-direction: column; }
+.form-panel {
+  background: var(--blanco);
+  border-radius: 14px;
   padding: 28px;
-  box-shadow: 0 2px 16px rgba(58,71,60,0.06);
-  border: 1px solid #E8ECE8;
+  border: 1px solid var(--borde);
   margin-bottom: 16px;
 }
-.mc-form-footer {
+.form-footer {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
-  padding: 18px 28px 4px;
+  padding: 18px 0 4px;
 }
 
-/* Sección label (igual que Salud) */
-.mc-section-label {
+.section-label {
   display: flex;
   align-items: center;
   gap: 10px;
   font-size: 13px;
   font-weight: 800;
-  color: #3A473C;
+  color: var(--verde);
   text-transform: uppercase;
   letter-spacing: 0.5px;
   margin-bottom: 14px;
 }
-.mc-section-num {
+.section-num {
   width: 24px; height: 24px;
   border-radius: 7px;
-  background: #3A473C;
+  background: var(--verde);
   color: #fff;
   font-size: 11px;
   font-weight: 800;
@@ -1456,7 +1399,7 @@ function getNombreCasaCuna(pet) {
   justify-content: center;
   flex-shrink: 0;
 }
-.mc-private-badge {
+.private-badge {
   font-size: 11px;
   font-weight: 600;
   color: #C88A37;
@@ -1466,50 +1409,24 @@ function getNombreCasaCuna(pet) {
   text-transform: none;
   letter-spacing: 0;
 }
+.req { color: #c0392b; }
 
-/* Grid del formulario */
-.mc-form-grid {
-  display: grid;
-  gap: 14px;
-}
-.mc-form-grid--4 { grid-template-columns: repeat(4, 1fr); }
-.mc-fg { display: flex; flex-direction: column; gap: 6px; }
-.mc-fg--span2 { grid-column: span 2; }
-.mc-fg--full  { grid-column: 1 / -1; }
+.form-grid { display: grid; gap: 14px; }
+.form-grid--4 { grid-template-columns: repeat(4, 1fr); }
+.fg { display: flex; flex-direction: column; gap: 6px; }
+.fg--span2 { grid-column: span 2; }
+.fg--full  { grid-column: 1 / -1; }
+.fg label { font-size: 12px; font-weight: 700; color: #5A6E5C; letter-spacing: 0.1px; }
 
-.mc-fg label {
-  font-size: 12px;
-  font-weight: 700;
-  color: #5A6E5C;
-  letter-spacing: 0.1px;
-}
-.mc-req { color: #c0392b; }
+.err-msg { font-size: 11px; color: #c0392b; font-weight: 600; margin: 0; }
 
-.mc-input {
+.form-textarea {
   padding: 10px 13px;
-  border: 1.5px solid #E8ECE8;
+  border: 1.5px solid var(--borde);
   border-radius: 10px;
   font-size: 13px;
-  color: #3A473C;
-  background: #FAFBFA;
-  outline: none;
-  font-family: inherit;
-  transition: border-color 0.18s, background 0.18s;
-  width: 100%;
-  box-sizing: border-box;
-  appearance: none;
-  -webkit-appearance: none;
-}
-.mc-input:focus { border-color: #92A894; background: #fff; }
-.mc-input.is-error { border-color: #e57373; background: #fff8f8; }
-
-.mc-textarea {
-  padding: 10px 13px;
-  border: 1.5px solid #E8ECE8;
-  border-radius: 10px;
-  font-size: 13px;
-  color: #3A473C;
-  background: #FAFBFA;
+  color: var(--texto);
+  background: var(--fondo);
   outline: none;
   font-family: inherit;
   transition: border-color 0.18s, background 0.18s;
@@ -1519,22 +1436,15 @@ function getNombreCasaCuna(pet) {
   resize: vertical;
   line-height: 1.5;
 }
-.mc-textarea:focus { border-color: #92A894; background: #fff; }
-.mc-textarea--private {
+.form-textarea:focus { border-color: var(--verde-sec); background: var(--blanco); }
+.form-textarea--private {
   background: #FFFBF3;
   border-color: rgba(249,193,122,.3);
 }
-.mc-textarea--private:focus { border-color: #F9C17A; }
-
-.mc-err-msg {
-  font-size: 11px;
-  color: #c0392b;
-  font-weight: 600;
-  margin: 0;
-}
+.form-textarea--private:focus { border-color: #F9C17A; }
 
 /* Imágenes */
-.mc-upload-zone {
+.upload-zone {
   border: 2px dashed #D0D9D1;
   border-radius: 14px;
   padding: 28px;
@@ -1544,26 +1454,22 @@ function getNombreCasaCuna(pet) {
   background: #FAFCFA;
   margin-bottom: 8px;
 }
-.mc-upload-zone:hover { border-color: #92A894; background: #F2F7F2; }
-.mc-upload-zone.is-error { border-color: #e57373; background: #fff8f8; }
-.mc-upload-icon   { font-size: 32px; margin-bottom: 8px; }
-.mc-upload-title  { font-size: 14px; font-weight: 700; color: #2D3A2E; margin: 0 0 4px; }
-.mc-upload-sub    { font-size: 13px; color: #9AA89C; margin: 0; }
+.upload-zone:hover { border-color: var(--verde-sec); background: #F2F7F2; }
+.upload-zone.is-error { border-color: #e57373; background: #fff8f8; }
+.upload-icon  { font-size: 32px; margin-bottom: 8px; }
+.upload-title { font-size: 14px; font-weight: 700; color: var(--texto); margin: 0 0 4px; }
+.upload-sub   { font-size: 13px; color: #9AA89C; margin: 0; }
 
-.mc-image-previews {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-.mc-image-preview-item {
+.image-previews { display: flex; flex-wrap: wrap; gap: 10px; }
+.image-preview-item {
   position: relative;
   width: 88px; height: 88px;
   border-radius: 12px;
   overflow: hidden;
   border: 1.5px solid #EEF3EE;
 }
-.mc-image-preview-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.mc-remove-image-btn {
+.image-preview-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.remove-image-btn {
   position: absolute;
   top: 4px; right: 4px;
   width: 22px; height: 22px;
@@ -1575,8 +1481,8 @@ function getNombreCasaCuna(pet) {
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
 }
-.mc-remove-image-btn:hover { background: rgba(180,40,40,.8); }
-.mc-main-photo-label {
+.remove-image-btn:hover { background: rgba(180,40,40,.8); }
+.main-photo-label {
   position: absolute;
   bottom: 0; left: 0; right: 0;
   background: rgba(45,58,46,.75);
@@ -1586,7 +1492,7 @@ function getNombreCasaCuna(pet) {
   text-align: center;
   padding: 3px 0;
 }
-.mc-add-more-btn {
+.add-more-btn {
   width: 88px; height: 88px;
   border-radius: 12px;
   border: 2px dashed #D0D9D1;
@@ -1600,11 +1506,10 @@ function getNombreCasaCuna(pet) {
   transition: all 0.2s;
   font-family: inherit;
 }
-.mc-add-more-btn:hover { border-color: #92A894; background: #F2F7F2; color: #3A473C; }
-.mc-add-more-icon { font-size: 22px; line-height: 1; }
+.add-more-btn:hover { border-color: var(--verde-sec); background: #F2F7F2; color: var(--verde); }
+.add-more-icon { font-size: 22px; line-height: 1; }
 
-/* Nota inmutable */
-.mc-immutable-note {
+.immutable-note {
   display: flex;
   align-items: flex-start;
   gap: 8px;
@@ -1618,15 +1523,14 @@ function getNombreCasaCuna(pet) {
   line-height: 1.4;
   margin-top: 4px;
 }
-.mc-immutable-note svg { flex-shrink: 0; margin-top: 1px; }
+.immutable-note svg { flex-shrink: 0; margin-top: 1px; }
 
-/* Botones de acción del form */
-.mc-btn-save {
+.btn-guardar {
   display: flex;
   align-items: center;
   gap: 7px;
   padding: 10px 20px;
-  background: #3A473C;
+  background: var(--verde);
   border: none;
   border-radius: 10px;
   font-size: 13px;
@@ -1636,311 +1540,311 @@ function getNombreCasaCuna(pet) {
   transition: background 0.18s;
   font-family: inherit;
 }
-.mc-btn-save:hover { background: #2d3730; }
-
-.mc-btn-cancel-ghost {
-  padding: 10px 18px;
-  background: #F4F6F4;
-  border: none;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #6C756D;
-  cursor: pointer;
-  transition: background 0.15s;
-  font-family: inherit;
-}
-.mc-btn-cancel-ghost:hover { background: #E5EAE6; color: #3A473C; }
+.btn-guardar:hover { background: #2d3730; }
 
 /* Transición formulario */
-.mc-slide-enter-active { transition: all 0.28s cubic-bezier(.4,0,.2,1); }
-.mc-slide-leave-active { transition: all 0.18s ease; }
-.mc-slide-enter-from   { opacity: 0; transform: translateY(-10px); }
-.mc-slide-leave-to     { opacity: 0; transform: translateY(-6px); }
+.form-slide-enter-active { transition: all 0.28s cubic-bezier(.4,0,.2,1); }
+.form-slide-leave-active { transition: all 0.18s ease; }
+.form-slide-enter-from   { opacity: 0; transform: translateY(-10px); }
+.form-slide-leave-to     { opacity: 0; transform: translateY(-6px); }
 
-/* ═══════════════════════════════════════
-   OVERLAY / MODAL
-═══════════════════════════════════════ */
-.mc-overlay {
-  position: fixed;
-  inset: 0;
-  background: rgba(20, 30, 22, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 200;
-  padding: 20px;
-  backdrop-filter: blur(2px);
-}
-.mc-overlay-anim-enter-active, .mc-overlay-anim-leave-active { transition: all 0.22s ease; }
-.mc-overlay-anim-enter-from, .mc-overlay-anim-leave-to { opacity: 0; }
-.mc-overlay-anim-enter-from .mc-modal,
-.mc-overlay-anim-leave-to   .mc-modal { transform: translateY(16px) scale(0.98); }
-
-.mc-modal {
-  background: #fff;
-  border-radius: 22px;
-  width: 100%;
-  max-height: 88vh;
-  overflow-y: auto;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.2);
-  transition: transform 0.22s ease;
-}
-.mc-modal--sm { max-width: 420px; }
-.mc-modal--md { max-width: 520px; }
-.mc-modal--lg { max-width: 680px; }
-
-.mc-modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  padding: 24px 28px 18px;
-  border-bottom: 1.5px solid #F0F2F0;
-}
-.mc-modal-eyebrow {
-  font-size: 11px;
-  font-weight: 800;
-  color: #92A894;
-  text-transform: uppercase;
-  letter-spacing: 0.7px;
-  margin-bottom: 4px;
-}
-.mc-modal-title {
-  font-size: 20px;
-  font-weight: 800;
-  color: #3A473C;
-  letter-spacing: -0.4px;
-}
-.mc-modal-close {
-  width: 34px; height: 34px;
-  border-radius: 10px;
-  border: 1.5px solid #E8ECE8;
-  background: #fff;
-  color: #6C756D;
-  cursor: pointer;
+/* ── Modal ─────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
   display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s, border-color 0.15s;
-  flex-shrink: 0;
-  font-family: inherit;
+  padding: 24px;
 }
-.mc-modal-close:hover { background: #F4F6F4; border-color: #ccc; }
+.modal-box {
+  background: #FFFFFF;
+  border-radius: 20px;
+  padding: 36px;
+  width: 100%; max-width: 640px;
+  max-height: 90vh; overflow-y: auto;
+  position: relative;
+}
+.modal-box--sm { max-width: 440px; }
 
-.mc-modal-body { padding: 24px 28px 8px; }
-.mc-modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding: 18px 28px 24px;
-  border-top: 1.5px solid #F0F2F0;
-  margin-top: 12px;
+.modal-close {
+  position: absolute; top: 18px; right: 18px;
+  width: 32px; height: 32px; border-radius: 50%;
+  border: none; background: var(--fondo);
+  color: var(--texto); font-size: 13px; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s; font-family: inherit;
 }
-.mc-btn-cancel-modal {
-  padding: 10px 18px;
-  background: #F4F6F4;
-  border: none;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #6C756D;
-  cursor: pointer;
-  transition: background 0.15s;
-  font-family: inherit;
-}
-.mc-btn-cancel-modal:hover { background: #E5EAE6; }
+.modal-close:hover { background: var(--verde); color: var(--blanco); }
 
-.mc-btn-danger {
-  padding: 10px 18px;
-  background: #C05050;
-  border: none;
-  border-radius: 10px;
-  font-size: 13px;
-  font-weight: 700;
-  color: #fff;
-  cursor: pointer;
-  transition: background 0.18s;
-  font-family: inherit;
-}
-.mc-btn-danger:hover { background: #A03030; }
-
-/* ── Modal Ver ── */
-.mc-ver-pet {
+.modal-header {
   display: flex;
   align-items: center;
   gap: 14px;
-  padding-bottom: 18px;
-  margin-bottom: 18px;
-  border-bottom: 1.5px solid #F0F2F0;
+  margin-bottom: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--borde);
 }
-.mc-ver-pname { font-size: 17px; font-weight: 800; color: #3A473C; }
-.mc-ver-pspec { font-size: 12px; color: #92A894; margin-top: 2px; }
-.mc-ver-badges {
-  margin-left: auto;
+.modal-header-info { flex: 1; min-width: 0; }
+.modal-eyebrow {
+  font-size: 11px; font-weight: 800; color: var(--verde-sec);
+  text-transform: uppercase; letter-spacing: 0.7px; margin: 0 0 4px;
+}
+.modal-title { font-size: 20px; font-weight: 800; color: var(--verde); letter-spacing: -0.4px; margin: 0; }
+.modal-sub   { font-size: 12px; color: var(--texto-sec); margin: 3px 0 0; }
+.modal-header-badges {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
   gap: 6px;
+  flex-shrink: 0;
 }
-.mc-ver-card {
-  background: #F9FAF9;
-  border-radius: 14px;
-  padding: 18px;
-}
-.mc-ver-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-}
-.mc-ver-item {
-  background: #fff;
-  border-radius: 10px;
-  padding: 10px 12px;
-  border: 1px solid #EEF3EE;
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-}
-.mc-ver-label {
-  font-size: 11px;
-  font-weight: 800;
-  color: #92A894;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-.mc-ver-val {
-  font-size: 13px;
-  font-weight: 600;
-  color: #3A473C;
-}
-.mc-ver-row {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin-top: 12px;
-}
-.mc-ver-row--block { align-items: flex-start; flex-direction: column; }
 
-.mc-ver-private {
+.modal-section       { margin-bottom: 24px; }
+.modal-section-title {
+  font-size: 11px; font-weight: 700; color: var(--texto-sec);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 14px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.modal-grid   { display: grid; grid-template-columns: repeat(2,1fr); gap: 14px; }
+.modal-grid--3{ display: grid; grid-template-columns: repeat(3,1fr); gap: 12px; }
+.modal-field  { display: flex; flex-direction: column; gap: 4px; background: var(--fondo); border-radius: 10px; padding: 10px 12px; border: 1px solid var(--borde); }
+.modal-field-label { font-size: 10px; font-weight: 700; color: #9CA8A0; text-transform: uppercase; letter-spacing: 0.4px; }
+.modal-field-value { font-size: 13px; color: var(--texto); font-weight: 600; word-break: break-word; }
+
+.modal-mensaje {
+  font-size: 14px; color: var(--texto); line-height: 1.7;
+  background: var(--fondo); border-radius: 10px; padding: 14px 16px;
+  margin: 0;
+}
+.modal-mensaje--private {
   background: #FFFBF3;
-  border-radius: 10px;
-  padding: 12px 14px;
   border: 1px solid rgba(249,193,122,.3);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
 }
 
-/* Galería */
-.mc-gallery {
+.modal-gallery { display: flex; gap: 8px; flex-wrap: wrap; }
+.gallery-img   { width: 72px; height: 72px; border-radius: 10px; object-fit: cover; border: 1.5px solid var(--borde); }
+
+.modal-acciones {
   display: flex;
-  gap: 8px;
-  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-end;
+  padding-top: 20px;
+  border-top: 1px solid var(--borde);
 }
-.mc-gallery-img {
-  width: 72px; height: 72px;
+
+.btn-rechazar {
+  padding: 10px 18px;
   border-radius: 10px;
-  object-fit: cover;
-  border: 1.5px solid #EEF3EE;
+  border: none;
+  background: #FDECEA;
+  color: #B71C1C;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: inherit;
 }
+.btn-rechazar:hover { background: #B71C1C; color: var(--blanco); }
 
-/* ── Modal Estado ── */
-.mc-status-options {
+/* Status options */
+.status-options {
   display: flex;
   flex-direction: column;
   gap: 8px;
   margin-bottom: 8px;
 }
-.mc-status-option {
+.status-option {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 11px 14px;
   border-radius: 12px;
-  border: 1.5px solid #EEF3EE;
+  border: 1.5px solid var(--borde);
   cursor: pointer;
   transition: all 0.15s;
 }
-.mc-status-option input[type="radio"] { display: none; }
-.mc-status-option:hover { border-color: #92A894; background: #FAFCFA; }
-.mc-status-option.selected { border-color: #92A894; background: rgba(146,168,148,.07); }
-.mc-status-desc { font-size: 13px; color: #9AA89C; }
+.status-option input[type="radio"] { display: none; }
+.status-option:hover   { border-color: var(--verde-sec); background: #FAFCFA; }
+.status-option.selected{ border-color: var(--verde-sec); background: rgba(146,168,148,.07); }
+.status-desc { font-size: 13px; color: #9AA89C; }
 
-/* ── Modal Info box ── */
-.mc-info-box {
+/* Info box */
+.info-box {
   background: #F7FAF7;
   border-radius: 12px;
   padding: 16px;
   font-size: 13px;
-  color: #2D3A2E;
+  color: var(--texto);
   line-height: 1.7;
   border: 1px solid #EEF3EE;
 }
-.mc-info-box p { margin: 0 0 6px; }
-.mc-info-box p:last-child { margin: 0; }
+.info-box p { margin: 0 0 6px; }
+.info-box p:last-child { margin: 0; }
 
-/* ── Modal Solicitudes ── */
-.mc-requests-list {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-.mc-request-card {
-  border: 1.5px solid #EEF3EE;
+/* Requests list */
+.requests-list { display: flex; flex-direction: column; gap: 12px; }
+.request-card {
+  border: 1.5px solid var(--borde);
   border-radius: 14px;
   padding: 16px;
   transition: box-shadow 0.15s;
 }
-.mc-request-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
-.mc-request-header {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.mc-request-user { flex: 1; display: flex; flex-direction: column; gap: 3px; }
-.mc-request-user h4 { margin: 0; font-size: 14px; font-weight: 700; color: #2D3A2E; }
-.mc-req-status {
-  padding: 4px 11px;
-  border-radius: 999px;
-  font-size: 12px;
-  font-weight: 700;
-  flex-shrink: 0;
-}
-.rs-pending  { background: rgba(249,193,122,.15); color: #C88A37; }
-.rs-process  { background: rgba(110,155,255,.12); color: #4F73B8; }
-.rs-approved { background: rgba(146,168,148,.15); color: #4A6E4C; }
-.rs-rejected { background: rgba(208,96,96,.1);   color: #B04040; }
+.request-card:hover { box-shadow: 0 4px 16px rgba(0,0,0,0.06); }
+.request-header { display: flex; align-items: center; gap: 12px; }
+.request-user { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+.request-user h4 { margin: 0; font-size: 14px; font-weight: 700; color: var(--texto); }
 
-/* ═══════════════════════════════════════
-   RESPONSIVE
-═══════════════════════════════════════ */
-@media (max-width: 1200px) {
-  .mc-stats-grid { grid-template-columns: repeat(3, 1fr); }
+/* Animaciones modal */
+.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.22s ease; }
+.modal-fade-enter-from, .modal-fade-leave-to       { opacity: 0; }
+
+/* ── Responsive ────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .don-summary { display: grid; grid-template-columns: repeat(3, 1fr); }
 }
 @media (max-width: 900px) {
-  .mc-stats-grid { grid-template-columns: repeat(2, 1fr); }
-  .mc-form-grid--4 { grid-template-columns: repeat(2, 1fr); }
-  .mc-fg--span2 { grid-column: span 1; }
-  .mc-ver-grid { grid-template-columns: repeat(2, 1fr); }
+  .don-summary { grid-template-columns: repeat(2, 1fr); }
+  .form-grid--4 { grid-template-columns: repeat(2, 1fr); }
+  .fg--span2 { grid-column: span 1; }
+  .modal-grid--3 { grid-template-columns: repeat(2, 1fr); }
 }
 @media (max-width: 640px) {
-  .mc-header     { flex-direction: column; align-items: flex-start; }
-  .mc-stats-grid { grid-template-columns: 1fr 1fr; gap: 10px; }
-  .mc-toolbar    { padding: 14px 16px; }
-  .mc-tabs-row   { flex-direction: column; align-items: flex-start; gap: 12px; }
-  .mc-form-grid--4 { grid-template-columns: 1fr; }
-  .mc-fg--span2,
-  .mc-fg--full   { grid-column: 1; }
-  .mc-table th:nth-child(5),
-  .mc-table td:nth-child(5),
-  .mc-table th:nth-child(6),
-  .mc-table td:nth-child(6) { display: none; }
-  .mc-modal-body  { padding: 16px 18px 8px; }
-  .mc-modal-header,
-  .mc-modal-footer { padding-left: 18px; padding-right: 18px; }
-  .mc-ver-grid { grid-template-columns: 1fr 1fr; }
+  .page-header    { flex-direction: column; align-items: flex-start; }
+  .filtros-panel  { flex-direction: column; }
+  .filtro-group   { min-width: 100%; }
+  .filtro-group--btn { width: 100%; }
+  .btn-limpiar    { width: 100%; }
+  .tabs-wrap      { flex-wrap: wrap; }
+  .modal-grid     { grid-template-columns: 1fr; }
+  .modal-grid--3  { grid-template-columns: 1fr 1fr; }
+  .modal-box      { padding: 24px 20px; }
+  .modal-acciones { flex-direction: column; }
+  .don-summary    { grid-template-columns: 1fr 1fr; }
+  .form-grid--4   { grid-template-columns: 1fr; }
+  .fg--span2, .fg--full { grid-column: 1; }
+  .don-table th:nth-child(4),
+  .don-table td:nth-child(4),
+  .don-table th:nth-child(6),
+  .don-table td:nth-child(6) { display: none; }
 }
 @media (max-width: 480px) {
-  .mc-stats-grid { grid-template-columns: 1fr; }
-  .mc-tabs { flex-wrap: wrap; }
-  .mc-tab  { padding: 6px 10px; font-size: 12px; }
+  .don-summary { grid-template-columns: 1fr; }
+  .modal-grid--3 { grid-template-columns: 1fr; }
 }
+
+/* ── MOBILE RESPONSIVE ── */
+@media (max-width: 768px) {
+  .don-summary {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .filtros-panel {
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .filtro-group {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .filtro-group--tabs {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .filtro-group--btn {
+    width: 100%;
+  }
+
+  .tabs-wrap {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    flex-wrap: nowrap;
+    padding-bottom: 4px;
+  }
+
+  .tab-btn {
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .btn-limpiar {
+    width: 100%;
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .form-panel {
+    padding: 18px 14px;
+  }
+
+  .form-grid--4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .fg--span2 {
+    grid-column: span 1;
+  }
+
+  .modal-box {
+    padding: 22px 16px;
+    max-width: calc(100vw - 32px);
+    max-height: 95vh;
+  }
+
+  .modal-grid { grid-template-columns: 1fr; }
+  .modal-grid--3 { grid-template-columns: 1fr 1fr; }
+
+  .modal-header {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .modal-acciones {
+    flex-direction: column;
+  }
+
+  .modal-gallery { flex-wrap: wrap; }
+
+  .status-options { gap: 6px; }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .btn-nuevo {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .image-previews { flex-wrap: wrap; }
+}
+
+@media (max-width: 480px) {
+  .don-summary { grid-template-columns: 1fr; }
+
+  .form-grid--4 { grid-template-columns: 1fr; }
+
+  .fg--span2,
+  .fg--full { grid-column: span 1; }
+
+  .modal-grid--3 { grid-template-columns: 1fr; }
+
+  .don-table th:nth-child(5),
+  .don-table td:nth-child(5) { display: none; }
+}
+
+
 </style>

@@ -36,7 +36,7 @@ const stories = [
     <section class="hero">
 
       <img
-        src="/img-rescates/IMG_1494.JPG"
+        src="/img-rescates/herorescates.PNG"
         class="hero-image"
       >
 
@@ -143,7 +143,7 @@ const stories = [
 
   position: relative;
 
-  height: 560px;
+  height: 430px;
 
   overflow: hidden;
 }
@@ -156,7 +156,7 @@ const stories = [
 
   object-fit: cover;
 
-  object-position: center 55%;
+  object-position: center 30%;
 
   transform: scale(1.02);
 
@@ -172,23 +172,24 @@ const stories = [
   inset: 0;
 
   background:
-  linear-gradient(
-    90deg,
-    rgba(58,71,60,0.88) 0%,
-    rgba(58,71,60,0.58) 45%,
-    rgba(58,71,60,0.18) 100%
-  );
+    linear-gradient(
+      90deg,
+      rgba(0,0,0,0.72) 0%,
+      rgba(0,0,0,0.45) 35%,
+      rgba(0,0,0,0.12) 70%,
+      rgba(0,0,0,0) 100%
+    );
 }
 
 .hero-content {
 
   position: absolute;
 
-  left: 8%;
+  left: 7%;
 
   bottom: 55px;
 
-  max-width: 540px;
+  max-width: 560px;
 
   z-index: 2;
 }
@@ -205,8 +206,7 @@ const stories = [
 
   backdrop-filter: blur(10px);
 
-  border:
-    1px solid rgba(255,255,255,0.16);
+  border: 1px solid rgba(255,255,255,0.16);
 
   color: white;
 
@@ -216,20 +216,20 @@ const stories = [
 
   letter-spacing: 1.5px;
 
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .hero-content h1 {
 
-  font-size: 60px;
+  font-size: 62px;
 
   line-height: 0.95;
 
   letter-spacing: -3px;
 
-  color: white;
-
   font-weight: 800;
+
+  color: white;
 
   margin-bottom: 24px;
 }
@@ -241,13 +241,15 @@ const stories = [
 
 .hero-content p {
 
-  font-size: 17px;
+  font-size: 16px;
 
-  line-height: 1.9;
+  line-height: 1.7;
 
-  color: rgba(255,255,255,0.88);
+  color: rgba(255,255,255,0.92);
 
-  max-width: 430px;
+  max-width: 420px;
+
+  margin: 0;
 }
 
 /* STORIES */
@@ -342,7 +344,7 @@ const stories = [
 
 .story-card:hover {
   transform: translateY(-8px);
-  border-color: #92A894;
+  border-color: #3A473C;
   box-shadow: 0 16px 42px rgba(58,71,60,0.08);
 }
 
@@ -481,7 +483,7 @@ const stories = [
 
   .hero {
 
-    height: 500px;
+    height: 430px;
   }
 
   .hero-content {
@@ -511,6 +513,93 @@ const stories = [
       90px;
   }
 
+}
+
+/* ── MOBILE RESPONSIVE ── */
+@media (max-width: 768px) {
+  .hero {
+    height: 320px;
+  }
+
+  .hero-content {
+    left: 16px;
+    right: 16px;
+    bottom: 32px;
+    max-width: 100%;
+  }
+
+  .hero-content h1 {
+    font-size: 36px;
+    letter-spacing: -1.5px;
+    margin-bottom: 14px;
+  }
+
+  .hero-content p {
+    font-size: 14px;
+    max-width: 100%;
+  }
+
+  .stories-section {
+    padding: 60px 16px 80px;
+  }
+
+  .stories-header {
+    margin-bottom: 40px;
+  }
+
+  .stories-header h2 {
+    font-size: 36px;
+    letter-spacing: -2px;
+    margin: 10px 0;
+  }
+
+  .stories-header p {
+    font-size: 14px;
+  }
+
+  .stories-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .story-card {
+    border-radius: 22px;
+  }
+
+  .story-image-wrap {
+    height: 220px;
+  }
+
+  .story-content {
+    padding: 22px 20px;
+  }
+
+  .story-content h3 {
+    font-size: 22px;
+    margin-bottom: 12px;
+  }
+
+  .story-content p {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero {
+    height: 280px;
+  }
+
+  .hero-content h1 {
+    font-size: 28px;
+  }
+
+  .stories-header h2 {
+    font-size: 28px;
+  }
+
+  .story-image-wrap {
+    height: 180px;
+  }
 }
 
 </style>

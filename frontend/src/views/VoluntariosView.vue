@@ -495,17 +495,14 @@ function submitVolunteer() {
   <!-- ═══════════════════════════════════════ HERO -->
   <section class="hero">
     <img
-      src="/img-vol/Voluntarios.JPG"
+      src="/img-vol/herovoluntarios.PNG"
       class="hero-image"
       alt="Voluntarios de Anhelo Pets"
     >
     <div class="hero-overlay"></div>
     <div class="hero-content">
       <div class="hero-inner">
-        <div class="hero-badge">
-          <i class='bx bxs-heart'></i>
-          Únete al cambio
-        </div>
+        
         <h1>
           Sé parte de una<br>
           <span class="hero-accent">segunda oportunidad</span>
@@ -543,11 +540,11 @@ function submitVolunteer() {
 
         <div class="intro-card">
           <div class="intro-img-wrap">
-            <img src="/img-vol/Voluntariado.JPG" alt="Voluntariado Anhelo Pets">
+            <img src="/img-vol/casavol.PNG" alt="Voluntariado Anhelo Pets">
           </div>
           <div class="intro-body">
-            <div class="intro-label">¿Qué es?</div>
-            <h2>Una casa cuna</h2>
+  
+            <h2>¿Qué es una casa cuna?</h2>
             <p>
               Un hogar temporal que recibe mascotas rescatadas mientras encuentran
               una familia definitiva y segura. Con tu apoyo, cada animal tiene
@@ -1282,118 +1279,190 @@ function submitVolunteer() {
 </template>
 
 <style scoped>
+
 /* ═══════════════════════════════════════════════════════
    HERO
 ══════════════════════════════════════════════════════ */
+
 .hero {
+
   position: relative;
-  height: 600px;
+
+  height: 430px;
+
   overflow: hidden;
+
   background: #1e2a1f;
 }
 
 .hero-image {
+
   width: 100%;
+
   height: 100%;
+
   object-fit: cover;
+
   object-position: center 52%;
-  filter: brightness(0.72) contrast(1.05);
+
+  filter:
+    brightness(0.72)
+    contrast(1.05);
+
   transform: scale(1.04);
 }
 
 .hero-overlay {
+
   position: absolute;
+
   inset: 0;
-  background: linear-gradient(
-    100deg,
-    rgba(30, 42, 31, 0.78) 0%,
-    rgba(58, 71, 60, 0.45) 55%,
-    rgba(58, 71, 60, 0.08) 100%
-  );
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(0,0,0,0.72) 0%,
+      rgba(0,0,0,0.45) 35%,
+      rgba(0,0,0,0.12) 70%,
+      rgba(0,0,0,0) 100%
+    );
 }
 
 .hero-content {
+
   position: absolute;
-  inset: 0;
-  display: flex;
-  align-items: center;
-  padding: 0 8%;
+
+  left: 7%;
+
+  bottom: 55px;
+
+  max-width: 560px;
+
+  z-index: 2;
 }
 
 .hero-inner {
-  max-width: 600px;
+
+  max-width: 560px;
+
   color: white;
 }
 
 .hero-badge {
+
   display: inline-flex;
+
   align-items: center;
+
   gap: 8px;
-  background: rgba(249, 193, 122, 0.18);
-  border: 1px solid rgba(249, 193, 122, 0.35);
+
+  background: rgba(249,193,122,0.18);
+
+  border: 1px solid rgba(249,193,122,0.35);
+
   color: #F9C17A;
+
   padding: 8px 18px;
+
   border-radius: 999px;
-  font-size: 13px;
+
+  font-size: 11px;
+
   font-weight: 700;
-  letter-spacing: 0.04em;
+
+  letter-spacing: 1.5px;
+
   text-transform: uppercase;
-  margin-bottom: 22px;
+
+  margin-bottom: 24px;
 }
 
 .hero-badge i {
+
   font-size: 15px;
 }
 
 .hero-inner h1 {
+
   font-size: 62px;
-  line-height: 1.0;
+
+  line-height: 0.95;
+
   font-weight: 800;
-  letter-spacing: -2.5px;
-  margin: 0 0 20px;
+
+  letter-spacing: -3px;
+
+  color: white;
+
+  margin: 0 0 24px;
 }
 
 .hero-accent {
+
   color: #F9C17A;
 }
 
 .hero-inner > p {
+
   font-size: 16px;
-  line-height: 1.9;
-  color: rgba(255, 255, 255, 0.82);
-  margin-bottom: 38px;
-  max-width: 480px;
+
+  line-height: 1.7;
+
+  color: rgba(255,255,255,0.92);
+
+  max-width: 420px;
+
+  margin-bottom: 0;
 }
 
 .hero-stats {
+
   display: flex;
+
   align-items: center;
+
   gap: 24px;
+
+  margin-top: 28px;
 }
 
 .stat {
+
   display: flex;
+
   flex-direction: column;
+
   gap: 2px;
 }
 
 .stat strong {
+
   font-size: 28px;
+
   font-weight: 800;
+
   color: #fff;
+
   line-height: 1;
 }
 
 .stat span {
+
   font-size: 12px;
+
   color: rgba(255,255,255,0.60);
+
   font-weight: 600;
+
   letter-spacing: 0.03em;
 }
 
 .stat-divider {
+
   width: 1px;
+
   height: 40px;
+
   background: rgba(255,255,255,0.18);
 }
 
@@ -1518,7 +1587,7 @@ function submitVolunteer() {
 
 .benefit-icon i {
   font-size: 22px;
-  color: #92A894;
+  color: #3A473C;
 }
 
 .benefit-body h3 {
@@ -1549,7 +1618,7 @@ function submitVolunteer() {
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #92A894;
+  color: #3A473C;
   margin-bottom: 14px;
 }
 
@@ -1576,7 +1645,7 @@ function submitVolunteer() {
 .type-pill.active {
   background: #E7F1E8;
   color: #3A473C;
-  border-color: #92A894;
+  border-color: #3A473C;
 }
 
 .type-icon {
@@ -1638,7 +1707,7 @@ function submitVolunteer() {
 
 .success-icon {
   font-size: 72px;
-  color: #92A894;
+  color: #3A473C;
   margin-bottom: 4px;
 }
 
@@ -1725,7 +1794,7 @@ function submitVolunteer() {
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
-  color: #92A894;
+  color: #3A473C;
   margin: 8px 0 18px;
 }
 
@@ -1733,7 +1802,7 @@ function submitVolunteer() {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #92A894;
+  background: #3A473C;
   flex-shrink: 0;
 }
 
@@ -1766,7 +1835,7 @@ function submitVolunteer() {
 
 .optional {
   font-weight: 500;
-  color: #92A894;
+  color: #3A473C;
 }
 
 /* INPUTS */
@@ -1791,7 +1860,7 @@ function submitVolunteer() {
 
 .form-group input:focus,
 .form-group textarea:focus {
-  border-color: #92A894;
+  border-color: #3A473C;
 }
 
 .form-group input:disabled {
@@ -1836,7 +1905,7 @@ function submitVolunteer() {
   font-family: inherit;
 }
 
-.code-btn:hover { border-color: #92A894; }
+.code-btn:hover { border-color: #3A473C; }
 
 .phone-number-input {
   flex: 1;
@@ -1921,7 +1990,7 @@ function submitVolunteer() {
   font-family: inherit;
 }
 
-.select-wrap select:focus { border-color: #92A894; }
+.select-wrap select:focus { border-color: #3A473C; }
 .select-wrap select:disabled {
   background: #F4F6F4;
   color: #9BA99C;
@@ -1934,7 +2003,7 @@ function submitVolunteer() {
   top: 50%;
   transform: translateY(-50%);
   font-size: 20px;
-  color: #92A894;
+  color: #3A473C;
   pointer-events: none;
 }
 
@@ -1962,12 +2031,12 @@ function submitVolunteer() {
 }
 
 .type-btn:hover {
-  border-color: #92A894;
+  border-color: #3A473C;
   background: #F4F7F4;
 }
 
 .type-btn.selected {
-  border-color: #92A894;
+  border-color: #3A473C;
   background: #E7F1E8;
 }
 
@@ -2032,7 +2101,7 @@ function submitVolunteer() {
 .check-opt input[type="checkbox"] {
   width: 16px;
   height: 16px;
-  accent-color: #92A894;
+  accent-color: #3A473C;
   cursor: pointer;
   flex-shrink: 0;
 }
@@ -2047,7 +2116,7 @@ function submitVolunteer() {
 
 .check-group.wrap .check-opt:has(input:checked) {
   background: #E7F1E8;
-  border-color: #92A894;
+  border-color: #3A473C;
 }
 
 /* SUBMIT */
@@ -2056,7 +2125,7 @@ function submitVolunteer() {
   height: 54px;
   border: none;
   border-radius: 16px;
-  background: linear-gradient(135deg, #92A894 0%, #6E8870 100%);
+  background: linear-gradient(135deg, #3A473C 0%, #6E8870 100%);
   color: white;
   font-size: 15px;
   font-weight: 700;
@@ -2149,4 +2218,118 @@ function submitVolunteer() {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* ── MOBILE RESPONSIVE adicional ── */
+@media (max-width: 768px) {
+  .hero {
+    height: 400px;
+  }
+
+  .hero-content {
+    left: 16px;
+    right: 16px;
+    bottom: 36px;
+    max-width: 100%;
+  }
+
+  .hero-inner h1 {
+    font-size: 36px;
+    letter-spacing: -1.5px;
+    margin: 0 0 16px;
+  }
+
+  .hero-inner > p {
+    font-size: 14px;
+  }
+
+  .hero-stats {
+    gap: 12px;
+    margin-top: 20px;
+    flex-wrap: wrap;
+  }
+
+  .stat strong {
+    font-size: 22px;
+  }
+
+  .stat span {
+    font-size: 11px;
+  }
+
+  .main-section {
+    padding: 48px 16px 72px;
+  }
+
+  .intro-body {
+    padding: 22px 18px 24px;
+  }
+
+  .intro-body h2 {
+    font-size: 26px;
+  }
+
+  .benefits-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .form-card {
+    padding: 22px 16px;
+    border-radius: 22px;
+    position: static;
+  }
+
+  .form-header h2 {
+    font-size: 24px;
+  }
+
+  .two-col,
+  .three-col {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+
+  .type-selector-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+  }
+
+  .type-btn {
+    padding: 12px 6px;
+  }
+
+  .type-btn-label {
+    font-size: 11px;
+  }
+
+  .submit-btn {
+    height: 50px;
+    font-size: 14px;
+  }
+
+  .state-box {
+    padding: 36px 16px;
+  }
+
+  .state-box h3 {
+    font-size: 22px;
+  }
+
+  .code-dropdown {
+    width: calc(100vw - 48px);
+    max-width: 280px;
+  }
+}
+
+@media (max-width: 400px) {
+  .hero-inner h1 {
+    font-size: 30px;
+  }
+
+  .type-selector-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+
 </style>

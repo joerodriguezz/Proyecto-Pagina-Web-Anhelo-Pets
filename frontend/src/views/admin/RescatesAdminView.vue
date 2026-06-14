@@ -10,7 +10,7 @@ const petsStore = usePetsStore()
 const rescates = ref([])
 
 /* ─── UI ─────────────────────────────────────────────────── */
-const showForm        = ref(false)   // oculta tabla y filtros
+const showForm        = ref(false)
 const editMode        = ref(false)
 const showEditModal   = ref(false)
 const rescueIndex     = ref(null)
@@ -185,7 +185,6 @@ function guardarRescate() {
   const razaFinal = tieneRaza.value === 'Si' ? raza.value : 'Sin raza'
 
   if (editMode.value) {
-    // ── EDITAR ──
     const orig = rescates.value[rescueIndex.value]
     rescates.value[rescueIndex.value] = {
       ...orig,
@@ -206,7 +205,6 @@ function guardarRescate() {
       estado:      estado.value
     }
 
-    // Actualizar mascota en petsStore si existe
     if (orig.mascotaId) {
       const petIndex = petsStore.pets.findIndex(p => p.id === orig.mascotaId)
       if (petIndex !== -1) {
@@ -228,34 +226,21 @@ function guardarRescate() {
     showEditModal.value = false
 
   } else {
-    // ── NUEVO ──
-    // 1. Crear mascota en petsStore
-const nuevaMascota = {
-  id: `pet-${Date.now()}`,
-  name: mascota.value,
-  type: tipoMascota.value,
-
-  images: [
-    {
-      preview: fotoPreview.value
+    const nuevaMascota = {
+      id: `pet-${Date.now()}`,
+      name: mascota.value,
+      type: tipoMascota.value,
+      images: [{ preview: fotoPreview.value }],
+      image: fotoPreview.value,
+      age: edad.value,
+      gender: sexo.value,
+      breed: razaFinal !== 'Sin raza' ? razaFinal : '',
+      status: 'En rescate',
+      description: descripcion.value,
+      location: `${provincia.value}, ${canton.value}`,
+      createdAt: obtenerFechaActual()
     }
-  ],
 
-  image: fotoPreview.value,
-
-  age: edad.value,
-  gender: sexo.value,
-  breed: razaFinal !== 'Sin raza' ? razaFinal : '',
-  status: 'En rescate',
-  description: descripcion.value,
-  location: `${provincia.value}, ${canton.value}`,
-  createdAt: obtenerFechaActual()
-}
-
-    console.log('Mascota a guardar:', nuevaMascota)
-    console.log('Foto:', fotoPreview.value)
-
-    // Soporte para distintas implementaciones del store
     if (typeof petsStore.addPet === 'function') {
       petsStore.addPet(nuevaMascota)
     } else if (Array.isArray(petsStore.pets)) {
@@ -263,7 +248,6 @@ const nuevaMascota = {
       if (typeof petsStore.savePets === 'function') petsStore.savePets()
     }
 
-    // 2. Crear rescate vinculado
     const id = `R-${String(rescates.value.length + 1).padStart(3, '0')}`
     rescates.value.unshift({
       id,
@@ -298,7 +282,7 @@ const nuevaMascota = {
 function editarRescate(index) {
   const r = rescates.value[index]
   mascota.value      = r.mascota
-tipoMascota.value  = r.tipoMascota || ''
+  tipoMascota.value  = r.tipoMascota || ''
   fotoPreview.value  = r.foto || ''
   edad.value         = r.edad
   sexo.value         = r.sexo
@@ -339,7 +323,7 @@ function verDetalle(rescate) {
 /* ─── Limpiar formulario ─────────────────────────────────── */
 function limpiarFormulario() {
   mascota.value      = ''
-tipoMascota.value  = ''
+  tipoMascota.value  = ''
   fotoPreview.value  = ''
   fotoFile.value     = null
   edad.value         = ''
@@ -369,15 +353,31 @@ function cancelarFormulario() {
   showForm.value  = false
 }
 
+/* ─── KPIs ───────────────────────────────────────────────── */
+const ahora     = new Date()
+const mesActual = ahora.getMonth()
+const añoActual = ahora.getFullYear()
+
+const totalRescates = computed(() => rescates.value.length)
+const totalActivos  = computed(() => rescates.value.filter(r => r.estado === 'Activo').length)
+const totalCerrados = computed(() => rescates.value.filter(r => r.estado === 'Cerrado').length)
+const totalEsteMes  = computed(() =>
+  rescates.value.filter(r => {
+    const f = new Date(r.fechaCreacion || r.fechaRescate)
+    return f.getMonth() === mesActual && f.getFullYear() === añoActual
+  }).length
+)
+
 /* ─── Badge helpers ──────────────────────────────────────── */
-function estadoBadgeClass(estado) {
+function estadoBadgeClass(est) {
   return {
-    'Activo':  'badge--green',
-    'Cerrado': 'badge--neutral',
-  }[estado] || 'badge--neutral'
+    'Activo':  'badge-activo',
+    'Cerrado': 'badge-cerrado',
+  }[est] || 'badge-cerrado'
 }
-function estadoIcon(estado) {
-  return { 'Activo': '●', 'Cerrado': '◉' }[estado] || '●'
+
+function estadoIcon(est) {
+  return { 'Activo': '●', 'Cerrado': '◉' }[est] || '●'
 }
 
 function iniciales(nombre) {
@@ -387,12 +387,12 @@ function iniciales(nombre) {
 </script>
 
 <template>
-  <div class="sc-root">
+  <div class="view-container">
 
-    <!-- ── Toast ── -->
+    <!-- ══ Toast ══ -->
     <Teleport to="body">
       <Transition name="toast-anim">
-        <div v-if="toast.visible" class="sc-toast" :class="toast.tipo === 'error' ? 'error' : 'success'">
+        <div v-if="toast.visible" class="rc-toast" :class="toast.tipo === 'error' ? 'toast-error' : 'toast-success'">
           <svg v-if="toast.tipo === 'exito'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           {{ toast.texto }}
@@ -401,301 +401,322 @@ function iniciales(nombre) {
     </Teleport>
 
     <!-- ══════════════════════════════════════════
-         VISTA TABLA (cuando showForm = false)
+         VISTA TABLA
     ═══════════════════════════════════════════ -->
     <template v-if="!showForm">
 
-      <!-- ── Header ── -->
-      <header class="sc-header">
-        <div class="sc-header-left">
-          <h1 class="sc-title">Rescates</h1>
-          <p class="sc-sub">Registro y seguimiento de animales rescatados</p>
+      <!-- Cabecera -->
+      <header class="page-header">
+        <div>
+          <h1 class="admin-page-title">Rescates</h1>
+          <p class="admin-page-sub">Registro y seguimiento de animales rescatados</p>
         </div>
-        <button class="sc-btn-nuevo" @click="abrirNuevo">
+        <button class="btn-nuevo" @click="abrirNuevo">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Nuevo rescate
         </button>
       </header>
 
-      <!-- ── Toolbar / Filtros ── -->
-      <div class="sc-toolbar">
-        <div class="sc-filters">
-
-          <!-- Búsqueda -->
-          <div class="sc-search-wrap">
-            <svg class="sc-search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            <input class="sc-search" v-model="filtroSearch" placeholder="ID, mascota o rescatista..." />
-          </div>
-
-          <!-- Filtro provincia -->
-          <div class="sc-select-wrap">
-            <select class="sc-filter-select" v-model="filtroProv">
-              <option value="Todos">Provincia: Todas</option>
-              <option v-for="p in provinciasDisponibles" :key="p" :value="p">{{ p }}</option>
-            </select>
-            <svg class="sc-select-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </div>
-
-          <!-- Filtro estado -->
-          <div class="sc-select-wrap">
-            <select class="sc-filter-select" v-model="filtroEstado">
-              <option value="Todos">Todos los estados</option>
-              <option value="Activo">Activos</option>
-              <option value="Cerrado">Cerrados</option>
-            </select>
-            <svg class="sc-select-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </div>
-
-          <button v-if="hayFiltros" class="sc-clear" @click="limpiarFiltros">Limpiar</button>
+      <!-- KPIs -->
+      <div class="don-summary">
+        <div class="don-card kpi-mes">
+          <span class="don-label">Rescates este mes</span>
+          <strong class="don-value">{{ totalEsteMes }}</strong>
+        </div>
+        <div class="don-card kpi-total">
+          <span class="don-label">Total rescates</span>
+          <strong class="don-value">{{ totalRescates }}</strong>
+        </div>
+        <div class="don-card kpi-activos">
+          <span class="don-label">Activos</span>
+          <strong class="don-value">{{ totalActivos }}</strong>
+        </div>
+        <div class="don-card kpi-cerrados">
+          <span class="don-label">Cerrados</span>
+          <strong class="don-value">{{ totalCerrados }}</strong>
         </div>
       </div>
 
-      <!-- ── Tabla ── -->
-      <div class="sc-table-wrap">
-        <table class="sc-table">
-          <thead>
-            <tr>
-              <th style="width:80px">ID</th>
-              <th style="width:220px">Mascota</th>
-              <th style="width:180px">Rescatista</th>
-              <th style="width:140px">Provincia</th>
-              <th style="width:180px">Casa cuna</th>
-              <th style="width:110px">Estado</th>
-              <th style="width:130px">Acciones</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="(r, index) in rescatesFiltrados" :key="r.id">
+      <!-- Panel de filtros -->
+      <div class="filtros-panel">
 
-              <!-- ID -->
-              <td>
-                <span class="sc-pet-id">{{ r.id }}</span>
-              </td>
+        <div class="filtro-group">
+          <label class="filtro-label">Buscar</label>
+          <div class="filtro-input-wrap">
+            <input
+              v-model="filtroSearch"
+              placeholder="ID, mascota o rescatista..."
+              class="filtro-input"
+            />
+            <span class="filtro-icon filtro-icon--right">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+          </div>
+        </div>
 
-              <!-- Mascota -->
-              <td>
-                <div class="sc-pet-cell">
-                  <div class="sc-avatar">
-                    <img v-if="r.foto" :src="r.foto" class="sc-avatar-img" alt="foto">
-                    <span v-else class="sc-avatar-ini">{{ iniciales(r.mascota) }}</span>
+        <div class="filtro-group">
+          <label class="filtro-label">Provincia</label>
+          <div class="filtro-input-wrap">
+            <select v-model="filtroProv" class="filtro-input filtro-select">
+              <option value="Todos">Todas</option>
+              <option v-for="p in provinciasDisponibles" :key="p" :value="p">{{ p }}</option>
+            </select>
+            <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+          </div>
+        </div>
+
+        <div class="filtro-group">
+          <label class="filtro-label">Estado</label>
+          <div class="filtro-input-wrap">
+            <select v-model="filtroEstado" class="filtro-input filtro-select">
+              <option value="Todos">Todos</option>
+              <option value="Activo">Activo</option>
+              <option value="Cerrado">Cerrado</option>
+            </select>
+            <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+          </div>
+        </div>
+
+        <div class="filtro-group filtro-group--btn">
+          <button
+            type="button"
+            class="btn-limpiar"
+            :class="{ 'btn-limpiar--activo': hayFiltros }"
+            @click="limpiarFiltros"
+          >
+            Limpiar filtros
+          </button>
+        </div>
+
+      </div>
+
+      <!-- Estado vacío -->
+      <div v-if="rescatesFiltrados.length === 0" class="empty-state">
+        <p class="empty-title">{{ hayFiltros ? 'Sin resultados para los filtros aplicados' : 'No hay rescates registrados' }}</p>
+        <p class="empty-sub">{{ hayFiltros ? 'Ajusta los filtros para ver resultados.' : 'Registra el primer rescate usando el botón superior.' }}</p>
+      </div>
+
+      <!-- Tabla -->
+      <div v-else class="table-wrapper">
+        <div class="table-scroll">
+          <table class="don-table">
+            <thead>
+              <tr>
+                <th>ID</th>
+                <th>Mascota</th>
+                <th>Rescatista</th>
+                <th>Provincia</th>
+                <th>Casa cuna</th>
+                <th>Estado</th>
+                <th>Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in rescatesFiltrados" :key="r.id" class="don-row">
+
+                <td><span class="id-pill">{{ r.id }}</span></td>
+
+                <td>
+                  <div class="pet-cell">
+                    <div class="pet-avatar">
+                      <img v-if="r.foto" :src="r.foto" class="pet-avatar-img" alt="foto">
+                      <span v-else class="pet-avatar-ini">{{ iniciales(r.mascota) }}</span>
+                    </div>
+                    <div>
+                      <span class="donor-name">{{ r.mascota }}</span>
+                      <span class="donor-mail">{{ r.edad }} · {{ r.sexo }}</span>
+                    </div>
                   </div>
-                  <div class="sc-pet-info">
-                    <span class="sc-pet-name">{{ r.mascota }}</span>
-                    <span class="sc-pet-sub">{{ r.edad }} · {{ r.sexo }}</span>
+                </td>
+
+                <td><span class="metodo-text">{{ r.rescatista || '—' }}</span></td>
+                <td><span class="fecha-text">{{ r.provincia || '—' }}</span></td>
+                <td><span class="fecha-text">{{ r.casaCuna || 'Sin asignar' }}</span></td>
+
+                <td>
+                  <span class="estado-badge" :class="estadoBadgeClass(r.estado)">{{ r.estado }}</span>
+                </td>
+
+                <td>
+                  <div class="acciones-cell">
+                    <button class="btn-ver" title="Ver detalle" @click="verDetalle(r)">Ver</button>
+                    <button class="btn-accion-edit" title="Editar" @click="editarRescate(rescates.indexOf(r))">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                    </button>
+                    <button
+                      class="btn-accion-close"
+                      title="Cerrar rescate"
+                      :disabled="r.estado === 'Cerrado'"
+                      @click="pedirCerrar(rescates.indexOf(r))"
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
                   </div>
-                </div>
-              </td>
+                </td>
 
-              <!-- Rescatista -->
-              <td>
-                <span class="sc-td-main">{{ r.rescatista || '—' }}</span>
-              </td>
-
-              <!-- Provincia -->
-              <td class="sc-td-sec">
-                {{ r.provincia || '—' }}
-              </td>
-
-              <!-- Casa cuna -->
-              <td class="sc-td-sec">
-                {{ r.casaCuna || 'Sin asignar' }}
-              </td>
-
-              <!-- Estado -->
-              <td>
-                <span class="sc-badge" :class="estadoBadgeClass(r.estado)">
-                  {{ estadoIcon(r.estado) }} {{ r.estado }}
-                </span>
-              </td>
-
-              <!-- Acciones -->
-              <td>
-                <div class="sc-actions">
-                  <button class="sc-btn-ver sc-btn-ver--neutral" title="Ver detalle" @click="verDetalle(r)">
-                    <img src="/img-acciones/eye.png" class="action-icon" alt="Ver">
-                  </button>
-                  <button class="sc-btn-ver sc-btn-ver--blue" title="Editar" @click="editarRescate(rescates.indexOf(r))">
-                    <img src="/img-acciones/edit.png" class="action-icon" alt="Editar">
-                  </button>
-                  <button
-                    class="sc-btn-ver sc-btn-ver--red"
-                    title="Cerrar rescate"
-                    :disabled="r.estado === 'Cerrado'"
-                    @click="pedirCerrar(rescates.indexOf(r))"
-                  >
-                    <img src="/img-acciones/close.png" class="action-icon" alt="Cerrar">
-                  </button>
-                </div>
-              </td>
-
-            </tr>
-
-            <tr v-if="rescatesFiltrados.length === 0">
-              <td colspan="7" class="sc-empty">
-                <div class="sc-empty-inner">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78L12 21.23l8.84-8.84a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                  <p>{{ hayFiltros ? 'Sin resultados para los filtros aplicados' : 'No hay rescates registrados' }}</p>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-footer">
+          {{ rescatesFiltrados.length }} rescate{{ rescatesFiltrados.length !== 1 ? 's' : '' }} encontrado{{ rescatesFiltrados.length !== 1 ? 's' : '' }}
+        </div>
       </div>
 
     </template>
 
     <!-- ══════════════════════════════════════════
-         VISTA FORMULARIO (cuando showForm = true)
+         VISTA FORMULARIO
     ═══════════════════════════════════════════ -->
     <template v-else>
 
-      <!-- Header del formulario -->
-      <header class="sc-header">
-        <div class="sc-header-left">
-          <h1 class="sc-title">{{ editMode ? 'Editar rescate' : 'Nuevo rescate' }}</h1>
-          <p class="sc-sub">{{ editMode ? 'Modifica la información del rescate' : 'Registra un nuevo animal rescatado' }}</p>
+      <header class="page-header">
+        <div>
+          <h1 class="admin-page-title">{{ editMode ? 'Editar rescate' : 'Nuevo rescate' }}</h1>
+          <p class="admin-page-sub">{{ editMode ? 'Modifica la información del rescate' : 'Registra un nuevo animal rescatado' }}</p>
         </div>
-        <button class="sc-btn-cancel-header" @click="cancelarFormulario">
+        <button class="btn-cancelar-header" @click="cancelarFormulario">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           Cancelar
         </button>
       </header>
 
-      <!-- Errores de validación -->
-      <div v-if="formErrors.length > 0" class="sc-form-errors">
+      <div v-if="formErrors.length > 0" class="form-errors-banner">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
         <span>Campos obligatorios incompletos: {{ formErrors.join(', ') }}.</span>
       </div>
 
-      <!-- Panel del formulario -->
-      <div class="sc-form-panel">
+      <div class="form-panel">
 
-        <!-- Sección 1: Datos de la mascota -->
-        <div class="sc-section-label">
-          <span class="sc-section-num">1</span>
+        <!-- Sección 1 -->
+        <div class="form-section-title">
+          <span class="form-section-num">1</span>
           Datos de la mascota
         </div>
 
-        <!-- Foto -->
-        <div class="sc-form-grid sc-form-grid--4" style="margin-bottom:20px">
-          <div class="sc-fg sc-fg--full">
-            <label>Fotografía principal <span class="sc-required">*</span></label>
-            <div class="sc-foto-wrap">
-              <div class="sc-foto-preview" :class="{ 'has-img': fotoPreview }">
-                <img v-if="fotoPreview" :src="fotoPreview" class="sc-foto-img" alt="preview">
-                <div v-else class="sc-foto-placeholder">
+        <div class="form-grid form-grid--4" style="margin-bottom:20px">
+          <div class="fg fg--full">
+            <label class="fg-label">Fotografía principal <span class="req">*</span></label>
+            <div class="foto-wrap">
+              <div class="foto-preview" :class="{ 'has-img': fotoPreview }">
+                <img v-if="fotoPreview" :src="fotoPreview" class="foto-img" alt="preview">
+                <div v-else class="foto-placeholder">
                   <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                   <span>Sin fotografía</span>
                 </div>
               </div>
-              <div class="sc-foto-actions">
-                <label class="sc-btn-foto">
+              <div class="foto-actions">
+                <label class="btn-foto">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
                   Subir foto
                   <input type="file" accept="image/*" style="display:none" @change="onFotoChange">
                 </label>
-                <p class="sc-foto-hint">JPG, PNG o WEBP. Se usará en Animales también.</p>
+                <p class="foto-hint">JPG, PNG o WEBP. Se usará en Animales también.</p>
               </div>
             </div>
           </div>
         </div>
 
-        <div class="sc-form-grid sc-form-grid--4">
-          <div class="sc-fg sc-fg--span2">
-            <label>Nombre de la mascota <span class="sc-required">*</span></label>
-            <input class="sc-input" v-model="mascota" placeholder="Ej. Luna">
+        <div class="form-grid form-grid--4">
+          <div class="fg fg--span2">
+            <label class="fg-label">Nombre de la mascota <span class="req">*</span></label>
+            <input class="form-input" v-model="mascota" placeholder="Ej. Luna">
           </div>
-          <div class="sc-fg">
-  <label>Tipo de mascota <span class="sc-required">*</span></label>
-  <div class="select-wrap">
-    <select class="sc-input" v-model="tipoMascota">
-      <option value="">Seleccione</option>
-      <option value="Perro">Perro</option>
-      <option value="Gato">Gato</option>
-    </select>
-    <i class='bx bx-chevron-down'></i>
-  </div>
-</div>
-          <div class="sc-fg">
-            <label>Edad <span class="sc-required">*</span></label>
-            <input class="sc-input" v-model="edad" placeholder="Ej. 2 años">
+          <div class="fg">
+            <label class="fg-label">Tipo de mascota <span class="req">*</span></label>
+            <div class="sel-wrap">
+              <select class="form-input" v-model="tipoMascota">
+                <option value="">Seleccione</option>
+                <option value="Perro">Perro</option>
+                <option value="Gato">Gato</option>
+              </select>
+              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            </div>
           </div>
-          <div class="sc-fg">
-            <label>Sexo <span class="sc-required">*</span></label>
-            <div class="select-wrap">
-              <select class="sc-input" v-model="sexo">
+          <div class="fg">
+            <label class="fg-label">Edad <span class="req">*</span></label>
+            <input class="form-input" v-model="edad" placeholder="Ej. 2 años">
+          </div>
+          <div class="fg">
+            <label class="fg-label">Sexo <span class="req">*</span></label>
+            <div class="sel-wrap">
+              <select class="form-input" v-model="sexo">
                 <option value="">Seleccione</option>
                 <option>Macho</option>
                 <option>Hembra</option>
               </select>
-              <i class='bx bx-chevron-down'></i>
+              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
             </div>
           </div>
-          <div class="sc-fg">
-            <label>¿Tiene raza?</label>
+          <div class="fg">
+            <label class="fg-label">¿Tiene raza?</label>
             <div class="radio-row">
               <label class="r-opt"><input type="radio" v-model="tieneRaza" value="No"><span>No</span></label>
               <label class="r-opt"><input type="radio" v-model="tieneRaza" value="Si"><span>Sí</span></label>
             </div>
           </div>
-          <div v-if="tieneRaza === 'Si'" class="sc-fg sc-fg--span2">
-            <label>Raza</label>
-            <input class="sc-input" v-model="raza" placeholder="Ej. Labrador">
+          <div v-if="tieneRaza === 'Si'" class="fg fg--span2">
+            <label class="fg-label">Raza</label>
+            <input class="form-input" v-model="raza" placeholder="Ej. Labrador">
           </div>
-          <div class="sc-fg">
-            <label>Fecha de rescate <span class="sc-required">*</span></label>
-            <input type="date" class="sc-input" v-model="fechaRescate">
+          <div class="fg">
+            <label class="fg-label">Fecha de rescate <span class="req">*</span></label>
+            <input type="date" class="form-input" v-model="fechaRescate">
           </div>
         </div>
 
-        <!-- Sección 2: Ubicación -->
-        <div class="sc-section-label" style="margin-top:28px">
-          <span class="sc-section-num">2</span>
+        <!-- Sección 2 -->
+        <div class="form-section-title" style="margin-top:28px">
+          <span class="form-section-num">2</span>
           Ubicación del rescate
         </div>
-        <div class="sc-form-grid sc-form-grid--4">
-          <div class="sc-fg">
-            <label>Provincia <span class="sc-required">*</span></label>
-            <div class="select-wrap">
-              <select class="sc-input" v-model="provincia">
+        <div class="form-grid form-grid--4">
+          <div class="fg">
+            <label class="fg-label">Provincia <span class="req">*</span></label>
+            <div class="sel-wrap">
+              <select class="form-input" v-model="provincia">
                 <option value="">Seleccione</option>
                 <option v-for="p in provinciasDisponibles" :key="p" :value="p">{{ p }}</option>
               </select>
-              <i class='bx bx-chevron-down'></i>
+              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
             </div>
           </div>
-          <div class="sc-fg">
-            <label>Cantón <span class="sc-required">*</span></label>
-            <div class="select-wrap">
-              <select class="sc-input" v-model="canton" :disabled="!provincia">
+          <div class="fg">
+            <label class="fg-label">Cantón <span class="req">*</span></label>
+            <div class="sel-wrap">
+              <select class="form-input" v-model="canton" :disabled="!provincia">
                 <option value="">Seleccione</option>
                 <option v-for="c in cantonesDisponibles" :key="c" :value="c">{{ c }}</option>
               </select>
-              <i class='bx bx-chevron-down'></i>
+              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
             </div>
           </div>
-          <div class="sc-fg">
-            <label>Distrito <span class="sc-required">*</span></label>
-            <div class="select-wrap">
-              <select class="sc-input" v-model="distrito" :disabled="!canton">
+          <div class="fg">
+            <label class="fg-label">Distrito <span class="req">*</span></label>
+            <div class="sel-wrap">
+              <select class="form-input" v-model="distrito" :disabled="!canton">
                 <option value="">Seleccione</option>
                 <option v-for="d in distritosDisponibles" :key="d" :value="d">{{ d }}</option>
               </select>
-              <i class='bx bx-chevron-down'></i>
+              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
             </div>
           </div>
         </div>
 
-        <!-- Sección 3: Asignaciones -->
-        <div class="sc-section-label" style="margin-top:28px">
-          <span class="sc-section-num">3</span>
+        <!-- Sección 3 -->
+        <div class="form-section-title" style="margin-top:28px">
+          <span class="form-section-num">3</span>
           Asignaciones
         </div>
-        <div class="sc-form-grid sc-form-grid--4">
-          <div class="sc-fg sc-fg--span2">
-            <label>Rescatista <span class="sc-required">*</span></label>
-            <div class="select-wrap">
-              <select class="sc-input" v-model="rescatista">
+        <div class="form-grid form-grid--4">
+          <div class="fg fg--span2">
+            <label class="fg-label">Rescatista <span class="req">*</span></label>
+            <div class="sel-wrap">
+              <select class="form-input" v-model="rescatista">
                 <option value="">Seleccione un rescatista</option>
                 <option
                   v-for="r in rescatistasDisponibles"
@@ -703,13 +724,13 @@ function iniciales(nombre) {
                   :value="r.solicitudVoluntario?.nombre || r.nombre"
                 >{{ r.solicitudVoluntario?.nombre || r.nombre }}</option>
               </select>
-              <i class='bx bx-chevron-down'></i>
+              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
             </div>
           </div>
-          <div class="sc-fg sc-fg--span2">
-            <label>Casa cuna</label>
-            <div class="select-wrap">
-              <select class="sc-input" v-model="casaCuna">
+          <div class="fg fg--span2">
+            <label class="fg-label">Casa cuna</label>
+            <div class="sel-wrap">
+              <select class="form-input" v-model="casaCuna">
                 <option value="">Sin asignar</option>
                 <option
                   v-for="c in casasCunaDisponibles"
@@ -717,35 +738,34 @@ function iniciales(nombre) {
                   :value="c.solicitudVoluntario?.nombre || c.nombre"
                 >{{ c.solicitudVoluntario?.nombre || c.nombre }}</option>
               </select>
-              <i class='bx bx-chevron-down'></i>
+              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
             </div>
           </div>
-          <div class="sc-fg">
-            <label>Estado</label>
-            <div class="select-wrap">
-              <select class="sc-input" v-model="estado">
+          <div class="fg">
+            <label class="fg-label">Estado</label>
+            <div class="sel-wrap">
+              <select class="form-input" v-model="estado">
                 <option>Activo</option>
                 <option>Cerrado</option>
               </select>
-              <i class='bx bx-chevron-down'></i>
+              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
             </div>
           </div>
         </div>
 
-        <!-- Sección 4: Descripción -->
-        <div class="sc-section-label" style="margin-top:28px">
-          <span class="sc-section-num">4</span>
+        <!-- Sección 4 -->
+        <div class="form-section-title" style="margin-top:28px">
+          <span class="form-section-num">4</span>
           Descripción del rescate
         </div>
-        <div class="sc-fg">
-          <label>Descripción <span class="sc-required">*</span></label>
-          <textarea class="sc-textarea" v-model="descripcion" placeholder="Describe las circunstancias del rescate, condición del animal, observaciones importantes..."></textarea>
+        <div class="fg">
+          <label class="fg-label">Descripción <span class="req">*</span></label>
+          <textarea class="form-textarea" v-model="descripcion" placeholder="Describe las circunstancias del rescate, condición del animal, observaciones importantes..."></textarea>
         </div>
 
-        <!-- Acciones del formulario -->
-        <div class="sc-form-footer">
-          <button class="sc-btn-cancel" @click="cancelarFormulario">Cancelar</button>
-          <button class="sc-btn-save" @click="guardarRescate">
+        <div class="form-footer">
+          <button class="btn-cancelar" @click="cancelarFormulario">Cancelar</button>
+          <button class="btn-guardar" @click="guardarRescate">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
             {{ editMode ? 'Guardar cambios' : 'Registrar rescate' }}
           </button>
@@ -755,98 +775,181 @@ function iniciales(nombre) {
     </template>
 
     <!-- ══════════════════════════════════════════
-         MODAL EDITAR (desde tabla)
+         MODAL EDITAR
     ═══════════════════════════════════════════ -->
     <Teleport to="body">
-      <Transition name="overlay-anim">
-        <div v-if="showEditModal" class="sc-overlay" @click.self="showEditModal = false">
-          <div class="sc-modal sc-modal--lg">
-            <div class="sc-modal-header">
-              <div class="edit-header-info">
-                <div class="edit-avatar-sm">{{ iniciales(mascota) }}</div>
-                <div>
-                  <p class="sc-modal-eyebrow">Rescate</p>
-                  <h2 class="sc-modal-title">{{ mascota || 'Sin nombre' }}</h2>
-                </div>
-              </div>
-              <button class="sc-modal-close" @click="showEditModal = false">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
-            <div class="sc-modal-body edit-body">
+      <Transition name="modal-fade">
+        <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
+          <div class="modal-box modal-box--lg">
 
-              <!-- Foto -->
-              <div class="sc-section-label"><span class="sc-section-num">1</span>Fotografía</div>
-              <div class="sc-foto-wrap" style="margin-bottom:20px">
-                <div class="sc-foto-preview" :class="{ 'has-img': fotoPreview }">
-                  <img v-if="fotoPreview" :src="fotoPreview" class="sc-foto-img" alt="preview">
-                  <div v-else class="sc-foto-placeholder">
-                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                    <span>Sin foto</span>
+            <button class="modal-close" @click="showEditModal = false">✕</button>
+
+            <div class="modal-header">
+              <div class="modal-header-avatar">{{ iniciales(mascota) }}</div>
+              <div>
+                <p class="modal-eyebrow">Editar rescate</p>
+                <h2 class="modal-title">{{ mascota || 'Sin nombre' }}</h2>
+              </div>
+            </div>
+
+            <div class="modal-body">
+
+              <div class="modal-section">
+                <h4 class="modal-section-title">Fotografía</h4>
+                <div class="foto-wrap">
+                  <div class="foto-preview" :class="{ 'has-img': fotoPreview }">
+                    <img v-if="fotoPreview" :src="fotoPreview" class="foto-img" alt="preview">
+                    <div v-else class="foto-placeholder">
+                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+                      <span>Sin foto</span>
+                    </div>
+                  </div>
+                  <div class="foto-actions">
+                    <label class="btn-foto">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      Cambiar foto
+                      <input type="file" accept="image/*" style="display:none" @change="onFotoChange">
+                    </label>
                   </div>
                 </div>
-                <div class="sc-foto-actions">
-                  <label class="sc-btn-foto">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                    Cambiar foto
-                    <input type="file" accept="image/*" style="display:none" @change="onFotoChange">
-                  </label>
+              </div>
+
+              <div class="modal-section">
+                <h4 class="modal-section-title">Datos de la mascota</h4>
+                <div class="modal-grid">
+                  <div class="modal-field">
+                    <label class="fg-label">Nombre</label>
+                    <input class="form-input" v-model="mascota">
+                  </div>
+                  <div class="modal-field">
+                    <label class="fg-label">Tipo de mascota</label>
+                    <div class="sel-wrap">
+                      <select class="form-input" v-model="tipoMascota">
+                        <option value="Perro">Perro</option>
+                        <option value="Gato">Gato</option>
+                      </select>
+                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                    </div>
+                  </div>
+                  <div class="modal-field">
+                    <label class="fg-label">Edad</label>
+                    <input class="form-input" v-model="edad">
+                  </div>
+                  <div class="modal-field">
+                    <label class="fg-label">Sexo</label>
+                    <div class="sel-wrap">
+                      <select class="form-input" v-model="sexo">
+                        <option>Macho</option>
+                        <option>Hembra</option>
+                      </select>
+                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                    </div>
+                  </div>
+                  <div class="modal-field">
+                    <label class="fg-label">¿Tiene raza?</label>
+                    <div class="radio-row">
+                      <label class="r-opt"><input type="radio" v-model="tieneRaza" value="No"><span>No</span></label>
+                      <label class="r-opt"><input type="radio" v-model="tieneRaza" value="Si"><span>Sí</span></label>
+                    </div>
+                  </div>
+                  <div v-if="tieneRaza === 'Si'" class="modal-field">
+                    <label class="fg-label">Raza</label>
+                    <input class="form-input" v-model="raza">
+                  </div>
+                  <div class="modal-field">
+                    <label class="fg-label">Fecha de rescate</label>
+                    <input type="date" class="form-input" v-model="fechaRescate">
+                  </div>
+                  <div class="modal-field">
+                    <label class="fg-label">Estado</label>
+                    <div class="sel-wrap">
+                      <select class="form-input" v-model="estado">
+                        <option>Activo</option>
+                        <option>Cerrado</option>
+                      </select>
+                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div class="sc-section-label"><span class="sc-section-num">2</span>Datos personales</div>
-              <div class="sc-form-grid sc-form-grid--4">
-                <div class="sc-fg sc-fg--span2"><label>Nombre</label><div class="sc-fg">
-
-    <label>Tipo de mascota</label>
-
-    <div class="select-wrap">
-
-      <select class="sc-input" v-model="tipoMascota">
-
-        <option value="Perro">Perro</option>
-
-        <option value="Gato">Gato</option>
-
-      </select>
-
-      <i class='bx bx-chevron-down'></i>
-
-    </div>
-
-  </div><input class="sc-input" v-model="mascota"></div>
-                <div class="sc-fg"><label>Edad</label><input class="sc-input" v-model="edad"></div>
-                <div class="sc-fg"><label>Sexo</label><div class="select-wrap"><select class="sc-input" v-model="sexo"><option>Macho</option><option>Hembra</option></select><i class='bx bx-chevron-down'></i></div></div>
-                <div class="sc-fg"><label>¿Tiene raza?</label><div class="radio-row"><label class="r-opt"><input type="radio" v-model="tieneRaza" value="No"><span>No</span></label><label class="r-opt"><input type="radio" v-model="tieneRaza" value="Si"><span>Sí</span></label></div></div>
-                <div v-if="tieneRaza === 'Si'" class="sc-fg sc-fg--span2"><label>Raza</label><input class="sc-input" v-model="raza"></div>
-                <div class="sc-fg"><label>Fecha de rescate</label><input type="date" class="sc-input" v-model="fechaRescate"></div>
+              <div class="modal-section">
+                <h4 class="modal-section-title">Ubicación</h4>
+                <div class="modal-grid modal-grid--3">
+                  <div class="modal-field">
+                    <label class="fg-label">Provincia</label>
+                    <div class="sel-wrap">
+                      <select class="form-input" v-model="provincia">
+                        <option value="">Seleccione</option>
+                        <option v-for="p in provinciasDisponibles" :key="p" :value="p">{{ p }}</option>
+                      </select>
+                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                    </div>
+                  </div>
+                  <div class="modal-field">
+                    <label class="fg-label">Cantón</label>
+                    <div class="sel-wrap">
+                      <select class="form-input" v-model="canton" :disabled="!provincia">
+                        <option value="">Seleccione</option>
+                        <option v-for="c in cantonesDisponibles" :key="c" :value="c">{{ c }}</option>
+                      </select>
+                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                    </div>
+                  </div>
+                  <div class="modal-field">
+                    <label class="fg-label">Distrito</label>
+                    <div class="sel-wrap">
+                      <select class="form-input" v-model="distrito" :disabled="!canton">
+                        <option value="">Seleccione</option>
+                        <option v-for="d in distritosDisponibles" :key="d" :value="d">{{ d }}</option>
+                      </select>
+                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div class="sc-section-label" style="margin-top:20px"><span class="sc-section-num">3</span>Ubicación</div>
-              <div class="sc-form-grid sc-form-grid--4">
-                <div class="sc-fg"><label>Provincia</label><div class="select-wrap"><select class="sc-input" v-model="provincia"><option value="">Seleccione</option><option v-for="p in provinciasDisponibles" :key="p" :value="p">{{ p }}</option></select><i class='bx bx-chevron-down'></i></div></div>
-                <div class="sc-fg"><label>Cantón</label><div class="select-wrap"><select class="sc-input" v-model="canton" :disabled="!provincia"><option value="">Seleccione</option><option v-for="c in cantonesDisponibles" :key="c" :value="c">{{ c }}</option></select><i class='bx bx-chevron-down'></i></div></div>
-                <div class="sc-fg"><label>Distrito</label><div class="select-wrap"><select class="sc-input" v-model="distrito" :disabled="!canton"><option value="">Seleccione</option><option v-for="d in distritosDisponibles" :key="d" :value="d">{{ d }}</option></select><i class='bx bx-chevron-down'></i></div></div>
+              <div class="modal-section">
+                <h4 class="modal-section-title">Asignaciones</h4>
+                <div class="modal-grid">
+                  <div class="modal-field">
+                    <label class="fg-label">Rescatista</label>
+                    <div class="sel-wrap">
+                      <select class="form-input" v-model="rescatista">
+                        <option value="">Seleccione</option>
+                        <option v-for="r in rescatistasDisponibles" :key="r.id" :value="r.solicitudVoluntario?.nombre || r.nombre">{{ r.solicitudVoluntario?.nombre || r.nombre }}</option>
+                      </select>
+                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                    </div>
+                  </div>
+                  <div class="modal-field">
+                    <label class="fg-label">Casa cuna</label>
+                    <div class="sel-wrap">
+                      <select class="form-input" v-model="casaCuna">
+                        <option value="">Sin asignar</option>
+                        <option v-for="c in casasCunaDisponibles" :key="c.id" :value="c.solicitudVoluntario?.nombre || c.nombre">{{ c.solicitudVoluntario?.nombre || c.nombre }}</option>
+                      </select>
+                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              <div class="sc-section-label" style="margin-top:20px"><span class="sc-section-num">4</span>Asignaciones</div>
-              <div class="sc-form-grid sc-form-grid--4">
-                <div class="sc-fg sc-fg--span2"><label>Rescatista</label><div class="select-wrap"><select class="sc-input" v-model="rescatista"><option value="">Seleccione</option><option v-for="r in rescatistasDisponibles" :key="r.id" :value="r.solicitudVoluntario?.nombre || r.nombre">{{ r.solicitudVoluntario?.nombre || r.nombre }}</option></select><i class='bx bx-chevron-down'></i></div></div>
-                <div class="sc-fg sc-fg--span2"><label>Casa cuna</label><div class="select-wrap"><select class="sc-input" v-model="casaCuna"><option value="">Sin asignar</option><option v-for="c in casasCunaDisponibles" :key="c.id" :value="c.solicitudVoluntario?.nombre || c.nombre">{{ c.solicitudVoluntario?.nombre || c.nombre }}</option></select><i class='bx bx-chevron-down'></i></div></div>
-                <div class="sc-fg"><label>Estado</label><div class="select-wrap"><select class="sc-input" v-model="estado"><option>Activo</option><option>Cerrado</option></select><i class='bx bx-chevron-down'></i></div></div>
+              <div class="modal-section">
+                <h4 class="modal-section-title">Descripción del rescate</h4>
+                <textarea class="form-textarea" v-model="descripcion"></textarea>
               </div>
-
-              <div class="sc-section-label" style="margin-top:20px"><span class="sc-section-num">5</span>Descripción</div>
-              <div class="sc-fg"><label>Descripción del rescate</label><textarea class="sc-textarea" v-model="descripcion"></textarea></div>
 
             </div>
-            <div class="sc-modal-footer">
-              <button class="sc-btn-cancel" @click="showEditModal = false">Cancelar</button>
-              <button class="sc-btn-save" @click="guardarRescate">
+
+            <div class="modal-footer">
+              <button class="btn-cancelar" @click="showEditModal = false">Cancelar</button>
+              <button class="btn-guardar" @click="guardarRescate">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                 Guardar cambios
               </button>
             </div>
+
           </div>
         </div>
       </Transition>
@@ -856,88 +959,127 @@ function iniciales(nombre) {
          MODAL VER DETALLE
     ═══════════════════════════════════════════ -->
     <Teleport to="body">
-      <Transition name="overlay-anim">
-        <div v-if="showDetailModal" class="sc-overlay" @click.self="showDetailModal = false">
-          <div class="sc-modal sc-modal--lg">
+      <Transition name="modal-fade">
+        <div v-if="showDetailModal" class="modal-overlay" @click.self="showDetailModal = false">
+          <div class="modal-box modal-box--lg">
 
-            <div class="exp-header">
-              <div class="exp-avatar">
-                <img v-if="rescueSelected?.foto" :src="rescueSelected.foto" class="exp-avatar-img" alt="foto">
-                <span v-else class="exp-avatar-ini">{{ iniciales(rescueSelected?.mascota) }}</span>
+            <button class="modal-close" @click="showDetailModal = false">✕</button>
+
+            <div class="modal-header">
+              <div class="modal-header-avatar-lg">
+                <img v-if="rescueSelected?.foto" :src="rescueSelected.foto" class="modal-avatar-img" alt="foto">
+                <span v-else>{{ iniciales(rescueSelected?.mascota) }}</span>
               </div>
-              <div class="exp-header-info">
-                <div class="exp-name">{{ rescueSelected?.mascota }}</div>
-                <div class="exp-meta">
-                  <span class="sc-badge badge--neutral">{{ rescueSelected?.edad }} · {{ rescueSelected?.sexo }}</span>
-                  <span class="sc-badge" :class="estadoBadgeClass(rescueSelected?.estado)">
-                    {{ estadoIcon(rescueSelected?.estado) }} {{ rescueSelected?.estado }}
-                  </span>
-                  <span class="sc-badge badge--neutral">{{ rescueSelected?.id }}</span>
+              <div>
+                <p class="modal-eyebrow">Expediente de rescate</p>
+                <h2 class="modal-title">{{ rescueSelected?.mascota }}</h2>
+                <div class="modal-badges-row">
+                  <span class="estado-badge badge-cerrado">{{ rescueSelected?.edad }} · {{ rescueSelected?.sexo }}</span>
+                  <span class="estado-badge" :class="estadoBadgeClass(rescueSelected?.estado)">{{ rescueSelected?.estado }}</span>
+                  <span class="id-pill">{{ rescueSelected?.id }}</span>
                 </div>
               </div>
-              <button class="sc-modal-close" @click="showDetailModal = false">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
             </div>
 
-            <div class="sc-modal-body exp-body" v-if="rescueSelected">
+            <div class="modal-body" v-if="rescueSelected">
 
-              <!-- Información de la mascota -->
-              <div class="exp-section">
-                <div class="exp-section-title"><span class="exp-section-dot"></span>Información de la mascota</div>
-                <div class="exp-grid">
-                  <div class="exp-field"><span class="exp-label">Nombre</span><span class="exp-value fw">{{ rescueSelected.mascota }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Edad</span><span class="exp-value">{{ rescueSelected.edad }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Sexo</span><span class="exp-value">{{ rescueSelected.sexo }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Raza</span><span class="exp-value">{{ rescueSelected.raza || 'Sin raza' }}</span></div>
-                </div>
-              </div>
-
-              <!-- Ubicación -->
-              <div class="exp-section">
-                <div class="exp-section-title"><span class="exp-section-dot"></span>Ubicación</div>
-                <div class="exp-grid cols-3">
-                  <div class="exp-field"><span class="exp-label">Provincia</span><span class="exp-value">{{ rescueSelected.provincia || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Cantón</span><span class="exp-value">{{ rescueSelected.canton || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Distrito</span><span class="exp-value">{{ rescueSelected.distrito || '—' }}</span></div>
-                </div>
-              </div>
-
-              <!-- Asignaciones y fechas -->
-              <div class="exp-section">
-                <div class="exp-section-title"><span class="exp-section-dot"></span>Asignaciones y fechas</div>
-                <div class="exp-grid">
-                  <div class="exp-field"><span class="exp-label">Rescatista</span><span class="exp-value fw">{{ rescueSelected.rescatista || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Casa cuna</span><span class="exp-value">{{ rescueSelected.casaCuna || 'Sin asignar' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Fecha de rescate</span><span class="exp-value">{{ rescueSelected.fechaRescate || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Fecha de creación</span><span class="exp-value">{{ rescueSelected.fechaCreacion || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Registrado por</span><span class="exp-value">{{ rescueSelected.creadoPor || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Estado</span>
-                    <span class="sc-badge" :class="estadoBadgeClass(rescueSelected.estado)" style="margin-top:4px">{{ rescueSelected.estado }}</span>
+              <div class="modal-section">
+                <h4 class="modal-section-title">Información de la mascota</h4>
+                <div class="modal-grid">
+                  <div class="modal-field">
+                    <span class="modal-field-label">Nombre</span>
+                    <strong class="modal-field-value">{{ rescueSelected.mascota }}</strong>
+                  </div>
+                  <div class="modal-field">
+                    <span class="modal-field-label">Tipo</span>
+                    <strong class="modal-field-value">{{ rescueSelected.tipoMascota || '—' }}</strong>
+                  </div>
+                  <div class="modal-field">
+                    <span class="modal-field-label">Edad</span>
+                    <strong class="modal-field-value">{{ rescueSelected.edad }}</strong>
+                  </div>
+                  <div class="modal-field">
+                    <span class="modal-field-label">Sexo</span>
+                    <strong class="modal-field-value">{{ rescueSelected.sexo }}</strong>
+                  </div>
+                  <div class="modal-field">
+                    <span class="modal-field-label">Raza</span>
+                    <strong class="modal-field-value">{{ rescueSelected.raza || 'Sin raza' }}</strong>
                   </div>
                 </div>
               </div>
 
-              <!-- Descripción -->
-              <div class="exp-section">
-                <div class="exp-section-title accent-orange"><span class="exp-section-dot orange"></span>Descripción del rescate</div>
-                <p class="exp-text-block">{{ rescueSelected.descripcion || '—' }}</p>
+              <div class="modal-section">
+                <h4 class="modal-section-title">Ubicación</h4>
+                <div class="modal-grid modal-grid--3">
+                  <div class="modal-field">
+                    <span class="modal-field-label">Provincia</span>
+                    <strong class="modal-field-value">{{ rescueSelected.provincia || '—' }}</strong>
+                  </div>
+                  <div class="modal-field">
+                    <span class="modal-field-label">Cantón</span>
+                    <strong class="modal-field-value">{{ rescueSelected.canton || '—' }}</strong>
+                  </div>
+                  <div class="modal-field">
+                    <span class="modal-field-label">Distrito</span>
+                    <strong class="modal-field-value">{{ rescueSelected.distrito || '—' }}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div class="modal-section">
+                <h4 class="modal-section-title">Asignaciones y fechas</h4>
+                <div class="modal-grid">
+                  <div class="modal-field">
+                    <span class="modal-field-label">Rescatista</span>
+                    <strong class="modal-field-value">{{ rescueSelected.rescatista || '—' }}</strong>
+                  </div>
+                  <div class="modal-field">
+                    <span class="modal-field-label">Casa cuna</span>
+                    <strong class="modal-field-value">{{ rescueSelected.casaCuna || 'Sin asignar' }}</strong>
+                  </div>
+                  <div class="modal-field">
+                    <span class="modal-field-label">Fecha de rescate</span>
+                    <strong class="modal-field-value">{{ rescueSelected.fechaRescate || '—' }}</strong>
+                  </div>
+                  <div class="modal-field">
+                    <span class="modal-field-label">Fecha de creación</span>
+                    <strong class="modal-field-value">{{ rescueSelected.fechaCreacion || '—' }}</strong>
+                  </div>
+                  <div class="modal-field">
+                    <span class="modal-field-label">Registrado por</span>
+                    <strong class="modal-field-value">{{ rescueSelected.creadoPor || '—' }}</strong>
+                  </div>
+                  <div class="modal-field">
+                    <span class="modal-field-label">Estado</span>
+                    <span class="estado-badge" :class="estadoBadgeClass(rescueSelected.estado)" style="margin-top:4px;display:inline-block">{{ rescueSelected.estado }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="modal-section">
+                <h4 class="modal-section-title">Descripción del rescate</h4>
+                <p class="modal-mensaje">{{ rescueSelected.descripcion || '—' }}</p>
+              </div>
+
+              <div v-if="rescueSelected?.estado === 'Activo'" class="modal-acciones">
+                <button
+                  class="btn-cerrar-rescate"
+                  @click="showDetailModal = false; pedirCerrar(rescates.indexOf(rescueSelected))"
+                >
+                  Cerrar rescate
+                </button>
+              </div>
+              <div v-else class="modal-estado-final">
+                <p class="estado-cerrado-msg">Este rescate ha sido cerrado.</p>
               </div>
 
             </div>
 
-            <div class="sc-modal-footer">
-              <button class="sc-btn-cancel" @click="showDetailModal = false">Cerrar expediente</button>
-              <button
-                v-if="rescueSelected?.estado === 'Activo'"
-                class="sc-btn-ver sc-btn-ver--red"
-                style="padding:10px 18px;height:auto;font-size:13px;display:flex;align-items:center;gap:6px"
-                @click="showDetailModal = false; pedirCerrar(rescates.indexOf(rescueSelected))"
-              >
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                Cerrar rescate
-              </button>
+            <div class="modal-footer">
+              <button class="btn-cancelar" @click="showDetailModal = false">Cerrar expediente</button>
             </div>
+
           </div>
         </div>
       </Transition>
@@ -945,19 +1087,19 @@ function iniciales(nombre) {
 
     <!-- ══ MODAL CONFIRMACIÓN CERRAR ══ -->
     <Teleport to="body">
-      <Transition name="overlay-anim">
-        <div v-if="modalConfirm" class="sc-overlay sc-overlay--top" @click.self="modalConfirm = false">
-          <div class="sc-modal sc-modal--sm">
-            <div class="sc-confirm-body">
-              <div class="sc-confirm-icon">
+      <Transition name="modal-fade">
+        <div v-if="modalConfirm" class="modal-overlay modal-overlay--top" @click.self="modalConfirm = false">
+          <div class="modal-box modal-box--sm">
+            <div class="confirm-body">
+              <div class="confirm-icon">
                 <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               </div>
-              <h3 class="sc-confirm-title">Cerrar rescate</h3>
-              <p class="sc-confirm-text">¿Estás seguro de que deseas marcar este rescate como <strong>Cerrado</strong>?</p>
+              <h3 class="confirm-title">Cerrar rescate</h3>
+              <p class="confirm-text">¿Estás seguro de que deseas marcar este rescate como <strong>Cerrado</strong>? Esta acción no se puede deshacer.</p>
             </div>
-            <div class="sc-modal-footer">
-              <button class="sc-btn-cancel" @click="modalConfirm = false">Cancelar</button>
-              <button class="sc-btn-save" @click="confirmarCerrar">Confirmar</button>
+            <div class="modal-footer">
+              <button class="btn-cancelar" @click="modalConfirm = false">Cancelar</button>
+              <button class="btn-guardar" @click="confirmarCerrar">Confirmar</button>
             </div>
           </div>
         </div>
@@ -968,413 +1110,615 @@ function iniciales(nombre) {
 </template>
 
 <style scoped>
-/* ═══════════════════════════════════════
-   ROOT
-═══════════════════════════════════════ */
-.sc-root { background: transparent; padding-bottom: 40px; }
+/* ══════════════════════════════════════════════
+   VARIABLES — sistema de tokens Anhelo Pets
+   idéntico al módulo de Donaciones
+══════════════════════════════════════════════ */
+.view-container {
+  --verde:      #3A473C;
+  --verde-sec:  #92A894;
+  --fondo:      #F7F8F7;
+  --blanco:     #FFFFFF;
+  --texto:      #2F352F;
+  --texto-sec:  #6C756D;
+  --borde:      #E8ECE8;
+  --amarillo:   #F5B942;
+  --verde-ok:   #4CAF6A;
+  background: transparent;
+}
 
-/* ═══════════════════════════════════════
+/* ══════════════════════════════════════════════
    TOAST
-═══════════════════════════════════════ */
-.sc-toast {
+══════════════════════════════════════════════ */
+.rc-toast {
   position: fixed; bottom: 32px; right: 32px; z-index: 9999;
   display: flex; align-items: center; gap: 10px;
   padding: 14px 20px; border-radius: 14px;
   font-size: 14px; font-weight: 600;
   box-shadow: 0 8px 32px rgba(0,0,0,0.16); pointer-events: none;
 }
-.sc-toast.success { background: #3A473C; color: #fff; }
-.sc-toast.error   { background: #c0392b; color: #fff; }
+.toast-success { background: var(--verde); color: #fff; }
+.toast-error   { background: #c0392b; color: #fff; }
 .toast-anim-enter-active, .toast-anim-leave-active { transition: all 0.25s ease; }
 .toast-anim-enter-from, .toast-anim-leave-to { opacity: 0; transform: translateY(10px); }
 
-/* ═══════════════════════════════════════
-   HEADER
-═══════════════════════════════════════ */
-.sc-header {
+/* ══════════════════════════════════════════════
+   ENCABEZADO — idéntico a Donaciones
+══════════════════════════════════════════════ */
+.page-header {
   display: flex; justify-content: space-between; align-items: flex-start;
   margin-bottom: 28px; gap: 16px; flex-wrap: wrap;
 }
-.sc-title { font-size: 28px; font-weight: 800; color: #3A473C; letter-spacing: -0.5px; line-height: 1.1; }
-.sc-sub   { font-size: 14px; color: #6C756D; margin-top: 5px; font-weight: 500; }
+.admin-page-title {
+  font-size: 28px; font-weight: 800; color: var(--verde);
+  letter-spacing: -0.5px; line-height: 1.1;
+}
+.admin-page-sub {
+  font-size: 14px; color: var(--texto-sec); margin-top: 4px; font-weight: 500;
+}
 
-/* Botón Nuevo rescate */
-.sc-btn-nuevo {
+.btn-nuevo {
   display: flex; align-items: center; gap: 8px;
-  padding: 10px 20px; background: #3A473C; border: none; border-radius: 10px;
+  padding: 10px 20px; background: var(--verde); border: none; border-radius: 8px;
   font-size: 13px; font-weight: 700; color: #fff;
   cursor: pointer; transition: background 0.18s; font-family: inherit;
   flex-shrink: 0; white-space: nowrap;
 }
-.sc-btn-nuevo:hover { background: #2d3730; }
+.btn-nuevo:hover { background: #2d3730; }
 
-/* Botón Cancelar en header del formulario */
-.sc-btn-cancel-header {
+.btn-cancelar-header {
   display: flex; align-items: center; gap: 8px;
-  padding: 10px 18px; background: #F4F6F4; border: none; border-radius: 10px;
-  font-size: 13px; font-weight: 700; color: #6C756D;
+  padding: 10px 18px; background: var(--fondo);
+  border: 1.5px solid var(--borde); border-radius: 8px;
+  font-size: 13px; font-weight: 700; color: var(--texto-sec);
   cursor: pointer; transition: background 0.15s; font-family: inherit;
   flex-shrink: 0; white-space: nowrap;
 }
-.sc-btn-cancel-header:hover { background: #E5EAE6; }
+.btn-cancelar-header:hover { background: #e5eae6; }
 
-/* ═══════════════════════════════════════
-   TOOLBAR / FILTROS
-═══════════════════════════════════════ */
-.sc-toolbar {
-  display: flex; align-items: center; gap: 16px;
-  margin-bottom: 20px; flex-wrap: nowrap;
+/* ══════════════════════════════════════════════
+   KPI CARDS — idénticas a Donaciones
+══════════════════════════════════════════════ */
+.don-summary {
+  display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap;
 }
-.sc-filters {
-  display: flex; align-items: center; gap: 10px;
-  flex: 1; flex-wrap: nowrap; min-width: 0;
+.don-card {
+  flex: 1; min-width: 150px;
+  background: var(--blanco); border-radius: 14px; padding: 20px;
+  border: 1px solid var(--borde); border-top: 3px solid var(--borde);
+  display: flex; flex-direction: column; gap: 8px;
 }
-.sc-search-wrap {
-  position: relative; flex: 1; min-width: 160px; max-width: 280px;
-}
-.sc-search-icon {
-  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-  color: #92A894; pointer-events: none;
-}
-.sc-search {
-  width: 100%; box-sizing: border-box;
-  padding: 9px 12px 9px 34px; height: 36px;
-  border: 1.5px solid #E8ECE8; border-radius: 10px;
-  font-size: 13px; color: #3A473C; background: #fff;
-  outline: none; font-family: inherit; transition: border-color 0.18s;
-}
-.sc-search:focus { border-color: #92A894; }
-.sc-select-wrap { position: relative; flex-shrink: 0; }
-.sc-filter-select {
-  appearance: none; padding: 0 32px 0 12px; height: 36px;
-  border: 1.5px solid #E8ECE8; border-radius: 10px;
-  font-size: 13px; color: #3A473C; background: #fff;
-  outline: none; font-family: inherit; cursor: pointer;
-  transition: border-color 0.18s; white-space: nowrap; box-sizing: border-box;
-}
-.sc-filter-select:focus { border-color: #92A894; }
-.sc-select-icon {
-  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-  color: #92A894; pointer-events: none;
-}
-.sc-clear {
-  padding: 0 14px; height: 36px; border: 1.5px solid #fdd; border-radius: 10px;
-  background: #fff5f5; color: #c0392b; font-size: 12px; font-weight: 700;
-  font-family: inherit; cursor: pointer; transition: background 0.15s;
-  white-space: nowrap; flex-shrink: 0;
-}
-.sc-clear:hover { background: #ffe5e5; }
+.kpi-mes      { border-top-color: var(--amarillo); }
+.kpi-total    { border-top-color: var(--verde-sec); }
+.kpi-activos  { border-top-color: var(--amarillo); }
+.kpi-cerrados { border-top-color: var(--verde-ok); }
 
-/* ═══════════════════════════════════════
-   TABLA
-═══════════════════════════════════════ */
-.sc-table-wrap {
-  background: #fff; border-radius: 20px;
-  box-shadow: 0 2px 16px rgba(58,71,60,0.06); overflow: hidden;
+.don-label {
+  font-size: 11px; color: var(--texto-sec); font-weight: 700;
+  text-transform: uppercase; letter-spacing: 0.5px;
 }
-.sc-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.sc-table thead { background: #F9FAF9; }
-.sc-table th {
-  padding: 14px 20px; font-size: 11px; font-weight: 800; color: #92A894;
-  text-transform: uppercase; letter-spacing: 0.6px;
-  white-space: nowrap; border-bottom: 1.5px solid #F0F2F0; text-align: left;
+.don-value {
+  font-size: 24px; font-weight: 800; color: var(--verde); line-height: 1;
 }
-.sc-table td {
-  padding: 14px 20px; font-size: 14px; color: #3A473C;
-  border-bottom: 1px solid #F5F7F5; vertical-align: middle;
-}
-.sc-table tbody tr:last-child td { border-bottom: none; }
-.sc-table tbody tr { transition: background 0.12s; }
-.sc-table tbody tr:hover { background: #FAFBFA; }
 
-/* Avatar */
-.sc-avatar {
-  width: 38px; height: 38px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
+/* ══════════════════════════════════════════════
+   PANEL DE FILTROS — idéntico a Donaciones
+══════════════════════════════════════════════ */
+.filtros-panel {
+  background: var(--blanco); border-radius: 14px; padding: 20px;
+  margin-bottom: 20px; border: 1px solid var(--borde);
+  display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
+}
+.filtro-group {
+  display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 130px;
+}
+.filtro-group--btn { flex: 0 0 auto; min-width: unset; }
+.filtro-label {
+  font-size: 11px; font-weight: 700; color: var(--verde);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  min-height: 16px; display: flex; align-items: flex-end;
+}
+.filtro-input-wrap {
+  position: relative; display: flex; align-items: center;
+}
+.filtro-input {
+  width: 100%; height: 38px; padding: 0 36px 0 12px;
+  border-radius: 8px; border: 1.5px solid var(--borde);
+  background: var(--fondo); font-size: 13px; color: var(--texto);
+  font-family: inherit; outline: none;
+  transition: border-color 0.18s, background 0.18s; box-sizing: border-box;
+}
+.filtro-input:focus { border-color: var(--verde-sec); background: var(--blanco); }
+.filtro-input::placeholder { color: #9CA8A0; }
+.filtro-select { appearance: none; -webkit-appearance: none; cursor: pointer; }
+.filtro-icon { position: absolute; display: flex; align-items: center; color: var(--texto-sec); }
+.filtro-icon--right { right: 11px; }
+.filtro-icon--no-events { pointer-events: none; }
+
+.btn-limpiar {
+  height: 38px; padding: 0 16px; border-radius: 8px;
+  border: 1.5px solid var(--borde); background: transparent;
+  color: var(--texto-sec); font-size: 12px; font-weight: 700;
+  cursor: pointer; white-space: nowrap; transition: all 0.18s; font-family: inherit;
+}
+.btn-limpiar--activo { border-color: var(--verde); color: var(--verde); }
+.btn-limpiar:hover   { background: var(--verde); color: var(--blanco); border-color: var(--verde); }
+
+/* ══════════════════════════════════════════════
+   ESTADO VACÍO — idéntico a Donaciones
+══════════════════════════════════════════════ */
+.empty-state {
+  text-align: center; padding: 72px 24px;
+  background: var(--blanco); border-radius: 14px; border: 1px solid var(--borde);
+}
+.empty-title { font-size: 16px; font-weight: 700; color: var(--texto); margin-bottom: 6px; }
+.empty-sub   { font-size: 13px; color: var(--texto-sec); margin: 0; }
+
+/* ══════════════════════════════════════════════
+   TABLA — idéntica a Donaciones
+══════════════════════════════════════════════ */
+.table-wrapper {
+  background: var(--blanco); border-radius: 14px;
+  border: 1px solid var(--borde); overflow: hidden;
+}
+.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+.don-table { width: 100%; border-collapse: collapse; min-width: 700px; }
+.don-table thead tr { background: var(--verde); }
+.don-table thead th {
+  padding: 13px 16px; text-align: left; color: var(--blanco);
+  font-size: 11px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 0.6px; white-space: nowrap;
+}
+.don-table tbody tr { border-bottom: 1px solid var(--borde); transition: background 0.15s; }
+.don-table tbody tr:last-child { border-bottom: none; }
+.don-table tbody tr:hover { background: #F4F6F4; }
+.don-table tbody td { padding: 13px 16px; vertical-align: middle; }
+
+.table-footer {
+  padding: 12px 16px; border-top: 1px solid var(--borde);
+  font-size: 12px; color: var(--texto-sec); font-weight: 500;
+}
+
+/* Celda mascota con avatar */
+.pet-cell { display: flex; align-items: center; gap: 10px; }
+.pet-avatar {
+  width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
   background: #DDE6DE; display: flex; align-items: center; justify-content: center;
 }
-.sc-avatar-img { width: 100%; height: 100%; object-fit: cover; }
-.sc-avatar-ini { font-size: 14px; font-weight: 800; color: #5A6E5C; text-transform: uppercase; line-height: 1; }
+.pet-avatar-img { width: 100%; height: 100%; object-fit: cover; }
+.pet-avatar-ini { font-size: 13px; font-weight: 800; color: #5A6E5C; }
 
-.sc-pet-cell { display: flex; align-items: center; gap: 10px; }
-.sc-pet-info  { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.sc-pet-name  { font-weight: 700; font-size: 14px; color: #3A473C; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sc-pet-sub   { font-size: 11px; color: #92A894; }
-.sc-pet-id    { font-size: 11px; color: #92A894; font-family: monospace; }
-
-.sc-td-main { font-weight: 500; color: #3A473C; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
-.sc-td-sec  { color: #7A8A7C; font-size: 12px; }
-
-/* ── Badges ── */
-.sc-badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 10px; border-radius: 7px;
-  font-size: 12px; font-weight: 600; white-space: nowrap;
-  background: #F0F4F0; color: #4A6550;
+/* Tipografías de celda — idénticas a Donaciones */
+.id-pill {
+  font-size: 11px; font-family: monospace; background: var(--fondo);
+  border: 1px solid var(--borde); padding: 3px 9px; border-radius: 6px;
+  color: var(--verde); font-weight: 700; white-space: nowrap;
 }
-.badge--green   { background: rgba(76,175,80,.14);   color: #2E7D32; }
-.badge--red     { background: rgba(235,119,119,.16);  color: #C45252; }
-.badge--orange  { background: rgba(255,152,0,.14);    color: #E65100; }
-.badge--yellow  { background: rgba(255,193,7,.16);    color: #9A6A00; }
-.badge--neutral { background: #F4F6F4;                color: #6C756D; }
-.badge--blue    { background: rgba(33,150,243,.13);   color: #1565C0; }
+.donor-name { display: block; font-size: 13px; font-weight: 700; color: var(--texto); line-height: 1.3; }
+.donor-mail { display: block; font-size: 11px; color: var(--texto-sec); margin-top: 2px; }
+.metodo-text { font-size: 13px; color: var(--texto-sec); }
+.fecha-text  { font-size: 13px; color: var(--texto-sec); }
 
-/* ── Botones de acción ── */
-.sc-actions { display: flex; align-items: center; gap: 4px; justify-content: center; }
-.sc-btn-ver {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 5px 11px; height: 28px; border: none; border-radius: 8px;
-  font-size: 12px; font-weight: 700; font-family: inherit;
-  cursor: pointer; transition: background 0.15s, opacity 0.15s;
-  white-space: nowrap; flex-shrink: 0;
+/* Acciones en tabla */
+.acciones-cell { display: flex; align-items: center; gap: 6px; }
+
+.btn-ver {
+  padding: 6px 14px; border-radius: 7px;
+  border: 1.5px solid var(--borde); background: var(--blanco);
+  color: var(--verde); font-size: 12px; font-weight: 700;
+  cursor: pointer; transition: all 0.18s; white-space: nowrap; font-family: inherit;
 }
-.sc-btn-ver:disabled { opacity: 0.35; cursor: not-allowed; }
-.action-icon { width: 10px; height: 10px; object-fit: contain; display: block; }
-.sc-btn-ver--neutral { background: #F0F4F0;               color: #3A473C; }
-.sc-btn-ver--neutral:hover { background: #DDE6DE; }
-.sc-btn-ver--green   { background: rgba(76,175,80,.14);   color: #2E7D32; }
-.sc-btn-ver--green:hover   { background: rgba(76,175,80,.26); }
-.sc-btn-ver--red     { background: rgba(235,119,119,.14); color: #C45252; }
-.sc-btn-ver--red:hover     { background: rgba(235,119,119,.26); }
-.sc-btn-ver--blue    { background: rgba(33,150,243,.12);  color: #1565C0; }
-.sc-btn-ver--blue:hover    { background: rgba(33,150,243,.22); }
-.sc-btn-ver--orange  { background: rgba(255,152,0,.13);   color: #E65100; }
-.sc-btn-ver--orange:hover  { background: rgba(255,152,0,.24); }
+.btn-ver:hover { background: var(--verde); color: var(--blanco); border-color: var(--verde); }
 
-/* Empty state */
-.sc-empty { padding: 0; }
-.sc-empty-inner {
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 12px; padding: 56px 24px; color: #92A894;
+.btn-accion-edit,
+.btn-accion-close {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 7px; border: none;
+  cursor: pointer; transition: background 0.15s, opacity 0.15s; flex-shrink: 0;
 }
-.sc-empty-inner svg { opacity: 0.4; }
-.sc-empty-inner p { font-size: 14px; font-weight: 500; color: #7A8A7C; margin: 0; }
+.btn-accion-edit  { background: rgba(33,150,243,.10); color: #1565C0; }
+.btn-accion-edit:hover  { background: rgba(33,150,243,.22); }
+.btn-accion-close { background: rgba(176,0,32,.10); color: #B71C1C; }
+.btn-accion-close:not(:disabled):hover { background: rgba(176,0,32,.20); }
+.btn-accion-close:disabled { opacity: 0.3; cursor: not-allowed; }
 
-/* ═══════════════════════════════════════
-   FORMULARIO COMO PANTALLA
-═══════════════════════════════════════ */
-.sc-form-errors {
+/* ══════════════════════════════════════════════
+   BADGES — pill idéntico a Donaciones
+══════════════════════════════════════════════ */
+.estado-badge {
+  display: inline-block; font-size: 11px; font-weight: 700;
+  padding: 4px 12px; border-radius: 20px; white-space: nowrap;
+}
+.badge-activo  { background: #E8F5E9; color: #2E7D32; }
+.badge-cerrado { background: #F4F6F4; color: #6C756D; }
+
+/* ══════════════════════════════════════════════
+   FORMULARIO
+══════════════════════════════════════════════ */
+.form-errors-banner {
   display: flex; align-items: flex-start; gap: 10px;
-  padding: 14px 18px; background: rgba(235,119,119,.10);
-  border: 1.5px solid rgba(235,119,119,.25); border-radius: 12px;
-  font-size: 13px; color: #C45252; margin-bottom: 20px; line-height: 1.5;
+  padding: 14px 18px; background: rgba(176,0,32,.08);
+  border: 1.5px solid rgba(176,0,32,.20); border-radius: 12px;
+  font-size: 13px; color: #B71C1C; margin-bottom: 20px; line-height: 1.5;
 }
-.sc-form-errors svg { flex-shrink: 0; margin-top: 1px; }
+.form-errors-banner svg { flex-shrink: 0; margin-top: 1px; }
 
-.sc-form-panel {
-  background: #fff; border-radius: 20px;
-  box-shadow: 0 2px 16px rgba(58,71,60,0.06);
-  padding: 32px 32px 28px;
+.form-panel {
+  background: var(--blanco); border-radius: 14px;
+  border: 1px solid var(--borde); padding: 32px 32px 28px;
 }
 
-.sc-section-label {
+.form-section-title {
   display: flex; align-items: center; gap: 10px;
-  font-size: 13px; font-weight: 800; color: #3A473C;
+  font-size: 11px; font-weight: 700; color: var(--verde);
   text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px;
 }
-.sc-section-label.accent-orange { color: #C08030; }
-.sc-section-num {
-  width: 24px; height: 24px; border-radius: 7px;
-  background: #3A473C; color: #fff;
+.form-section-num {
+  width: 22px; height: 22px; border-radius: 6px;
+  background: var(--verde); color: #fff;
   font-size: 11px; font-weight: 800;
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-.sc-section-num.orange { background: #F9C17A; color: #8A5A1E; }
 
-.sc-required { color: #c0392b; margin-left: 2px; }
+.req { color: #B71C1C; margin-left: 2px; }
 
-/* Grid formulario */
-.sc-form-grid { display: grid; gap: 14px; }
-.sc-form-grid--4 { grid-template-columns: repeat(4, 1fr); }
-.sc-fg { display: flex; flex-direction: column; gap: 6px; }
-.sc-fg--span2 { grid-column: span 2; }
-.sc-fg--full  { grid-column: 1 / -1; }
-.sc-fg label { font-size: 12px; font-weight: 700; color: #5A6E5C; letter-spacing: 0.1px; display: flex; align-items: center; gap: 7px; }
-.sc-input {
-  padding: 10px 13px; border: 1.5px solid #E8ECE8; border-radius: 10px;
-  font-size: 13px; color: #3A473C; background: #FAFBFA;
-  outline: none; font-family: inherit; transition: border-color 0.18s, background 0.18s;
-  width: 100%; box-sizing: border-box;
+.form-grid { display: grid; gap: 14px; }
+.form-grid--4 { grid-template-columns: repeat(4, 1fr); }
+.fg { display: flex; flex-direction: column; gap: 6px; }
+.fg--span2 { grid-column: span 2; }
+.fg--full  { grid-column: 1 / -1; }
+.fg-label {
+  font-size: 11px; font-weight: 700; color: var(--verde);
+  text-transform: uppercase; letter-spacing: 0.5px;
 }
-.sc-input:focus    { border-color: #92A894; background: #fff; }
-.sc-input:disabled { background: #F4F6F4; color: #9BA99C; cursor: not-allowed; }
-.sc-textarea {
-  padding: 10px 13px; border: 1.5px solid #E8ECE8; border-radius: 10px;
-  font-size: 13px; color: #3A473C; background: #FAFBFA;
+
+.form-input {
+  width: 100%; height: 38px; padding: 0 36px 0 12px; box-sizing: border-box;
+  border: 1.5px solid var(--borde); border-radius: 8px;
+  font-size: 13px; color: var(--texto); background: var(--fondo);
   outline: none; font-family: inherit; transition: border-color 0.18s, background 0.18s;
-  width: 100%; box-sizing: border-box; min-height: 100px; resize: vertical; line-height: 1.5;
 }
-.sc-textarea:focus { border-color: #92A894; background: #fff; }
-.select-wrap { position: relative; }
-.select-wrap select.sc-input { appearance: none; padding-right: 36px; cursor: pointer; }
-.select-wrap i { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 18px; color: #92A894; pointer-events: none; }
+.form-input:focus    { border-color: var(--verde-sec); background: var(--blanco); }
+.form-input:disabled { background: #F4F6F4; color: #9BA99C; cursor: not-allowed; }
+
+.form-textarea {
+  width: 100%; padding: 10px 13px; box-sizing: border-box;
+  border: 1.5px solid var(--borde); border-radius: 8px;
+  font-size: 13px; color: var(--texto); background: var(--fondo);
+  outline: none; font-family: inherit; min-height: 100px; resize: vertical; line-height: 1.5;
+  transition: border-color 0.18s, background 0.18s;
+}
+.form-textarea:focus { border-color: var(--verde-sec); background: var(--blanco); }
+
+.sel-wrap { position: relative; }
+.sel-wrap .form-input { appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 36px; }
+.sel-icon {
+  position: absolute; right: 11px; top: 50%; transform: translateY(-50%);
+  color: var(--texto-sec); pointer-events: none; display: flex; align-items: center;
+}
+
 .radio-row { display: flex; gap: 16px; align-items: center; padding-top: 4px; }
-.r-opt { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: #3A473C; cursor: pointer; }
-.r-opt input[type="radio"] { accent-color: #92A894; width: 15px; height: 15px; cursor: pointer; }
+.r-opt {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 13px; font-weight: 600; color: var(--texto); cursor: pointer;
+}
+.r-opt input[type="radio"] { accent-color: var(--verde); width: 15px; height: 15px; cursor: pointer; }
 
-/* Foto */
-.sc-foto-wrap { display: flex; align-items: center; gap: 20px; }
-.sc-foto-preview {
-  width: 100px; height: 100px; border-radius: 14px;
-  border: 2px dashed #E8ECE8; background: #FAFBFA;
+.foto-wrap { display: flex; align-items: center; gap: 20px; }
+.foto-preview {
+  width: 100px; height: 100px; border-radius: 12px;
+  border: 2px dashed var(--borde); background: var(--fondo);
   display: flex; align-items: center; justify-content: center;
   overflow: hidden; flex-shrink: 0;
 }
-.sc-foto-preview.has-img { border-style: solid; border-color: #92A894; }
-.sc-foto-img { width: 100%; height: 100%; object-fit: cover; }
-.sc-foto-placeholder { display: flex; flex-direction: column; align-items: center; gap: 6px; color: #92A894; }
-.sc-foto-placeholder span { font-size: 11px; font-weight: 600; }
-.sc-foto-actions { display: flex; flex-direction: column; gap: 8px; }
-.sc-btn-foto {
+.foto-preview.has-img { border-style: solid; border-color: var(--verde-sec); }
+.foto-img { width: 100%; height: 100%; object-fit: cover; }
+.foto-placeholder { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--verde-sec); }
+.foto-placeholder span { font-size: 11px; font-weight: 600; }
+.foto-actions { display: flex; flex-direction: column; gap: 8px; }
+.btn-foto {
   display: inline-flex; align-items: center; gap: 8px;
-  padding: 9px 16px; background: #F4F6F4; border: 1.5px solid #E8ECE8;
-  border-radius: 10px; font-size: 13px; font-weight: 700; color: #3A473C;
+  padding: 9px 16px; background: var(--fondo); border: 1.5px solid var(--borde);
+  border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--texto);
   cursor: pointer; transition: background 0.15s; font-family: inherit;
 }
-.sc-btn-foto:hover { background: #E5EAE6; }
-.sc-foto-hint { font-size: 11px; color: #92A894; margin: 0; }
+.btn-foto:hover { background: #e5eae6; }
+.foto-hint { font-size: 11px; color: var(--verde-sec); margin: 0; }
 
-/* Footer del formulario */
-.sc-form-footer {
+.form-footer {
   display: flex; justify-content: flex-end; gap: 10px;
-  padding-top: 24px; margin-top: 24px;
-  border-top: 1.5px solid #F0F2F0;
+  padding-top: 24px; margin-top: 24px; border-top: 1px solid var(--borde);
 }
 
-/* ═══════════════════════════════════════
-   OVERLAY / MODAL
-═══════════════════════════════════════ */
-.sc-overlay {
-  position: fixed; inset: 0; background: rgba(20,30,22,0.5);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 200; padding: 20px; backdrop-filter: blur(2px); overflow-y: auto;
+/* ══════════════════════════════════════════════
+   BOTONES COMUNES
+══════════════════════════════════════════════ */
+.btn-cancelar {
+  padding: 10px 18px; background: var(--fondo); border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 700; color: var(--texto-sec);
+  cursor: pointer; transition: background 0.15s; font-family: inherit;
 }
-.sc-overlay--top { z-index: 400; }
-.overlay-anim-enter-active, .overlay-anim-leave-active { transition: all 0.22s ease; }
-.overlay-anim-enter-from, .overlay-anim-leave-to { opacity: 0; }
-.overlay-anim-enter-from .sc-modal, .overlay-anim-leave-to .sc-modal { transform: translateY(16px) scale(0.98); }
-.sc-modal {
-  background: #fff; border-radius: 22px; width: 100%;
-  max-height: 88vh; overflow-y: auto;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.2);
-  transition: transform 0.22s ease; margin: auto;
-}
-.sc-modal--sm { max-width: 420px; }
-.sc-modal--lg { max-width: 900px; }
+.btn-cancelar:hover { background: #e5eae6; }
 
-.sc-modal-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  padding: 24px 28px 18px; border-bottom: 1.5px solid #F0F2F0;
-}
-.sc-modal-eyebrow { font-size: 11px; font-weight: 800; color: #92A894; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 4px; }
-.sc-modal-title   { font-size: 20px; font-weight: 800; color: #3A473C; letter-spacing: -0.4px; }
-.sc-modal-close {
-  width: 34px; height: 34px; border-radius: 10px;
-  border: 1.5px solid #E8ECE8; background: #fff; color: #6C756D;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s, border-color 0.15s; flex-shrink: 0;
-}
-.sc-modal-close:hover { background: #F4F6F4; border-color: #ccc; }
-.sc-modal-body { padding: 24px 28px 8px; }
-
-.edit-header-info { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
-.edit-avatar-sm { width: 44px; height: 44px; min-width: 44px; border-radius: 14px; background: #DDE6DE; color: #5A6E5C; font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
-.edit-body { display: flex; flex-direction: column; gap: 0; }
-
-/* Expediente — Modal Ver */
-.exp-header {
-  display: flex; align-items: center; gap: 18px;
-  padding: 26px 28px 22px; border-bottom: 1.5px solid #F0F2F0;
-  background: linear-gradient(135deg, #F7F9F7, white);
-}
-.exp-avatar {
-  width: 64px; height: 64px; min-width: 64px; border-radius: 18px;
-  background: #DDE6DE; color: #5A6E5C;
-  font-size: 22px; font-weight: 800;
-  display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 8px 20px rgba(58,71,60,0.12); overflow: hidden;
-}
-.exp-avatar-img { width: 100%; height: 100%; object-fit: cover; }
-.exp-avatar-ini { font-size: 22px; font-weight: 800; color: #5A6E5C; }
-.exp-header-info { flex: 1; min-width: 0; }
-.exp-name { font-size: 20px; font-weight: 800; color: #3A473C; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.exp-meta { display: flex; gap: 8px; flex-wrap: wrap; }
-
-.exp-body { display: flex; flex-direction: column; gap: 0; }
-.exp-section { border-bottom: 1.5px solid #F4F6F4; padding: 20px 0; }
-.exp-section:last-child { border-bottom: none; }
-.exp-section-title {
-  display: flex; align-items: center; gap: 9px;
-  font-size: 11px; font-weight: 800; letter-spacing: 0.10em;
-  text-transform: uppercase; color: #92A894; margin-bottom: 16px;
-}
-.exp-section-title.accent-orange { color: #C08030; }
-.exp-section-dot { width: 7px; height: 7px; border-radius: 50%; background: #92A894; flex-shrink: 0; }
-.exp-section-dot.orange { background: #F9C17A; }
-.exp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px; }
-.exp-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
-.exp-field { display: flex; flex-direction: column; gap: 4px; }
-.exp-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #92A894; }
-.exp-value { font-size: 14px; color: #3A473C; }
-.exp-value.fw { font-weight: 700; }
-.exp-text-block { font-size: 14px; color: #3A473C; line-height: 1.7; background: #F9FAF9; border-radius: 12px; padding: 12px 14px; margin: 0; }
-
-/* Modal footer */
-.sc-modal-footer {
-  display: flex; justify-content: flex-end; gap: 10px;
-  padding: 18px 28px 24px; border-top: 1.5px solid #F0F2F0; margin-top: 12px;
-}
-.sc-btn-cancel {
-  padding: 10px 18px; background: #F4F6F4; border: none; border-radius: 10px;
-  font-size: 13px; font-weight: 700; color: #6C756D; cursor: pointer;
-  transition: background 0.15s; font-family: inherit;
-}
-.sc-btn-cancel:hover { background: #E5EAE6; }
-.sc-btn-save {
+.btn-guardar {
   display: flex; align-items: center; gap: 7px; padding: 10px 20px;
-  background: #3A473C; border: none; border-radius: 10px;
-  font-size: 13px; font-weight: 700; color: #fff; cursor: pointer;
-  transition: background 0.18s; font-family: inherit;
+  background: var(--verde); border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 700; color: #fff;
+  cursor: pointer; transition: background 0.18s; font-family: inherit;
 }
-.sc-btn-save:hover { background: #2d3730; }
-.sc-btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
+.btn-guardar:hover { background: #2d3730; }
 
-/* Confirmación */
-.sc-confirm-body { padding: 32px 28px 8px; text-align: center; }
-.sc-confirm-icon { width: 60px; height: 60px; border-radius: 50%; background: #EEF2EE; color: #3A473C; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
-.sc-confirm-title { font-size: 18px; font-weight: 800; color: #3A473C; margin-bottom: 10px; }
-.sc-confirm-text  { font-size: 13px; color: #6C756D; line-height: 1.6; max-width: 320px; margin: 0 auto; }
+/* ══════════════════════════════════════════════
+   MODALES — idénticos a Donaciones
+══════════════════════════════════════════════ */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.35); backdrop-filter: blur(4px);
+  z-index: 1000; display: flex; align-items: center; justify-content: center;
+  padding: 24px; overflow-y: auto;
+}
+.modal-overlay--top { z-index: 1100; }
 
-/* ═══════════════════════════════════════
+.modal-box {
+  background: #FFFFFF; border-radius: 20px; width: 100%;
+  max-height: 90vh; overflow-y: auto; position: relative;
+  box-shadow: 0 24px 80px rgba(0,0,0,0.18); margin: auto;
+}
+.modal-box--sm { max-width: 420px; }
+.modal-box--lg { max-width: 680px; }
+
+.modal-close {
+  position: absolute; top: 18px; right: 18px;
+  width: 32px; height: 32px; border-radius: 50%;
+  border: none; background: var(--fondo); color: var(--texto);
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s; font-family: inherit; z-index: 1;
+}
+.modal-close:hover { background: var(--verde); color: var(--blanco); }
+
+.modal-header {
+  display: flex; align-items: center; gap: 14px;
+  padding: 26px 28px 22px; border-bottom: 1px solid var(--borde);
+}
+.modal-header-avatar {
+  width: 44px; height: 44px; min-width: 44px; border-radius: 12px;
+  background: #DDE6DE; color: #5A6E5C;
+  font-size: 16px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-header-avatar-lg {
+  width: 56px; height: 56px; min-width: 56px; border-radius: 14px;
+  background: #DDE6DE; overflow: hidden;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 20px; font-weight: 800; color: #5A6E5C; flex-shrink: 0;
+}
+.modal-avatar-img { width: 100%; height: 100%; object-fit: cover; }
+.modal-eyebrow {
+  font-size: 11px; font-weight: 700; color: var(--texto-sec);
+  text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 4px;
+}
+.modal-title {
+  font-size: 20px; font-weight: 800; color: var(--verde);
+  letter-spacing: -0.4px; margin-bottom: 8px;
+}
+.modal-badges-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+
+.modal-body { padding: 24px 28px 8px; }
+
+.modal-section { margin-bottom: 24px; }
+.modal-section-title {
+  font-size: 11px; font-weight: 700; color: var(--texto-sec);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--borde);
+}
+
+.modal-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.modal-grid--3 { grid-template-columns: repeat(3, 1fr); }
+.modal-field  { display: flex; flex-direction: column; gap: 4px; }
+.modal-field-label {
+  font-size: 10px; font-weight: 700; color: #9CA8A0;
+  text-transform: uppercase; letter-spacing: 0.4px;
+}
+.modal-field-value { font-size: 14px; color: var(--texto); font-weight: 600; word-break: break-word; }
+
+.modal-mensaje {
+  font-size: 14px; color: var(--texto); line-height: 1.7;
+  background: var(--fondo); border-radius: 10px; padding: 14px 16px; margin: 0;
+}
+
+.modal-acciones {
+  display: flex; gap: 10px;
+  padding-top: 20px; border-top: 1px solid var(--borde); margin-top: 8px;
+}
+.btn-cerrar-rescate {
+  flex: 1; padding: 13px; border-radius: 10px; border: none;
+  background: #FDECEA; color: #B71C1C;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: all 0.2s; font-family: inherit;
+}
+.btn-cerrar-rescate:hover { background: #B71C1C; color: var(--blanco); }
+
+.modal-estado-final {
+  padding-top: 20px; border-top: 1px solid var(--borde); text-align: center;
+}
+.estado-cerrado-msg { color: var(--texto-sec); font-weight: 700; font-size: 14px; }
+
+.modal-footer {
+  display: flex; justify-content: flex-end; gap: 10px;
+  padding: 18px 28px 24px; border-top: 1px solid var(--borde); margin-top: 12px;
+}
+
+/* ══════════════════════════════════════════════
+   CONFIRMACIÓN
+══════════════════════════════════════════════ */
+.confirm-body { padding: 32px 28px 8px; text-align: center; }
+.confirm-icon {
+  width: 60px; height: 60px; border-radius: 50%;
+  background: #EEF2EE; color: var(--verde);
+  display: flex; align-items: center; justify-content: center; margin: 0 auto 18px;
+}
+.confirm-title { font-size: 18px; font-weight: 800; color: var(--verde); margin-bottom: 10px; }
+.confirm-text {
+  font-size: 13px; color: var(--texto-sec); line-height: 1.6;
+  max-width: 320px; margin: 0 auto;
+}
+
+/* ══════════════════════════════════════════════
+   ANIMACIONES
+══════════════════════════════════════════════ */
+.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.22s ease; }
+.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
+
+/* ══════════════════════════════════════════════
    RESPONSIVE
-═══════════════════════════════════════ */
-@media (max-width: 1100px) {
-  .sc-toolbar { flex-wrap: wrap; }
-  .sc-filters  { flex-wrap: wrap; }
-}
+══════════════════════════════════════════════ */
 @media (max-width: 900px) {
-  .sc-form-grid--4 { grid-template-columns: repeat(2, 1fr); }
-  .sc-fg--span2    { grid-column: span 1; }
-  .exp-grid.cols-3 { grid-template-columns: 1fr 1fr; }
-  .sc-table th:nth-child(5),
-  .sc-table td:nth-child(5) { display: none; }
+  .don-summary { display: grid; grid-template-columns: repeat(2, 1fr); }
+  .kpi-cerrados { grid-column: span 2; }
+  .modal-grid--3 { grid-template-columns: repeat(2, 1fr); }
 }
+
 @media (max-width: 640px) {
-  .sc-header   { flex-direction: column; align-items: flex-start; }
-  .sc-toolbar  { flex-direction: column; align-items: flex-start; }
-  .sc-filters  { width: 100%; flex-wrap: wrap; }
-  .sc-search-wrap { max-width: 100%; }
-  .sc-form-grid--4 { grid-template-columns: 1fr; }
-  .sc-fg--span2, .sc-fg--full { grid-column: 1; }
-  .sc-form-panel { padding: 20px 18px; }
-  .sc-table th:nth-child(4),
-  .sc-table td:nth-child(4) { display: none; }
-  .sc-modal-body   { padding: 16px 18px 8px; }
-  .sc-modal-header,
-  .sc-modal-footer { padding-left: 18px; padding-right: 18px; }
-  .exp-grid        { grid-template-columns: 1fr; }
-  .exp-grid.cols-3 { grid-template-columns: 1fr 1fr; }
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .filtros-panel { flex-direction: column; }
+  .filtro-group { min-width: 100%; }
+  .filtro-group--btn { width: 100%; }
+  .btn-limpiar { width: 100%; justify-content: center; }
+  .form-grid--4 { grid-template-columns: repeat(2, 1fr); }
+  .fg--span2 { grid-column: 1; }
+  .fg--full  { grid-column: 1; }
+  .form-panel { padding: 20px 18px; }
+  .modal-grid { grid-template-columns: 1fr; }
+  .modal-grid--3 { grid-template-columns: 1fr 1fr; }
+  .modal-body { padding: 16px 18px 8px; }
+  .modal-header { padding: 20px 18px 16px; }
+  .modal-footer { padding: 14px 18px 20px; }
+  .modal-acciones { flex-direction: column; }
+  .don-summary { grid-template-columns: 1fr; }
+  .kpi-cerrados { grid-column: span 1; }
 }
+
 @media (max-width: 480px) {
-  .exp-grid.cols-3 { grid-template-columns: 1fr; }
+  .modal-grid--3 { grid-template-columns: 1fr; }
 }
+
+
+/* ── MOBILE RESPONSIVE ── */
+@media (max-width: 768px) {
+  .don-summary {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .kpi-cerrados {
+    grid-column: span 2;
+  }
+
+  .filtros-panel {
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .filtro-group,
+  .filtro-group--btn {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .btn-limpiar {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .btn-nuevo {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .btn-cancelar-header {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .form-panel {
+    padding: 20px 14px;
+  }
+
+  .form-grid--4 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .fg--span2 { grid-column: span 1; }
+  .fg--full  { grid-column: span 2; }
+
+  .foto-wrap {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .modal-box--lg {
+    max-width: calc(100vw - 24px);
+    max-height: 95vh;
+    padding: 22px 14px;
+  }
+
+  .modal-body { padding: 16px 0 0; }
+
+  .modal-grid { grid-template-columns: 1fr; }
+  .modal-grid--3 { grid-template-columns: 1fr 1fr; }
+
+  .modal-header { flex-wrap: wrap; gap: 10px; }
+
+  .modal-footer {
+    padding: 14px 0 0;
+    flex-direction: column;
+  }
+
+  .modal-footer .btn-cancelar,
+  .modal-footer .btn-guardar {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .acciones-cell { flex-wrap: wrap; gap: 4px; }
+
+  .form-footer {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .form-footer .btn-cancelar,
+  .form-footer .btn-guardar {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .don-summary { grid-template-columns: 1fr; }
+  .kpi-cerrados { grid-column: span 1; }
+
+  .form-grid--4 { grid-template-columns: 1fr; }
+  .fg--span2,
+  .fg--full { grid-column: span 1; }
+
+  .modal-grid--3 { grid-template-columns: 1fr; }
+}
+
+
 </style>
