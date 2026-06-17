@@ -8,19 +8,11 @@ import { usePetsStore } from '../stores/usePetsStore'
 const router = useRouter()
 const store  = usePetsStore()
 
-// ─────────────────────────────────────────────
-// Filtros
-// ─────────────────────────────────────────────
 const filterType   = ref('Todos')
 const filterSex    = ref('Todos')
 const filterStatus = ref('Todos')
 const searchQuery  = ref('')
 
-// ─────────────────────────────────────────────
-// Catálogo: solo Disponible y En proceso
-// La computed del store ya excluye Adoptadas e Inactivas.
-// Encima aplicamos los filtros del usuario.
-// ─────────────────────────────────────────────
 const filtered = computed(() =>
   store.publicPets.filter(pet => {
     const matchType   = filterType.value   === 'Todos' || pet.type === filterType.value
@@ -36,31 +28,18 @@ const filtered = computed(() =>
   })
 )
 
-// ─────────────────────────────────────────────
-// "Historias felices" — mascotas Adoptadas
-// ─────────────────────────────────────────────
 const adoptedPets = computed(() => store.adoptedPets)
 
-// ─────────────────────────────────────────────
-// Badge de estado
-// ─────────────────────────────────────────────
 const statusColor = status => ({
   'Disponible': 'badge-green',
   'En proceso': 'badge-yellow',
 }[status] || 'badge-gray')
 
-// ─────────────────────────────────────────────
-// Imagen principal de la mascota
-// ─────────────────────────────────────────────
 function mainImage(pet) {
   if (pet.images && pet.images.length > 0) return pet.images[0].preview
-  // fallback a imagen estática si la mascota viene de datos seed
   return pet.image || ''
 }
 
-// ─────────────────────────────────────────────
-// Ir a adoptar
-// ─────────────────────────────────────────────
 function goAdopt(pet) {
   router.push({ name: 'adoptar', params: { id: pet.id }, query: { name: pet.name } })
 }
@@ -111,7 +90,6 @@ function clearFilters() {
           </div>
         </div>
 
-        <!-- Solo los estados visibles al público -->
         <div class="filter-group">
           <label>Estado</label>
           <div class="filter-chips">
@@ -135,8 +113,8 @@ function clearFilters() {
       <div v-for="pet in filtered" :key="pet.id" class="pet-card">
         <div class="pet-photo">
           <img :src="mainImage(pet)" :alt="pet.name" class="pet-image" />
+          <div class="pet-photo-overlay"></div>
           <span class="badge floating-badge" :class="statusColor(pet.status)">{{ pet.status }}</span>
-          <!-- Galería dot indicator -->
           <div v-if="pet.images && pet.images.length > 1" class="gallery-dots">
             <span v-for="(_, i) in pet.images" :key="i" class="dot" :class="{ active: i === 0 }"></span>
           </div>
@@ -148,25 +126,20 @@ function clearFilters() {
             <span class="pet-age">{{ pet.age }}</span>
           </div>
 
-          <!-- Info pública: tipo · sexo · tamaño -->
           <p class="pet-meta">
             {{ pet.type }} · {{ pet.sex }}<template v-if="pet.size"> · {{ pet.size }}</template>
           </p>
 
-          <!-- Personalidad (pública) -->
           <p v-if="pet.personality" class="pet-personality">
             <span class="pill-tag">{{ pet.personality }}</span>
           </p>
 
-          <!-- Descripción pública -->
           <p class="pet-desc">{{ pet.description || pet.desc }}</p>
 
-          <!-- Salud básica (pública, sin historial) -->
           <p v-if="pet.healthBasic" class="pet-health">
             <i class='bx bx-plus-medical health-icon'></i>{{ pet.healthBasic }}
           </p>
 
-          <!-- Botón según estado -->
           <button
             v-if="pet.status === 'Disponible'"
             class="pet-btn"
@@ -225,25 +198,81 @@ function clearFilters() {
 </template>
 
 <style scoped>
-/* ══ Hero ══ */
+
+/* ══ TOKENS ANHELO PETS ══ */
+/*
+  --ap-dark:      #3A473C  Verde oscuro principal
+  --ap-mid:       #92A894  Verde secundario
+  --ap-light:     #E7EEE7  Verde claro
+  --ap-gold:      #C9A06A  Dorado de acento
+  --ap-bg:        #FAFAFA  Fondo principal
+  --ap-white:     #FFFFFF
+  --ap-text-sec:  #6C756D  Texto secundario
+  --ap-border:    #E8ECE8  Bordes y separadores
+  --ap-hover-dk:  #7C927E  Verde hover
+  --ap-hover-sf:  #F4F6F4  Verde suave hover
+  --ap-hover-lt:  #DCE5DC  Verde claro hover
+  --ap-text-dk:   #2F352F  Texto oscuro
+  --ap-success:   #3A6640  Éxito
+  --ap-success-bg:#E7EEE7
+  --ap-warn:      #C9A06A  Advertencia
+  --ap-warn-bg:   #FEF3E2
+  --ap-error:     #C45252
+  --ap-error-bg:  #FDEAEA
+*/
+
+/* ══ HERO ══ */
 .page-hero {
   position: relative;
+  height: 430px;
   background-image:
-    linear-gradient(rgba(58,71,60,.45), rgba(58,71,60,.48)),
+    linear-gradient(
+      90deg,
+      rgba(0,0,0,0.72) 0%,
+      rgba(0,0,0,0.45) 35%,
+      rgba(0,0,0,0.12) 70%,
+      rgba(0,0,0,0) 100%
+    ),
     url('/img-mascotas/heromascotas.PNG');
   background-size: cover;
   background-position: center 38%;
-  height: 520px;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  padding: 0 7%;
+  background-repeat: no-repeat;
+  overflow: hidden;
 }
-.hero-content { position: relative; z-index: 2; max-width: 520px; }
-.page-hero h1 { font-size: 58px; line-height: .95; font-weight: 800; color: white; letter-spacing: -3px; margin-bottom: 18px; }
-.page-hero p  { font-size: 17px; color: rgba(255,255,255,.92); line-height: 1.8; }
 
-/* ══ Catálogo ══ */
+.hero-content {
+  position: absolute;
+  left: 7%;
+  bottom: 100px;
+  max-width: 560px;
+  z-index: 2;
+}
+
+.page-hero h1 {
+  font-size: 62px;
+  line-height: 0.95;
+  font-weight: 800;
+  color: #FFFFFF;
+  letter-spacing: -3px;
+  margin-bottom: 24px;
+}
+
+.page-hero p {
+  font-size: 16px;
+  color: rgba(255,255,255,0.92);
+  line-height: 1.7;
+  max-width: 420px;
+  margin: 0;
+}
+
+@media (max-width: 700px) {
+  .page-hero { height: 360px; }
+  .hero-content { left: 24px; right: 24px; bottom: 30px; max-width: 300px; }
+  .page-hero h1 { font-size: 38px; line-height: 0.95; }
+  .page-hero p  { font-size: 14px; line-height: 1.6; }
+}
+
+/* ══ CATÁLOGO ══ */
 .catalog-section {
   padding: 0 24px 60px;
   margin-top: -70px;
@@ -251,168 +280,528 @@ function clearFilters() {
   z-index: 5;
 }
 
+/* ── Barra de filtros ── */
 .filters-bar {
-  background: rgba(255,255,255,.92);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(146,168,148,.14);
-  border-radius: 34px;
-  padding: 34px;
-  margin-bottom: 34px;
-  box-shadow: 0 20px 50px rgba(58,71,60,.06);
+  background: #FFFFFF;
+  border: 1px solid #E8ECE8;
+  border-radius: 20px;
+  padding: 28px 32px;
+  margin-bottom: 28px;
+  box-shadow: 0 8px 32px rgba(58,71,60,0.07);
 }
 
-.search-wrap { position: relative; margin-bottom: 30px; }
+.search-wrap {
+  position: relative;
+  margin-bottom: 24px;
+}
+
 .search-input {
   width: 100%;
-  height: 58px;
-  border-radius: 18px;
-  border: 1px solid #DCE4DD;
+  height: 52px;
+  border-radius: 14px;
+  border: 1.5px solid #E8ECE8;
   background: #FAFAFA;
-  padding-left: 52px;
+  padding-left: 50px;
   font-size: 15px;
-  color: #3A473C;
+  color: #2F352F;
   outline: none;
   box-sizing: border-box;
+  transition: border-color 0.2s, box-shadow 0.2s;
 }
-.search-input:focus { border-color: #3A473C; box-shadow: 0 0 0 4px rgba(146,168,148,.12); }
-.search-icon { position: absolute; left: 18px; top: 50%; transform: translateY(-50%); font-size: 22px; color: #3A473C; }
 
-.filters-grid { display: flex; flex-wrap: wrap; gap: 36px; }
-.filter-group { display: flex; flex-direction: column; gap: 10px; }
-.filter-group label { font-size: 14px; font-weight: 700; color: #3A473C; }
-.filter-chips { display: flex; gap: 10px; flex-wrap: wrap; }
-.chip { border: none; padding: 10px 18px; border-radius: 999px; background: #F4F6F4; color: #5E6A60; font-size: 14px; font-weight: 600; cursor: pointer; transition: all .2s; }
-.chip.active { background: #3A473C; color: white; }
-.chip:hover:not(.active) { background: #E8EDE8; }
+.search-input::placeholder {
+  color: #92A894;
+}
 
-.results-top { display: flex; justify-content: space-between; align-items: center; margin: 36px 0 24px; }
-.results-count { font-size: 15px; font-weight: 600; color: #6C756D; }
-.clear-btn { border: none; background: transparent; color: #3A473C; font-weight: 700; cursor: pointer; font-size: 14px; }
-.clear-btn:hover { color: #5A7A5C; }
+.search-input:focus {
+  border-color: #92A894;
+  box-shadow: 0 0 0 3px rgba(146,168,148,0.15);
+}
 
-.pets-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(270px, 1fr)); gap: 26px; }
+.search-icon {
+  position: absolute;
+  left: 17px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 20px;
+  color: #92A894;
+  pointer-events: none;
+}
 
-/* ══ Tarjeta de mascota ══ */
-.pet-card {
-  background: white;
-  border-radius: 26px;
-  overflow: hidden;
-  border: 1px solid rgba(146,168,148,.10);
-  transition: .35s ease;
-  box-shadow: 0 10px 30px rgba(58,71,60,.05);
+.filters-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 32px;
+}
 
+.filter-group {
   display: flex;
   flex-direction: column;
+  gap: 10px;
 }
 
-.pet-card:hover { transform: translateY(-8px); box-shadow: 0 22px 50px rgba(58,71,60,.10); }
+.filter-group label {
+  font-size: 11px;
+  font-weight: 700;
+  color: #6C756D;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
 
-.pet-photo { position: relative; width: 100%; height: 240px; overflow: hidden; background: #F4F6F4; }
-.pet-image { width: 100%; height: 100%; object-fit: cover; transition: .5s ease; display: block; }
-.pet-card:hover .pet-image { transform: scale(1.05); }
-.floating-badge { position: absolute; top: 16px; right: 16px; }
+.filter-chips {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 
-/* Indicador de galería */
-.gallery-dots { position: absolute; bottom: 10px; left: 50%; transform: translateX(-50%); display: flex; gap: 5px; }
-.dot { width: 6px; height: 6px; border-radius: 50%; background: rgba(255,255,255,.5); }
-.dot.active { background: white; }
+.chip {
+  border: 1.5px solid #E8ECE8;
+  padding: 8px 18px;
+  border-radius: 999px;
+  background: #FAFAFA;
+  color: #6C756D;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+}
 
+.chip:hover:not(.active) {
+  background: #F4F6F4;
+  border-color: #92A894;
+  color: #3A473C;
+}
+
+.chip.active {
+  background: #3A473C;
+  border-color: #3A473C;
+  color: #FFFFFF;
+}
+
+/* ── Resultados top ── */
+.results-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin: 0 0 22px;
+}
+
+.results-count {
+  font-size: 14px;
+  font-weight: 600;
+  color: #6C756D;
+}
+
+.clear-btn {
+  border: none;
+  background: transparent;
+  color: #3A473C;
+  font-weight: 700;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  transition: background 0.18s, color 0.18s;
+}
+
+.clear-btn:hover {
+  background: #E7EEE7;
+  color: #2F352F;
+}
+
+/* ══ GRID DE MASCOTAS ══ */
+.pets-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 24px;
+}
+
+/* ── Tarjeta ── */
+.pet-card {
+  background: #FFFFFF;
+  border-radius: 22px;
+  overflow: hidden;
+  border: 1px solid #E8ECE8;
+  box-shadow: 0 4px 16px rgba(58,71,60,0.05);
+  display: flex;
+  flex-direction: column;
+  transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.pet-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 16px 40px rgba(58,71,60,0.11);
+}
+
+/* ── Foto ── */
+.pet-photo {
+  position: relative;
+  width: 100%;
+  height: 220px;
+  overflow: hidden;
+  background: #E7EEE7;
+}
+
+.pet-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.5s ease;
+}
+
+.pet-card:hover .pet-image {
+  transform: scale(1.04);
+}
+
+.pet-photo-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 55%;
+  background: linear-gradient(to top, rgba(47,53,47,0.45) 0%, transparent 100%);
+  pointer-events: none;
+}
+
+.floating-badge {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 2;
+}
+
+.gallery-dots {
+  position: absolute;
+  bottom: 10px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 5px;
+  z-index: 2;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: rgba(255,255,255,0.45);
+}
+
+.dot.active {
+  background: #FFFFFF;
+}
+
+/* ── Cuerpo de tarjeta ── */
 .pet-body {
-  padding: 20px;
-
+  padding: 18px 20px 20px;
   display: flex;
   flex-direction: column;
   flex: 1;
 }
-.pet-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-.pet-name { font-size: 22px; font-weight: 800; color: #3A473C; }
-.pet-age  { font-size: 13px; color: #3A473C; font-weight: 600; }
-.pet-meta { color: #7A847B; font-size: 14px; margin-bottom: 10px; }
 
-.pet-personality { margin-bottom: 10px; }
-.pill-tag { background: rgba(146,168,148,.15); color: #5A6E5C; font-size: 12px; font-weight: 700; padding: 4px 12px; border-radius: 999px; }
-
-.pet-desc {
-  font-size: 14px;
-  line-height: 1.7;
-  color: #5F6A61;
-  margin-bottom: 12px;
-
-  min-height: 140px;
-}
-
-.pet-health {
-  font-size: 13px;
-  color: #6C756D;
-  margin-bottom: 16px;
+.pet-row {
   display: flex;
-  align-items: flex-start;
-  gap: 6px;
-
-  min-height: 48px;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
 }
-.health-icon { color: #3A473C; font-size: 14px; }
 
-.pet-btn { width: 100%; height: 48px; border: none; border-radius: 14px; background: #3A473C; color: white; font-weight: 700; font-size: 14px; cursor: pointer; transition: all .2s; }
-.pet-btn:hover { background: #7E9580; }
-.pet-btn.pet-btn-secondary { background: transparent; border: 2px solid #3A473C; color: #5A7A5C; }
-.pet-btn.pet-btn-secondary:hover { background: rgba(146,168,148,.1); }
-
-.en-proceso-block { }
-.en-proceso-msg { font-size: 13px; color: #8C6A30; background: rgba(249,193,122,.15); border-radius: 10px; padding: 10px 12px; margin-bottom: 10px; line-height: 1.5; }
-
-/* ══ Badges ══ */
-.badge { padding: 7px 14px; border-radius: 999px; font-size: 12px; font-weight: 700; }
-.badge-green  { background: #E7F1E8; color: #5B7A61; }
-.badge-yellow { background: #FFF1DD; color: #D89A47; }
-.badge-gray   { background: #ECEFEC; color: #6C756D; }
-
-/* ══ Estado vacío ══ */
-.empty-state { text-align: center; padding: 100px 20px; }
-.empty-state i { font-size: 70px; color: #3A473C; margin-bottom: 18px; display: block; }
-.empty-state h3 { font-size: 28px; color: #3A473C; margin-bottom: 10px; }
-.empty-state p  { color: #6C756D; }
-
-/* ══ Historias felices ══ */
-.happy-section {
-  padding: 0 24px 80px;
+.pet-name {
+  font-size: 20px;
+  font-weight: 800;
+  color: #2F352F;
+  letter-spacing: -0.3px;
 }
-.happy-header { display: flex; align-items: center; gap: 16px; margin-bottom: 32px; }
-.happy-emoji  { font-size: 36px; }
-.happy-title  { font-size: 28px; font-weight: 800; color: #3A473C; margin: 0 0 4px; letter-spacing: -0.5px; }
-.happy-sub    { font-size: 15px; color: #6C756D; margin: 0; }
 
-.happy-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 16px; }
-
-.happy-card { border-radius: 20px; overflow: hidden; box-shadow: 0 6px 20px rgba(58,71,60,.06); background: white; }
-.happy-photo { position: relative; height: 180px; }
-.happy-photo img { width: 100%; height: 100%; object-fit: cover; display: block; filter: saturate(.7); }
-.happy-overlay { position: absolute; inset: 0; background: linear-gradient(to top, rgba(58,71,60,.6) 0%, transparent 50%); display: flex; align-items: flex-end; padding: 12px; }
-.happy-badge {
-  background: #3A473C;
-  color: #F9C17A;
+.pet-age {
   font-size: 12px;
+  font-weight: 600;
+  color: #6C756D;
+  background: #F4F6F4;
+  padding: 3px 10px;
+  border-radius: 999px;
+}
+
+.pet-meta {
+  color: #92A894;
+  font-size: 13px;
+  font-weight: 500;
+  margin-bottom: 10px;
+}
+
+.pet-personality {
+  margin-bottom: 10px;
+}
+
+.pill-tag {
+  background: #E7EEE7;
+  color: #3A473C;
+  font-size: 11px;
   font-weight: 700;
   padding: 4px 12px;
   border-radius: 999px;
+  letter-spacing: 0.02em;
 }
-.happy-body { padding: 12px 14px; }
-.happy-name { font-weight: 800; color: #3A473C; font-size: 15px; margin: 0 0 2px; }
-.happy-meta { font-size: 13px; color: #6C756D; margin: 0; }
 
-/* ══ Responsivo ══ */
+.pet-desc {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #6C756D;
+  margin-bottom: 12px;
+  flex: 1;
+  min-height: 88px;
+}
+
+.pet-health {
+  font-size: 12px;
+  color: #6C756D;
+  margin-bottom: 14px;
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  min-height: 40px;
+}
+
+.health-icon {
+  color: #3A473C;
+  font-size: 13px;
+  margin-top: 2px;
+  flex-shrink: 0;
+}
+
+/* ── Botones ── */
+.pet-btn {
+  width: 100%;
+  height: 46px;
+  border: none;
+  border-radius: 12px;
+  background: #3A473C;
+  color: #FFFFFF;
+  font-weight: 700;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease;
+  letter-spacing: 0.01em;
+}
+
+.pet-btn:hover {
+  background: #7C927E;
+}
+
+.pet-btn:active {
+  transform: scale(0.98);
+}
+
+.pet-btn.pet-btn-secondary {
+  background: transparent;
+  border: 1.5px solid #3A473C;
+  color: #3A473C;
+}
+
+.pet-btn.pet-btn-secondary:hover {
+  background: #E7EEE7;
+  border-color: #7C927E;
+  color: #2F352F;
+}
+
+/* ── En proceso ── */
+.en-proceso-block { }
+
+.en-proceso-msg {
+  font-size: 12px;
+  color: #92A894;
+  background: #FEF3E2;
+  border-left: 3px solid #C9A06A;
+  border-radius: 0 8px 8px 0;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  line-height: 1.55;
+}
+
+/* ══ BADGES ══ */
+.badge {
+  padding: 5px 13px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.badge-green {
+  background: #E7EEE7;
+  color: #3A6640;
+}
+
+.badge-yellow {
+  background: #FEF3E2;
+  color: #C9A06A;
+}
+
+.badge-gray {
+  background: #F4F6F4;
+  color: #6C756D;
+}
+
+/* ══ ESTADO VACÍO ══ */
+.empty-state {
+  text-align: center;
+  padding: 80px 20px;
+}
+
+.empty-state i {
+  font-size: 60px;
+  color: #92A894;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.empty-state h3 {
+  font-size: 24px;
+  font-weight: 800;
+  color: #3A473C;
+  margin-bottom: 8px;
+}
+
+.empty-state p {
+  color: #6C756D;
+  font-size: 15px;
+}
+
+/* ══ HISTORIAS FELICES ══ */
+.happy-section {
+  padding: 0 24px 80px;
+}
+
+.happy-header {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 28px;
+}
+
+.happy-emoji {
+  font-size: 34px;
+}
+
+.happy-title {
+  font-size: 26px;
+  font-weight: 800;
+  color: #2F352F;
+  margin: 0 0 4px;
+  letter-spacing: -0.5px;
+}
+
+.happy-sub {
+  font-size: 14px;
+  color: #6C756D;
+  margin: 0;
+}
+
+.happy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 14px;
+}
+
+.happy-card {
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid #E8ECE8;
+  background: #FFFFFF;
+  box-shadow: 0 4px 14px rgba(58,71,60,0.05);
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.happy-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 10px 28px rgba(58,71,60,0.09);
+}
+
+.happy-photo {
+  position: relative;
+  height: 170px;
+  overflow: hidden;
+}
+
+.happy-photo img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  filter: saturate(0.65) brightness(0.95);
+  transition: filter 0.35s ease;
+}
+
+.happy-card:hover .happy-photo img {
+  filter: saturate(1) brightness(1);
+}
+
+.happy-overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(47,53,47,0.55) 0%, transparent 50%);
+  display: flex;
+  align-items: flex-end;
+  padding: 12px;
+}
+
+.happy-badge {
+  background: #3A473C;
+  color: #C9A06A;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 11px;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+}
+
+.happy-body {
+  padding: 12px 14px;
+}
+
+.happy-name {
+  font-weight: 800;
+  color: #2F352F;
+  font-size: 14px;
+  margin: 0 0 2px;
+}
+
+.happy-meta {
+  font-size: 12px;
+  color: #6C756D;
+  margin: 0;
+}
+
+/* ══ RESPONSIVO ══ */
 @media (max-width: 900px) {
   .page-hero { height: 460px; }
   .page-hero h1 { font-size: 46px; }
-  .filters-grid { flex-direction: column; gap: 24px; }
-  .results-top { flex-direction: column; align-items: flex-start; gap: 12px; }
+  .filters-grid { flex-direction: column; gap: 20px; }
+  .results-top { flex-direction: column; align-items: flex-start; gap: 10px; }
 }
+
 @media (max-width: 560px) {
   .page-hero { height: 390px; padding: 0 24px; }
   .page-hero h1 { font-size: 38px; }
   .page-hero p  { font-size: 15px; }
-  .filters-bar  { padding: 24px; }
+  .filters-bar  { padding: 20px; }
+  .filters-grid { gap: 18px; }
+  .filter-chips { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
   .pets-grid { grid-template-columns: 1fr; }
   .happy-grid { grid-template-columns: repeat(2, 1fr); }
+  .pet-btn { height: 52px; font-size: 15px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pet-card,
+  .pet-image,
+  .happy-card,
+  .happy-photo img,
+  .pet-btn,
+  .chip,
+  .clear-btn {
+    transition: none;
+  }
 }
 </style>

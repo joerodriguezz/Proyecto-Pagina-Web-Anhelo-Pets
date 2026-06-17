@@ -72,7 +72,6 @@ const provinciasDisponibles = computed(() =>
 
 // ── Tipos disponibles ─────────────────────────────────────────
 const TIPOS = ['Casa cuna','Eventos de adopción','Transporte','Veterinaria','Redes sociales','Rescatista']
-const ESTADOS = ['Pendiente','Aprobada','Rechazada','Inactivo']
 
 // ── Filtrado ──────────────────────────────────────────────────
 const voluntariosFiltrados = computed(() => {
@@ -165,25 +164,16 @@ function ejecutarAprobar(usuario) {
   try {
     const usuarios = getUsuarios()
     const i = usuarios.findIndex(u => u.id === usuario.id)
-
     if (i === -1) throw new Error()
-
-    const totalVoluntarios = usuarios.filter(
-      u => u.codigoVoluntario
-    ).length
-
+    const totalVoluntarios = usuarios.filter(u => u.codigoVoluntario).length
     if (!usuarios[i].codigoVoluntario) {
-      usuarios[i].codigoVoluntario =
-        'VOL-' + String(totalVoluntarios + 1).padStart(3, '0')
+      usuarios[i].codigoVoluntario = 'VOL-' + String(totalVoluntarios + 1).padStart(3, '0')
     }
-
     usuarios[i].solicitudVoluntario.estado = 'Aprobada'
     usuarios[i].rol = 'Voluntario'
     usuarios[i].tipoVoluntario = usuarios[i].solicitudVoluntario.tipo
-
     saveUsuarios(usuarios)
     cargarVoluntarios()
-
     mostrarToast('Solicitud aprobada correctamente.')
   } catch {
     mostrarToast('Error al aprobar la solicitud.', 'error')
@@ -301,25 +291,21 @@ function deIncludes(key, val) {
 
 // ── Badge helpers ─────────────────────────────────────────────
 function estadoBadgeClass(estado) {
-  return {
-    Aprobada:  'badge--green',
-    Rechazada: 'badge--red',
-    Inactivo:  'badge--orange',
-    Pendiente: 'badge--yellow',
-  }[estado] || 'badge--yellow'
+  if (estado === 'Aprobada')  return 'badge-aprobada'
+  if (estado === 'Rechazada') return 'badge-rechazada'
+  if (estado === 'Inactivo')  return 'badge-inactivo'
+  return 'badge-pendiente'
 }
-function estadoIcon(estado) {
-  return { Aprobada: '✓', Rechazada: '✕', Inactivo: '◉', Pendiente: '⏳' }[estado] || '⏳'
-}
+
 function tipoBadgeClass(tipo) {
   return {
-    'Casa cuna':           'badge--blue',
-    'Eventos de adopción': 'badge--purple',
-    'Transporte':          'badge--teal',
-    'Veterinaria':         'badge--crimson',
-    'Redes sociales':      'badge--sky',
-    'Rescatista':          'badge--gold',
-  }[tipo] || 'badge--neutral'
+    'Casa cuna':           'badge-blue',
+    'Eventos de adopción': 'badge-purple',
+    'Transporte':          'badge-teal',
+    'Veterinaria':         'badge-crimson',
+    'Redes sociales':      'badge-sky',
+    'Rescatista':          'badge-gold',
+  }[tipo] || 'badge-neutral'
 }
 
 function getDE(v) { return v?.solicitudVoluntario?.datosEspecificos || {} }
@@ -328,15 +314,22 @@ function iniciales(nombre) {
   if (!nombre) return '?'
   return nombre.trim().split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()
 }
+
+// ── KPIs ─────────────────────────────────────────────────────
+const totalVoluntarios = computed(() => voluntarios.value.length)
+const totalPendientes  = computed(() => voluntarios.value.filter(v => v.solicitudVoluntario?.estado === 'Pendiente').length)
+const totalAprobados   = computed(() => voluntarios.value.filter(v => v.solicitudVoluntario?.estado === 'Aprobada').length)
+const totalInactivos   = computed(() => voluntarios.value.filter(v => v.solicitudVoluntario?.estado === 'Inactivo').length)
+const totalRechazados  = computed(() => voluntarios.value.filter(v => v.solicitudVoluntario?.estado === 'Rechazada').length)
 </script>
 
 <template>
-  <div class="sc-root">
+  <div class="view-container">
 
     <!-- ── Toast ── -->
     <Teleport to="body">
       <Transition name="toast-anim">
-        <div v-if="toast.visible" class="sc-toast" :class="toast.tipo === 'error' ? 'error' : 'success'">
+        <div v-if="toast.visible" class="vol-toast" :class="toast.tipo === 'error' ? 'vol-toast--error' : 'vol-toast--exito'">
           <svg v-if="toast.tipo === 'exito'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           {{ toast.texto }}
@@ -344,480 +337,631 @@ function iniciales(nombre) {
       </Transition>
     </Teleport>
 
-    <!-- ── Header ── -->
-    <header class="sc-header">
-      <div class="sc-header-left">
-        <h1 class="sc-title">Voluntarios</h1>
-        <p class="sc-sub">Gestión de solicitudes y voluntarios activos</p>
+    <!-- CABECERA -->
+    <header class="page-header">
+      <div>
+        <h1 class="admin-page-title">Voluntarios</h1>
+        <p class="admin-page-sub">Gestión de solicitudes y voluntarios activos</p>
       </div>
     </header>
 
-    <!-- ── Toolbar: tabs estilo Salud + filtros en misma fila ── -->
-    <div class="sc-toolbar">
+    <!-- TARJETAS RESUMEN -->
+    <div class="don-summary">
+      <div class="don-card kpi-total">
+        <span class="don-label">Total solicitudes</span>
+        <strong class="don-value">{{ totalVoluntarios }}</strong>
+      </div>
+      <div class="don-card kpi-pendientes">
+        <span class="don-label">Pendientes</span>
+        <strong class="don-value">{{ totalPendientes }}</strong>
+      </div>
+      <div class="don-card kpi-aprobados">
+        <span class="don-label">Aprobados</span>
+        <strong class="don-value">{{ totalAprobados }}</strong>
+      </div>
+      <div class="don-card kpi-rechazados">
+        <span class="don-label">Rechazados</span>
+        <strong class="don-value">{{ totalRechazados }}</strong>
+      </div>
+      <div class="don-card kpi-inactivos">
+        <span class="don-label">Inactivos</span>
+        <strong class="don-value">{{ totalInactivos }}</strong>
+      </div>
+    </div>
 
+    <!-- FILTROS -->
+    <div class="filtros-panel">
 
-      <!-- Filtros  -->
-      <div class="sc-filters">
-        <!-- Búsqueda por nombre -->
-        <div class="sc-search-wrap">
-          <svg class="sc-search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input class="sc-search" v-model="search" placeholder="Nombre del voluntario..." />
+      <!-- Buscar voluntario -->
+      <div class="filtro-group">
+        <label class="filtro-label">Buscar voluntario</label>
+        <div class="filtro-input-wrap">
+          <input
+            v-model="search"
+            placeholder="Nombre del voluntario..."
+            class="filtro-input"
+          />
+          <span class="filtro-icon filtro-icon--right">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </span>
         </div>
-        <!-- Filtro tipo -->
-        <div class="sc-select-wrap">
-          <select class="sc-filter-select" v-model="filtroTipo">
-            <option value="Todos">Tipo: Todos</option>
+      </div>
+
+      <!-- Tipo -->
+      <div class="filtro-group">
+        <label class="filtro-label">Tipo</label>
+        <div class="filtro-input-wrap">
+          <select v-model="filtroTipo" class="filtro-input filtro-select">
+            <option value="Todos">Todos</option>
             <option v-for="t in TIPOS" :key="t" :value="t">{{ t }}</option>
           </select>
-          <svg class="sc-select-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
         </div>
+      </div>
 
-         <!-- Tabs de estado -->
-      <div class="sc-select-wrap">
-  <select class="sc-filter-select" v-model="filtroEstado">
-    <option value="Todos">Todos los estados</option>
-    <option value="Pendiente">Pendientes</option>
-    <option value="Aprobada">Aprobados</option>
-    <option value="Rechazada">Rechazados</option>
-    <option value="Inactivo">Inactivos</option>
-  </select>
+      <!-- Estado -->
+      <div class="filtro-group">
+        <label class="filtro-label">Estado</label>
+        <div class="filtro-input-wrap">
+          <select v-model="filtroEstado" class="filtro-input filtro-select">
+            <option value="Todos">Todos los estados</option>
+            <option value="Pendiente">Pendientes</option>
+            <option value="Aprobada">Aprobados</option>
+            <option value="Rechazada">Rechazados</option>
+            <option value="Inactivo">Inactivos</option>
+          </select>
+          <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
+        </div>
+      </div>
 
-  <svg
-    class="sc-select-icon"
-    xmlns="http://www.w3.org/2000/svg"
-    width="12"
-    height="12"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    stroke-width="2.5"
-    stroke-linecap="round"
-    stroke-linejoin="round"
-  >
-    <polyline points="6 9 12 15 18 9"/>
-  </svg>
-</div>
-
-        <!-- Filtro provincia -->
-        <div class="sc-select-wrap">
-          <select class="sc-filter-select" v-model="filtroProv">
-            <option value="Todos">Provincia: Todas</option>
+      <!-- Provincia -->
+      <div class="filtro-group">
+        <label class="filtro-label">Provincia</label>
+        <div class="filtro-input-wrap">
+          <select v-model="filtroProv" class="filtro-input filtro-select">
+            <option value="Todos">Todas</option>
             <option v-for="p in provinciasDisponibles" :key="p" :value="p">{{ p }}</option>
           </select>
-          <svg class="sc-select-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
         </div>
-        <!-- Limpiar -->
-        <button v-if="hayFiltros" class="sc-clear" @click="limpiarFiltros">Limpiar</button>
+      </div>
+
+      <!-- Limpiar -->
+      <div class="filtro-group filtro-group--btn">
+        <button
+          type="button"
+          class="btn-limpiar"
+          :class="{ 'btn-limpiar--activo': hayFiltros }"
+          @click="limpiarFiltros"
+        >
+          Limpiar filtros
+        </button>
       </div>
 
     </div>
 
-    <!-- ── Tabla ── -->
-    <div class="sc-table-wrap">
-      <table class="sc-table">
-        <thead>
-          <tr>
-            <th style="width:220px">Voluntario</th>
-            <th style="width:200px">Contacto</th>
-            <th style="width:160px">Tipo</th>
-            <th style="width:160px">Cantón</th>
-            <th style="width:120px">Estado</th>
-            <th style="width:120px">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr v-for="v in voluntariosFiltrados" :key="v.id">
-
-            <!-- Voluntario -->
-            <td>
-              <div class="sc-pet-cell">
-                <div class="sc-avatar">
-                  <span class="sc-avatar-ini">{{ iniciales(v.solicitudVoluntario?.nombre || v.nombre) }}</span>
-                </div>
-                <div class="sc-pet-info">
-                  <span class="sc-pet-name">{{ v.solicitudVoluntario?.nombre || v.nombre }}</span>
-                  <span class="sc-pet-id">
-  {{
-    v.codigoVoluntario ||
-    (v.solicitudVoluntario?.estado === 'Pendiente'
-      ? 'Sin asignar'
-      : '—')
-  }}
-</span>
-                </div>
-              </div>
-            </td>
-
-            <!-- Contacto -->
-            <td>
-              <div class="sc-contact-stack">
-                <span class="sc-td-main">{{ v.solicitudVoluntario?.correo || v.correo || '—' }}</span>
-                <span class="sc-td-sec">{{ v.solicitudVoluntario?.telefono || '—' }}</span>
-              </div>
-            </td>
-
-            <!-- Tipo -->
-            <td>
-              <span class="sc-badge" :class="tipoBadgeClass(v.solicitudVoluntario?.tipo)">
-                {{ v.solicitudVoluntario?.tipo || '—' }}
-              </span>
-            </td>
-
-            <!-- Ubicación -->
-            <td class="sc-td-sec">
-              {{ v.solicitudVoluntario?.direccion?.canton || '—' }}
-            </td>
-
-            <!-- Estado -->
-            <td>
-              <span class="sc-badge" :class="estadoBadgeClass(v.solicitudVoluntario?.estado)">
-                {{ estadoIcon(v.solicitudVoluntario?.estado) }}
-                {{ v.solicitudVoluntario?.estado }}
-              </span>
-            </td>
-
-            <!-- Acciones -->
-            <td>
-              <!-- PENDIENTE: Ver + Aprobar + Rechazar -->
-              <div v-if="v.solicitudVoluntario?.estado === 'Pendiente'" class="sc-actions">
-  <button class="sc-btn-ver sc-btn-ver--neutral" @click="abrirVer(v)">
-    <img src="/img-acciones/eye.png" class="action-icon" alt="Ver">
-  </button>
-
-  <button class="sc-btn-ver sc-btn-ver--green" @click="pedirConfirmacion('aprobar', v)">
-    <img src="/img-acciones/check.png" class="action-icon" alt="Aprobar">
-  </button>
-
-  <button class="sc-btn-ver sc-btn-ver--red" @click="pedirConfirmacion('rechazar', v)">
-    <img src="/img-acciones/close.png" class="action-icon" alt="Rechazar">
-  </button>
-</div>
-              <!-- APROBADA: Ver + Editar + Inactivar -->
-              <div v-else-if="v.solicitudVoluntario?.estado === 'Aprobada'" class="sc-actions">
-  <button class="sc-btn-ver sc-btn-ver--neutral" @click="abrirVer(v)">
-    <img src="/img-acciones/eye.png" class="action-icon" alt="Ver">
-  </button>
-
-  <button class="sc-btn-ver sc-btn-ver--blue" @click="abrirEditar(v)">
-    <img src="/img-acciones/edit.png" class="action-icon" alt="Editar">
-  </button>
-
-  <button class="sc-btn-ver sc-btn-ver--orange" @click="pedirConfirmacion('inactivar', v)">
-    <img src="/img-acciones/close.png" class="action-icon" alt="Inactivar">
-  </button>
-</div>
-              <!-- INACTIVO: Ver + Editar + Reactivar -->
-              <div v-else-if="v.solicitudVoluntario?.estado === 'Inactivo'" class="sc-actions">
-  <button class="sc-btn-ver sc-btn-ver--neutral" @click="abrirVer(v)">
-    <img src="/img-acciones/eye.png" class="action-icon" alt="Ver">
-  </button>
-
-  <button class="sc-btn-ver sc-btn-ver--blue" @click="abrirEditar(v)">
-    <img src="/img-acciones/edit.png" class="action-icon" alt="Editar">
-  </button>
-
-  <button class="sc-btn-ver sc-btn-ver--green" @click="pedirConfirmacion('reactivar', v)">
-    <img src="/img-acciones/check.png" class="action-icon" alt="Reactivar">
-  </button>
-</div>
-              <!-- RECHAZADA: Ver + Editar -->
-              <div v-else class="sc-actions">
-  <button class="sc-btn-ver sc-btn-ver--neutral" @click="abrirVer(v)">
-    <img src="/img-acciones/eye.png" class="action-icon" alt="Ver">
-  </button>
-
-  <button class="sc-btn-ver sc-btn-ver--blue" @click="abrirEditar(v)">
-    <img src="/img-acciones/edit.png" class="action-icon" alt="Editar">
-  </button>
-</div>
-            </td>
-
-          </tr>
-
-          <tr v-if="voluntariosFiltrados.length === 0">
-            <td colspan="6" class="sc-empty">
-              <div class="sc-empty-inner">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                <p>{{ hayFiltros ? 'Sin resultados para los filtros aplicados' : 'No hay registros para mostrar' }}</p>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
+    <!-- ESTADO VACÍO -->
+    <div v-if="voluntariosFiltrados.length === 0" class="empty-state">
+      <p class="empty-title">No hay voluntarios registrados</p>
+      <p class="empty-sub">{{ hayFiltros ? 'Ajusta los filtros para ver resultados.' : 'Aún no hay solicitudes de voluntariado.' }}</p>
     </div>
 
-    <!-- ══════════════════════════════════════════
-         MODAL VER DETALLE
-    ═══════════════════════════════════════════ -->
-    <Teleport to="body">
-      <Transition name="overlay-anim">
-        <div v-if="modalVer" class="sc-overlay" @click.self="modalVer = false">
-          <div class="sc-modal sc-modal--lg">
+    <!-- TABLA PRINCIPAL -->
+    <div v-else class="table-wrapper">
+      <div class="table-scroll">
+        <table class="don-table">
+          <thead>
+            <tr>
+              <th>Voluntario</th>
+              <th>Contacto</th>
+              <th>Tipo</th>
+              <th>Cantón</th>
+              <th>Estado</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="v in voluntariosFiltrados" :key="v.id" class="don-row">
 
-            <div class="exp-header">
-              <div class="exp-avatar">{{ iniciales(voluntarioActivo?.solicitudVoluntario?.nombre || voluntarioActivo?.nombre) }}</div>
-              <div class="exp-header-info">
-                <div class="exp-name">{{ voluntarioActivo?.solicitudVoluntario?.nombre || voluntarioActivo?.nombre }}</div>
-                <div class="exp-meta">
-                  <span class="sc-badge" :class="tipoBadgeClass(voluntarioActivo?.solicitudVoluntario?.tipo)">{{ voluntarioActivo?.solicitudVoluntario?.tipo || '—' }}</span>
-                  <span class="sc-badge" :class="estadoBadgeClass(voluntarioActivo?.solicitudVoluntario?.estado)">{{ estadoIcon(voluntarioActivo?.solicitudVoluntario?.estado) }} {{ voluntarioActivo?.solicitudVoluntario?.estado }}</span>
+              <!-- Voluntario -->
+              <td>
+                <div class="vol-cell">
+                  <div class="vol-avatar">
+                    <span class="vol-avatar-ini">{{ iniciales(v.solicitudVoluntario?.nombre || v.nombre) }}</span>
+                  </div>
+                  <div class="vol-info">
+                    <span class="donor-name">{{ v.solicitudVoluntario?.nombre || v.nombre }}</span>
+                    <span class="vol-codigo">
+                      {{ v.codigoVoluntario || (v.solicitudVoluntario?.estado === 'Pendiente' ? 'Sin asignar' : '—') }}
+                    </span>
+                  </div>
                 </div>
-              </div>
-              <button class="sc-modal-close" @click="modalVer = false">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
-            </div>
+              </td>
 
-            <div class="sc-modal-body exp-body" v-if="voluntarioActivo">
-              <!-- Información personal -->
-              <div class="exp-section">
-                <div class="exp-section-title"><span class="exp-section-dot"></span>Información personal</div>
-                <div class="exp-grid">
-                  <div class="exp-field"><span class="exp-label">Nombre completo</span><span class="exp-value fw">{{ voluntarioActivo.solicitudVoluntario?.nombre || voluntarioActivo.nombre || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Cédula</span><span class="exp-value">{{ voluntarioActivo.solicitudVoluntario?.cedula || voluntarioActivo.cedula || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Correo electrónico</span><span class="exp-value">{{ voluntarioActivo.solicitudVoluntario?.correo || voluntarioActivo.correo || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Teléfono</span><span class="exp-value">{{ voluntarioActivo.solicitudVoluntario?.telefono || '—' }}</span></div>
-                </div>
-              </div>
+              <!-- Contacto -->
+              <td>
+                <span class="donor-name" style="font-weight:500">{{ v.solicitudVoluntario?.correo || v.correo || '—' }}</span>
+                <span class="donor-mail-td">{{ v.solicitudVoluntario?.telefono || '—' }}</span>
+              </td>
+
+              <!-- Tipo -->
+              <td>
+                <span class="estado-badge" :class="tipoBadgeClass(v.solicitudVoluntario?.tipo)">
+                  {{ v.solicitudVoluntario?.tipo || '—' }}
+                </span>
+              </td>
+
               <!-- Ubicación -->
-              <div class="exp-section">
-                <div class="exp-section-title"><span class="exp-section-dot"></span>Ubicación</div>
-                <div class="exp-grid cols-3">
-                  <div class="exp-field"><span class="exp-label">Provincia</span><span class="exp-value">{{ voluntarioActivo.solicitudVoluntario?.direccion?.provincia || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Cantón</span><span class="exp-value">{{ voluntarioActivo.solicitudVoluntario?.direccion?.canton || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Distrito</span><span class="exp-value">{{ voluntarioActivo.solicitudVoluntario?.direccion?.distrito || '—' }}</span></div>
+              <td>
+                <span class="fecha-text">{{ v.solicitudVoluntario?.direccion?.canton || '—' }}</span>
+              </td>
+
+              <!-- Estado -->
+              <td>
+                <span class="estado-badge" :class="estadoBadgeClass(v.solicitudVoluntario?.estado)">
+                  {{ v.solicitudVoluntario?.estado }}
+                </span>
+              </td>
+
+              <!-- Acciones -->
+              <td>
+                <!-- PENDIENTE -->
+                <div v-if="v.solicitudVoluntario?.estado === 'Pendiente'" class="acciones-cell">
+                  <button class="btn-ver" @click="abrirVer(v)">Ver</button>
+                  <button class="btn-accion btn-accion--aprobar" @click="pedirConfirmacion('aprobar', v)">Aprobar</button>
+                  <button class="btn-accion btn-accion--rechazar" @click="pedirConfirmacion('rechazar', v)">Rechazar</button>
                 </div>
+                <!-- APROBADA -->
+                <div v-else-if="v.solicitudVoluntario?.estado === 'Aprobada'" class="acciones-cell">
+                  <button class="btn-ver" @click="abrirVer(v)">Ver</button>
+                  <button class="btn-accion btn-accion--editar" @click="abrirEditar(v)">Editar</button>
+                  <button class="btn-accion btn-accion--inactivar" @click="pedirConfirmacion('inactivar', v)">Inactivar</button>
+                </div>
+                <!-- INACTIVO -->
+                <div v-else-if="v.solicitudVoluntario?.estado === 'Inactivo'" class="acciones-cell">
+                  <button class="btn-ver" @click="abrirVer(v)">Ver</button>
+                  <button class="btn-accion btn-accion--editar" @click="abrirEditar(v)">Editar</button>
+                  <button class="btn-accion btn-accion--aprobar" @click="pedirConfirmacion('reactivar', v)">Reactivar</button>
+                </div>
+                <!-- RECHAZADA -->
+                <div v-else class="acciones-cell">
+                  <button class="btn-ver" @click="abrirVer(v)">Ver</button>
+                  <button class="btn-accion btn-accion--editar" @click="abrirEditar(v)">Editar</button>
+                </div>
+              </td>
+
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="table-footer">
+        {{ voluntariosFiltrados.length }} voluntario{{ voluntariosFiltrados.length !== 1 ? 's' : '' }} encontrado{{ voluntariosFiltrados.length !== 1 ? 's' : '' }}
+      </div>
+    </div>
+
+    <!-- ═══════════ MODAL VER DETALLE ═══════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="modalVer && voluntarioActivo" class="modal-overlay" @click.self="modalVer = false">
+          <div class="modal-box modal-box--lg">
+
+            <button class="modal-close" @click="modalVer = false">✕</button>
+
+            <div class="modal-header">
+              <span class="modal-id">{{ voluntarioActivo.codigoVoluntario || (voluntarioActivo.solicitudVoluntario?.estado === 'Pendiente' ? 'Sin código' : '—') }}</span>
+              <span class="estado-badge" :class="estadoBadgeClass(voluntarioActivo.solicitudVoluntario?.estado)">{{ voluntarioActivo.solicitudVoluntario?.estado }}</span>
+              <span class="estado-badge" :class="tipoBadgeClass(voluntarioActivo.solicitudVoluntario?.tipo)">{{ voluntarioActivo.solicitudVoluntario?.tipo || '—' }}</span>
+            </div>
+
+            <!-- Hero voluntario -->
+            <div class="modal-usuario-hero">
+              <div class="modal-avatar">
+                <span class="modal-avatar-ini">{{ iniciales(voluntarioActivo.solicitudVoluntario?.nombre || voluntarioActivo.nombre) }}</span>
               </div>
-              <!-- Casa cuna -->
-              <div v-if="voluntarioActivo.solicitudVoluntario?.tipo === 'Casa cuna'" class="exp-section">
-                <div class="exp-section-title accent-orange"><span class="exp-section-dot orange"></span>Casa cuna — Detalles</div>
-                <div class="exp-grid">
-                  <div class="exp-field"><span class="exp-label">Máximo de mascotas</span><span class="exp-value fw">{{ getDE(voluntarioActivo).maxMascotas || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Tipo de vivienda</span><span class="exp-value">{{ getDE(voluntarioActivo).tipoVivienda || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Patio cerrado</span><span class="exp-value">{{ getDE(voluntarioActivo).patioCerrado || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Otras mascotas</span><span class="exp-value">{{ getDE(voluntarioActivo).otrasMascotas || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Niños en vivienda</span><span class="exp-value">{{ getDE(voluntarioActivo).ninos || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Tiempo disponible</span><span class="exp-value">{{ getDE(voluntarioActivo).tiempoDisp || '—' }}</span></div>
-                </div>
-                <div class="exp-field mt-12" v-if="getDE(voluntarioActivo).puedeRecibir?.length"><span class="exp-label">Puede recibir</span><div class="badges-row"><span v-for="b in getDE(voluntarioActivo).puedeRecibir" :key="b" class="info-badge">{{ b }}</span></div></div>
-                <div class="exp-field mt-12" v-if="getDE(voluntarioActivo).comentarios"><span class="exp-label">Comentarios adicionales</span><p class="exp-text-block">{{ getDE(voluntarioActivo).comentarios }}</p></div>
-              </div>
-              <!-- Eventos de adopción -->
-              <div v-if="voluntarioActivo.solicitudVoluntario?.tipo === 'Eventos de adopción'" class="exp-section">
-                <div class="exp-section-title accent-orange"><span class="exp-section-dot orange"></span>Eventos de adopción — Detalles</div>
-                <div class="exp-grid">
-                  <div class="exp-field"><span class="exp-label">Ha participado antes</span><span class="exp-value">{{ getDE(voluntarioActivo).participadoAntes || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Horario disponible</span><span class="exp-value">{{ getDE(voluntarioActivo).horario || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Transporte propio</span><span class="exp-value">{{ getDE(voluntarioActivo).transportePropio || '—' }}</span></div>
-                </div>
-                <div class="exp-field mt-12" v-if="getDE(voluntarioActivo).experienciaPublico"><span class="exp-label">Experiencia en atención al público</span><p class="exp-text-block">{{ getDE(voluntarioActivo).experienciaPublico }}</p></div>
-                <div class="exp-field mt-12" v-if="getDE(voluntarioActivo).disponibilidad?.length"><span class="exp-label">Disponibilidad</span><div class="badges-row"><span v-for="b in getDE(voluntarioActivo).disponibilidad" :key="b" class="info-badge">{{ b }}</span></div></div>
-                <div class="exp-field mt-12" v-if="getDE(voluntarioActivo).habilidades?.length"><span class="exp-label">Habilidades</span><div class="badges-row"><span v-for="b in getDE(voluntarioActivo).habilidades" :key="b" class="info-badge">{{ b }}</span></div></div>
-              </div>
-              <!-- Transporte -->
-              <div v-if="voluntarioActivo.solicitudVoluntario?.tipo === 'Transporte'" class="exp-section">
-                <div class="exp-section-title accent-orange"><span class="exp-section-dot orange"></span>Transporte — Detalles</div>
-                <div class="exp-grid cols-3">
-                  <div class="exp-field"><span class="exp-label">Tipo de vehículo</span><span class="exp-value">{{ getDE(voluntarioActivo).tipoVehiculo || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Cobertura</span><span class="exp-value">{{ getDE(voluntarioActivo).cobertura || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Licencia vigente</span><span class="exp-value">{{ getDE(voluntarioActivo).licencia || '—' }}</span></div>
-                </div>
-                <div class="exp-field mt-12" v-if="getDE(voluntarioActivo).disponibilidad?.length"><span class="exp-label">Disponibilidad</span><div class="badges-row"><span v-for="b in getDE(voluntarioActivo).disponibilidad" :key="b" class="info-badge">{{ b }}</span></div></div>
-                <div class="exp-field mt-12" v-if="getDE(voluntarioActivo).puedeTransp?.length"><span class="exp-label">Puede transportar</span><div class="badges-row"><span v-for="b in getDE(voluntarioActivo).puedeTransp" :key="b" class="info-badge">{{ b }}</span></div></div>
-              </div>
-              <!-- Veterinaria -->
-              <div v-if="voluntarioActivo.solicitudVoluntario?.tipo === 'Veterinaria'" class="exp-section">
-                <div class="exp-section-title accent-orange"><span class="exp-section-dot orange"></span>Veterinaria — Detalles</div>
-                <div class="exp-grid cols-3">
-                  <div class="exp-field"><span class="exp-label">Profesión</span><span class="exp-value fw">{{ getDE(voluntarioActivo).profesion || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Número de colegiado</span><span class="exp-value">{{ getDE(voluntarioActivo).colegiado || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Clínica</span><span class="exp-value">{{ getDE(voluntarioActivo).clinica || '—' }}</span></div>
-                </div>
-                <div class="exp-field mt-12" v-if="getDE(voluntarioActivo).especialidades?.length"><span class="exp-label">Especialidades</span><div class="badges-row"><span v-for="b in getDE(voluntarioActivo).especialidades" :key="b" class="info-badge">{{ b }}</span></div></div>
-                <div class="exp-field mt-12" v-if="getDE(voluntarioActivo).disponibilidad?.length"><span class="exp-label">Disponibilidad</span><div class="badges-row"><span v-for="b in getDE(voluntarioActivo).disponibilidad" :key="b" class="info-badge">{{ b }}</span></div></div>
-              </div>
-              <!-- Redes sociales -->
-              <div v-if="voluntarioActivo.solicitudVoluntario?.tipo === 'Redes sociales'" class="exp-section">
-                <div class="exp-section-title accent-orange"><span class="exp-section-dot orange"></span>Redes sociales — Detalles</div>
-                <div class="exp-grid cols-3">
-                  <div class="exp-field"><span class="exp-label">Red principal</span><span class="exp-value fw">{{ getDE(voluntarioActivo).red || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Horas semanales</span><span class="exp-value">{{ getDE(voluntarioActivo).horasSemanales || '—' }}</span></div>
-                  <div class="exp-field" v-if="getDE(voluntarioActivo).portafolio"><span class="exp-label">Portafolio / perfil</span><a :href="getDE(voluntarioActivo).portafolio" target="_blank" class="exp-link">{{ getDE(voluntarioActivo).portafolio }}</a></div>
-                </div>
-                <div class="exp-field mt-12" v-if="getDE(voluntarioActivo).experiencia?.length"><span class="exp-label">Experiencia</span><div class="badges-row"><span v-for="b in getDE(voluntarioActivo).experiencia" :key="b" class="info-badge">{{ b }}</span></div></div>
-                <div class="exp-field mt-12" v-if="getDE(voluntarioActivo).programas?.length"><span class="exp-label">Programas que maneja</span><div class="badges-row"><span v-for="b in getDE(voluntarioActivo).programas" :key="b" class="info-badge">{{ b }}</span></div></div>
-              </div>
-              <!-- Rescatista -->
-              <div v-if="voluntarioActivo.solicitudVoluntario?.tipo === 'Rescatista'" class="exp-section">
-                <div class="exp-section-title accent-orange"><span class="exp-section-dot orange"></span>Rescatista — Detalles</div>
-                <div class="exp-grid">
-                  <div class="exp-field"><span class="exp-label">Años de experiencia</span><span class="exp-value fw">{{ getDE(voluntarioActivo).anosExp || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Rescates realizados</span><span class="exp-value fw">{{ getDE(voluntarioActivo).cantRescates || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Disponibilidad</span><span class="exp-value">{{ getDE(voluntarioActivo).disponibilidad || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Capacitación en manejo animal</span><span class="exp-value">{{ getDE(voluntarioActivo).capacitacion || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Zona de cobertura</span><span class="exp-value">{{ [getDE(voluntarioActivo).zonaProvincia, getDE(voluntarioActivo).zonaCanton].filter(Boolean).join(', ') || '—' }}</span></div>
-                </div>
-                <div class="exp-field mt-12" v-if="getDE(voluntarioActivo).equipo?.length"><span class="exp-label">Equipo disponible</span><div class="badges-row"><span v-for="b in getDE(voluntarioActivo).equipo" :key="b" class="info-badge">{{ b }}</span></div></div>
+              <div>
+                <p class="modal-usuario-nombre">{{ voluntarioActivo.solicitudVoluntario?.nombre || voluntarioActivo.nombre }}</p>
+                <p class="modal-usuario-correo">{{ voluntarioActivo.solicitudVoluntario?.correo || voluntarioActivo.correo || '—' }}</p>
               </div>
             </div>
 
-            <div class="sc-modal-footer" :class="{ 'footer-pending': voluntarioActivo?.solicitudVoluntario?.estado === 'Pendiente' }">
-              <button class="sc-btn-cancel" @click="modalVer = false">Cerrar expediente</button>
-              <template v-if="voluntarioActivo?.solicitudVoluntario?.estado === 'Pendiente'">
-                <div class="pending-actions">
-                  <button class="sc-btn-ver sc-btn-ver--red" @click="modalVer = false; pedirConfirmacion('rechazar', voluntarioActivo)">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                    Rechazar
-                  </button>
-                  <button class="sc-btn-save" @click="modalVer = false; pedirConfirmacion('aprobar', voluntarioActivo)">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    Aprobar solicitud
-                  </button>
+            <div class="sc-modal-body" v-if="voluntarioActivo">
+
+              <!-- Información personal -->
+              <div class="modal-section">
+                <h4 class="modal-section-title">Información personal</h4>
+                <div class="modal-grid">
+                  <div class="modal-field"><span class="modal-field-label">Cédula</span><strong class="modal-field-value">{{ voluntarioActivo.solicitudVoluntario?.cedula || voluntarioActivo.cedula || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Teléfono</span><strong class="modal-field-value">{{ voluntarioActivo.solicitudVoluntario?.telefono || '—' }}</strong></div>
                 </div>
-              </template>
+              </div>
+
+              <!-- Ubicación -->
+              <div class="modal-section">
+                <h4 class="modal-section-title">Ubicación</h4>
+                <div class="modal-grid modal-grid--3">
+                  <div class="modal-field"><span class="modal-field-label">Provincia</span><strong class="modal-field-value">{{ voluntarioActivo.solicitudVoluntario?.direccion?.provincia || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Cantón</span><strong class="modal-field-value">{{ voluntarioActivo.solicitudVoluntario?.direccion?.canton || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Distrito</span><strong class="modal-field-value">{{ voluntarioActivo.solicitudVoluntario?.direccion?.distrito || '—' }}</strong></div>
+                </div>
+              </div>
+
+              <!-- Casa cuna -->
+              <div v-if="voluntarioActivo.solicitudVoluntario?.tipo === 'Casa cuna'" class="modal-section">
+                <h4 class="modal-section-title modal-section-title--accent">Casa cuna — Detalles</h4>
+                <div class="modal-grid">
+                  <div class="modal-field"><span class="modal-field-label">Máx. mascotas</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).maxMascotas || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Tipo de vivienda</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).tipoVivienda || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Patio cerrado</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).patioCerrado || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Otras mascotas</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).otrasMascotas || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Niños en vivienda</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).ninos || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Tiempo disponible</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).tiempoDisp || '—' }}</strong></div>
+                </div>
+                <div v-if="getDE(voluntarioActivo).puedeRecibir?.length" class="modal-field" style="margin-top:14px">
+                  <span class="modal-field-label">Puede recibir</span>
+                  <div class="info-badges-row"><span v-for="b in getDE(voluntarioActivo).puedeRecibir" :key="b" class="info-badge">{{ b }}</span></div>
+                </div>
+                <div v-if="getDE(voluntarioActivo).comentarios" class="modal-field" style="margin-top:14px">
+                  <span class="modal-field-label">Comentarios</span>
+                  <p class="modal-texto-bloque">{{ getDE(voluntarioActivo).comentarios }}</p>
+                </div>
+              </div>
+
+              <!-- Eventos de adopción -->
+              <div v-if="voluntarioActivo.solicitudVoluntario?.tipo === 'Eventos de adopción'" class="modal-section">
+                <h4 class="modal-section-title modal-section-title--accent">Eventos de adopción — Detalles</h4>
+                <div class="modal-grid">
+                  <div class="modal-field"><span class="modal-field-label">Ha participado antes</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).participadoAntes || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Horario disponible</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).horario || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Transporte propio</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).transportePropio || '—' }}</strong></div>
+                </div>
+                <div v-if="getDE(voluntarioActivo).disponibilidad?.length" class="modal-field" style="margin-top:14px">
+                  <span class="modal-field-label">Disponibilidad</span>
+                  <div class="info-badges-row"><span v-for="b in getDE(voluntarioActivo).disponibilidad" :key="b" class="info-badge">{{ b }}</span></div>
+                </div>
+                <div v-if="getDE(voluntarioActivo).habilidades?.length" class="modal-field" style="margin-top:14px">
+                  <span class="modal-field-label">Habilidades</span>
+                  <div class="info-badges-row"><span v-for="b in getDE(voluntarioActivo).habilidades" :key="b" class="info-badge">{{ b }}</span></div>
+                </div>
+                <div v-if="getDE(voluntarioActivo).experienciaPublico" class="modal-field" style="margin-top:14px">
+                  <span class="modal-field-label">Experiencia en atención al público</span>
+                  <p class="modal-texto-bloque">{{ getDE(voluntarioActivo).experienciaPublico }}</p>
+                </div>
+              </div>
+
+              <!-- Transporte -->
+              <div v-if="voluntarioActivo.solicitudVoluntario?.tipo === 'Transporte'" class="modal-section">
+                <h4 class="modal-section-title modal-section-title--accent">Transporte — Detalles</h4>
+                <div class="modal-grid modal-grid--3">
+                  <div class="modal-field"><span class="modal-field-label">Tipo de vehículo</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).tipoVehiculo || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Cobertura</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).cobertura || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Licencia vigente</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).licencia || '—' }}</strong></div>
+                </div>
+                <div v-if="getDE(voluntarioActivo).disponibilidad?.length" class="modal-field" style="margin-top:14px">
+                  <span class="modal-field-label">Disponibilidad</span>
+                  <div class="info-badges-row"><span v-for="b in getDE(voluntarioActivo).disponibilidad" :key="b" class="info-badge">{{ b }}</span></div>
+                </div>
+                <div v-if="getDE(voluntarioActivo).puedeTransp?.length" class="modal-field" style="margin-top:14px">
+                  <span class="modal-field-label">Puede transportar</span>
+                  <div class="info-badges-row"><span v-for="b in getDE(voluntarioActivo).puedeTransp" :key="b" class="info-badge">{{ b }}</span></div>
+                </div>
+              </div>
+
+              <!-- Veterinaria -->
+              <div v-if="voluntarioActivo.solicitudVoluntario?.tipo === 'Veterinaria'" class="modal-section">
+                <h4 class="modal-section-title modal-section-title--accent">Veterinaria — Detalles</h4>
+                <div class="modal-grid modal-grid--3">
+                  <div class="modal-field"><span class="modal-field-label">Profesión</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).profesion || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Nº colegiado</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).colegiado || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Clínica</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).clinica || '—' }}</strong></div>
+                </div>
+                <div v-if="getDE(voluntarioActivo).especialidades?.length" class="modal-field" style="margin-top:14px">
+                  <span class="modal-field-label">Especialidades</span>
+                  <div class="info-badges-row"><span v-for="b in getDE(voluntarioActivo).especialidades" :key="b" class="info-badge">{{ b }}</span></div>
+                </div>
+                <div v-if="getDE(voluntarioActivo).disponibilidad?.length" class="modal-field" style="margin-top:14px">
+                  <span class="modal-field-label">Disponibilidad</span>
+                  <div class="info-badges-row"><span v-for="b in getDE(voluntarioActivo).disponibilidad" :key="b" class="info-badge">{{ b }}</span></div>
+                </div>
+              </div>
+
+              <!-- Redes sociales -->
+              <div v-if="voluntarioActivo.solicitudVoluntario?.tipo === 'Redes sociales'" class="modal-section">
+                <h4 class="modal-section-title modal-section-title--accent">Redes sociales — Detalles</h4>
+                <div class="modal-grid modal-grid--3">
+                  <div class="modal-field"><span class="modal-field-label">Red principal</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).red || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Horas semanales</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).horasSemanales || '—' }}</strong></div>
+                  <div class="modal-field" v-if="getDE(voluntarioActivo).portafolio"><span class="modal-field-label">Portafolio</span><a :href="getDE(voluntarioActivo).portafolio" target="_blank" class="exp-link">{{ getDE(voluntarioActivo).portafolio }}</a></div>
+                </div>
+                <div v-if="getDE(voluntarioActivo).experiencia?.length" class="modal-field" style="margin-top:14px">
+                  <span class="modal-field-label">Experiencia</span>
+                  <div class="info-badges-row"><span v-for="b in getDE(voluntarioActivo).experiencia" :key="b" class="info-badge">{{ b }}</span></div>
+                </div>
+                <div v-if="getDE(voluntarioActivo).programas?.length" class="modal-field" style="margin-top:14px">
+                  <span class="modal-field-label">Programas</span>
+                  <div class="info-badges-row"><span v-for="b in getDE(voluntarioActivo).programas" :key="b" class="info-badge">{{ b }}</span></div>
+                </div>
+              </div>
+
+              <!-- Rescatista -->
+              <div v-if="voluntarioActivo.solicitudVoluntario?.tipo === 'Rescatista'" class="modal-section">
+                <h4 class="modal-section-title modal-section-title--accent">Rescatista — Detalles</h4>
+                <div class="modal-grid">
+                  <div class="modal-field"><span class="modal-field-label">Años de experiencia</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).anosExp || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Rescates realizados</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).cantRescates || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Disponibilidad</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).disponibilidad || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Capacitación animal</span><strong class="modal-field-value">{{ getDE(voluntarioActivo).capacitacion || '—' }}</strong></div>
+                  <div class="modal-field"><span class="modal-field-label">Zona de cobertura</span><strong class="modal-field-value">{{ [getDE(voluntarioActivo).zonaProvincia, getDE(voluntarioActivo).zonaCanton].filter(Boolean).join(', ') || '—' }}</strong></div>
+                </div>
+                <div v-if="getDE(voluntarioActivo).equipo?.length" class="modal-field" style="margin-top:14px">
+                  <span class="modal-field-label">Equipo disponible</span>
+                  <div class="info-badges-row"><span v-for="b in getDE(voluntarioActivo).equipo" :key="b" class="info-badge">{{ b }}</span></div>
+                </div>
+              </div>
+
             </div>
+
+            <!-- Footer: acciones según estado -->
+            <div v-if="voluntarioActivo.solicitudVoluntario?.estado === 'Pendiente'" class="modal-acciones modal-acciones--pendiente">
+              <button class="btn-cerrar-modal" @click="modalVer = false">Cerrar expediente</button>
+              <div style="display:flex;gap:10px">
+                <button class="btn-rechazar" style="flex:none;padding:13px 22px" @click="modalVer = false; pedirConfirmacion('rechazar', voluntarioActivo)">Rechazar</button>
+                <button class="btn-aprobar" style="flex:none;padding:13px 22px" @click="modalVer = false; pedirConfirmacion('aprobar', voluntarioActivo)">Aprobar solicitud</button>
+              </div>
+            </div>
+            <div v-else class="modal-acciones" style="justify-content:flex-end">
+              <button class="btn-cerrar-modal" @click="modalVer = false">Cerrar expediente</button>
+            </div>
+
           </div>
         </div>
       </Transition>
     </Teleport>
 
-    <!-- ══════════════════════════════════════════
-         MODAL EDITAR
-    ═══════════════════════════════════════════ -->
+    <!-- ═══════════ MODAL EDITAR ═══════════ -->
     <Teleport to="body">
-      <Transition name="overlay-anim">
-        <div v-if="modalEditar" class="sc-overlay" @click.self="modalEditar = false">
-          <div class="sc-modal sc-modal--lg">
-            <div class="sc-modal-header">
-              <div class="edit-header-info">
-                <div class="edit-avatar-sm">{{ iniciales(formEditar.nombre) }}</div>
+      <Transition name="modal-fade">
+        <div v-if="modalEditar" class="modal-overlay" @click.self="modalEditar = false">
+          <div class="modal-box modal-box--lg">
+
+            <button class="modal-close" @click="modalEditar = false">✕</button>
+
+            <div class="modal-header">
+              <div class="modal-usuario-hero" style="margin-bottom:0;border:none;padding:0;background:transparent">
+                <div class="modal-avatar">
+                  <span class="modal-avatar-ini">{{ iniciales(formEditar.nombre) }}</span>
+                </div>
                 <div>
-                  <p class="sc-modal-eyebrow">Voluntario</p>
-                  <h2 class="sc-modal-title">{{ formEditar.nombre || 'Sin nombre' }}</h2>
+                  <p class="modal-usuario-nombre">{{ formEditar.nombre || 'Sin nombre' }}</p>
+                  <p class="modal-usuario-correo">Editar información del voluntario</p>
                 </div>
               </div>
-              <button class="sc-modal-close" @click="modalEditar = false">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
             </div>
+
             <div class="sc-modal-body edit-body">
-              <div class="sc-section-label"><span class="sc-section-num">1</span>Datos personales</div>
-              <div class="sc-form-grid sc-form-grid--4">
-                <div class="sc-fg"><label>Nombre completo</label><input class="sc-input" v-model="formEditar.nombre" placeholder="Nombre completo"></div>
-                <div class="sc-fg"><label>Cédula</label><input class="sc-input" v-model="formEditar.cedula" placeholder="1-2345-6789"></div>
-                <div class="sc-fg"><label>Correo electrónico</label><input class="sc-input" type="email" v-model="formEditar.correo" placeholder="correo@ejemplo.com"></div>
-                <div class="sc-fg"><label>Teléfono</label><input class="sc-input" v-model="formEditar.telefono" placeholder="+506 88888888"></div>
+
+              <!-- Sección 1: Datos personales -->
+              <div class="edit-section-label">
+                <span class="edit-section-num">1</span>
+                Datos personales
               </div>
-              <div class="sc-section-label" style="margin-top:24px"><span class="sc-section-num">2</span>Ubicación</div>
-              <div class="sc-form-grid sc-form-grid--4">
-                <div class="sc-fg"><label>Provincia</label><div class="select-wrap"><select class="sc-input" v-model="formEditar.provincia"><option value="">Seleccione</option><option v-for="p in provincias" :key="p" :value="p">{{ p }}</option></select><i class='bx bx-chevron-down'></i></div></div>
-                <div class="sc-fg"><label>Cantón</label><div class="select-wrap"><select class="sc-input" v-model="formEditar.canton" :disabled="!formEditar.provincia"><option value="">Seleccione</option><option v-for="c in cantonesEdit" :key="c" :value="c">{{ c }}</option></select><i class='bx bx-chevron-down'></i></div></div>
-                <div class="sc-fg"><label>Distrito</label><div class="select-wrap"><select class="sc-input" v-model="formEditar.distrito" :disabled="!formEditar.canton"><option value="">Seleccione</option><option v-for="d in distritosEdit" :key="d" :value="d">{{ d }}</option></select><i class='bx bx-chevron-down'></i></div></div>
+              <div class="edit-grid edit-grid--4">
+                <div class="edit-fg"><label class="edit-label">Nombre completo</label><input class="filtro-input" style="height:40px;padding:0 13px" v-model="formEditar.nombre" placeholder="Nombre completo"></div>
+                <div class="edit-fg"><label class="edit-label">Cédula</label><input class="filtro-input" style="height:40px;padding:0 13px" v-model="formEditar.cedula" placeholder="1-2345-6789"></div>
+                <div class="edit-fg"><label class="edit-label">Correo electrónico</label><input class="filtro-input" style="height:40px;padding:0 13px" type="email" v-model="formEditar.correo" placeholder="correo@ejemplo.com"></div>
+                <div class="edit-fg"><label class="edit-label">Teléfono</label><input class="filtro-input" style="height:40px;padding:0 13px" v-model="formEditar.telefono" placeholder="+506 88888888"></div>
               </div>
-              <div class="sc-section-label" style="margin-top:24px"><span class="sc-section-num">3</span>Tipo de voluntariado</div>
-              <div class="sc-form-grid sc-form-grid--4">
-                <div class="sc-fg sc-fg--span2"><label>Tipo</label><div class="select-wrap"><select class="sc-input" v-model="formEditar.tipo"><option value="">Seleccionar tipo</option><option>Casa cuna</option><option>Eventos de adopción</option><option>Transporte</option><option>Veterinaria</option><option>Redes sociales</option><option>Rescatista</option></select><i class='bx bx-chevron-down'></i></div></div>
+
+              <!-- Sección 2: Ubicación -->
+              <div class="edit-section-label" style="margin-top:24px">
+                <span class="edit-section-num">2</span>
+                Ubicación
               </div>
+              <div class="edit-grid edit-grid--3">
+                <div class="edit-fg">
+                  <label class="edit-label">Provincia</label>
+                  <div class="filtro-input-wrap">
+                    <select class="filtro-input filtro-select" v-model="formEditar.provincia">
+                      <option value="">Seleccione</option>
+                      <option v-for="p in provincias" :key="p" :value="p">{{ p }}</option>
+                    </select>
+                    <span class="filtro-icon filtro-icon--right filtro-icon--no-events"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                  </div>
+                </div>
+                <div class="edit-fg">
+                  <label class="edit-label">Cantón</label>
+                  <div class="filtro-input-wrap">
+                    <select class="filtro-input filtro-select" v-model="formEditar.canton" :disabled="!formEditar.provincia">
+                      <option value="">Seleccione</option>
+                      <option v-for="c in cantonesEdit" :key="c" :value="c">{{ c }}</option>
+                    </select>
+                    <span class="filtro-icon filtro-icon--right filtro-icon--no-events"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                  </div>
+                </div>
+                <div class="edit-fg">
+                  <label class="edit-label">Distrito</label>
+                  <div class="filtro-input-wrap">
+                    <select class="filtro-input filtro-select" v-model="formEditar.distrito" :disabled="!formEditar.canton">
+                      <option value="">Seleccione</option>
+                      <option v-for="d in distritosEdit" :key="d" :value="d">{{ d }}</option>
+                    </select>
+                    <span class="filtro-icon filtro-icon--right filtro-icon--no-events"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sección 3: Tipo -->
+              <div class="edit-section-label" style="margin-top:24px">
+                <span class="edit-section-num">3</span>
+                Tipo de voluntariado
+              </div>
+              <div class="edit-grid edit-grid--4">
+                <div class="edit-fg" style="grid-column:span 2">
+                  <label class="edit-label">Tipo</label>
+                  <div class="filtro-input-wrap">
+                    <select class="filtro-input filtro-select" v-model="formEditar.tipo">
+                      <option value="">Seleccionar tipo</option>
+                      <option>Casa cuna</option>
+                      <option>Eventos de adopción</option>
+                      <option>Transporte</option>
+                      <option>Veterinaria</option>
+                      <option>Redes sociales</option>
+                      <option>Rescatista</option>
+                    </select>
+                    <span class="filtro-icon filtro-icon--right filtro-icon--no-events"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Sección 4: Información específica -->
               <template v-if="formEditar.tipo">
-                <div class="sc-section-label accent" style="margin-top:24px"><span class="sc-section-num orange">4</span>Información específica — {{ formEditar.tipo }}</div>
+                <div class="edit-section-label edit-section-label--accent" style="margin-top:24px">
+                  <span class="edit-section-num edit-section-num--amber">4</span>
+                  Información específica — {{ formEditar.tipo }}
+                </div>
+
                 <!-- CASA CUNA -->
                 <template v-if="formEditar.tipo === 'Casa cuna'">
-                  <div class="sc-form-grid sc-form-grid--4">
-                    <div class="sc-fg"><label>Máximo de mascotas</label><input class="sc-input" type="number" min="1" :value="formEditar.datosEspecificos.maxMascotas" @input="formEditar.datosEspecificos.maxMascotas = $event.target.value"></div>
-                    <div class="sc-fg"><label>Tipo de vivienda</label><div class="select-wrap"><select class="sc-input" v-model="formEditar.datosEspecificos.tipoVivienda"><option value="">Seleccione</option><option>Casa</option><option>Apartamento</option><option>Finca</option></select><i class='bx bx-chevron-down'></i></div></div>
-                    <div class="sc-fg"><label>Patio cerrado</label><div class="radio-row"><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.patioCerrado" value="Sí"><span>Sí</span></label><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.patioCerrado" value="No"><span>No</span></label></div></div>
-                    <div class="sc-fg"><label>Otras mascotas</label><div class="radio-row"><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.otrasMascotas" value="Sí"><span>Sí</span></label><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.otrasMascotas" value="No"><span>No</span></label></div></div>
-                    <div class="sc-fg"><label>Niños en vivienda</label><div class="radio-row"><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.ninos" value="Sí"><span>Sí</span></label><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.ninos" value="No"><span>No</span></label></div></div>
-                    <div class="sc-fg"><label>Tiempo disponible</label><input class="sc-input" v-model="formEditar.datosEspecificos.tiempoDisp" placeholder="Ej. 1 mes"></div>
+                  <div class="edit-grid edit-grid--4">
+                    <div class="edit-fg"><label class="edit-label">Máximo de mascotas</label><input class="filtro-input" style="height:40px;padding:0 13px" type="number" min="1" :value="formEditar.datosEspecificos.maxMascotas" @input="formEditar.datosEspecificos.maxMascotas = $event.target.value"></div>
+                    <div class="edit-fg">
+                      <label class="edit-label">Tipo de vivienda</label>
+                      <div class="filtro-input-wrap"><select class="filtro-input filtro-select" v-model="formEditar.datosEspecificos.tipoVivienda"><option value="">Seleccione</option><option>Casa</option><option>Apartamento</option><option>Finca</option></select><span class="filtro-icon filtro-icon--right filtro-icon--no-events"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></div>
+                    </div>
+                    <div class="edit-fg"><label class="edit-label">Patio cerrado</label><div class="radio-row"><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.patioCerrado" value="Sí"><span>Sí</span></label><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.patioCerrado" value="No"><span>No</span></label></div></div>
+                    <div class="edit-fg"><label class="edit-label">Otras mascotas</label><div class="radio-row"><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.otrasMascotas" value="Sí"><span>Sí</span></label><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.otrasMascotas" value="No"><span>No</span></label></div></div>
+                    <div class="edit-fg"><label class="edit-label">Niños en vivienda</label><div class="radio-row"><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.ninos" value="Sí"><span>Sí</span></label><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.ninos" value="No"><span>No</span></label></div></div>
+                    <div class="edit-fg"><label class="edit-label">Tiempo disponible</label><input class="filtro-input" style="height:40px;padding:0 13px" v-model="formEditar.datosEspecificos.tiempoDisp" placeholder="Ej. 1 mes"></div>
                   </div>
-                  <div class="sc-fg" style="margin-top:14px"><label>Puede recibir</label><div class="check-wrap"><label v-for="op in ['Cachorros','Adultos','Adultos mayores','Casos médicos']" :key="op" class="c-opt" :class="{ checked: deIncludes('puedeRecibir', op) }"><input type="checkbox" :checked="deIncludes('puedeRecibir', op)" @change="toggleDE('puedeRecibir', op)">{{ op }}</label></div></div>
-                  <div class="sc-fg" style="margin-top:14px"><label>Comentarios adicionales</label><textarea class="sc-textarea" v-model="formEditar.datosEspecificos.comentarios" placeholder="Comentarios..."></textarea></div>
+                  <div class="edit-fg" style="margin-top:14px"><label class="edit-label">Puede recibir</label><div class="check-wrap"><label v-for="op in ['Cachorros','Adultos','Adultos mayores','Casos médicos']" :key="op" class="c-opt" :class="{ checked: deIncludes('puedeRecibir', op) }"><input type="checkbox" :checked="deIncludes('puedeRecibir', op)" @change="toggleDE('puedeRecibir', op)">{{ op }}</label></div></div>
+                  <div class="edit-fg" style="margin-top:14px"><label class="edit-label">Comentarios</label><textarea class="edit-textarea" v-model="formEditar.datosEspecificos.comentarios" placeholder="Comentarios..."></textarea></div>
                 </template>
+
                 <!-- EVENTOS DE ADOPCIÓN -->
                 <template v-if="formEditar.tipo === 'Eventos de adopción'">
-                  <div class="sc-form-grid sc-form-grid--4">
-                    <div class="sc-fg"><label>Ha participado antes</label><div class="radio-row"><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.participadoAntes" value="Sí"><span>Sí</span></label><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.participadoAntes" value="No"><span>No</span></label></div></div>
-                    <div class="sc-fg"><label>Horario disponible</label><input class="sc-input" v-model="formEditar.datosEspecificos.horario" placeholder="Ej. 8am – 2pm"></div>
-                    <div class="sc-fg"><label>Transporte propio</label><div class="radio-row"><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.transportePropio" value="Sí"><span>Sí</span></label><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.transportePropio" value="No"><span>No</span></label></div></div>
+                  <div class="edit-grid edit-grid--4">
+                    <div class="edit-fg"><label class="edit-label">Ha participado antes</label><div class="radio-row"><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.participadoAntes" value="Sí"><span>Sí</span></label><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.participadoAntes" value="No"><span>No</span></label></div></div>
+                    <div class="edit-fg"><label class="edit-label">Horario disponible</label><input class="filtro-input" style="height:40px;padding:0 13px" v-model="formEditar.datosEspecificos.horario" placeholder="Ej. 8am – 2pm"></div>
+                    <div class="edit-fg"><label class="edit-label">Transporte propio</label><div class="radio-row"><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.transportePropio" value="Sí"><span>Sí</span></label><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.transportePropio" value="No"><span>No</span></label></div></div>
                   </div>
-                  <div class="sc-fg" style="margin-top:14px"><label>Disponibilidad</label><div class="check-wrap"><label v-for="op in ['Sábados','Domingos','Entre semana']" :key="op" class="c-opt" :class="{ checked: deIncludes('disponibilidad', op) }"><input type="checkbox" :checked="deIncludes('disponibilidad', op)" @change="toggleDE('disponibilidad', op)">{{ op }}</label></div></div>
-                  <div class="sc-fg" style="margin-top:14px"><label>Habilidades</label><div class="check-wrap"><label v-for="op in ['Atención al público','Organización','Fotografía','Manejo de mascotas']" :key="op" class="c-opt" :class="{ checked: deIncludes('habilidades', op) }"><input type="checkbox" :checked="deIncludes('habilidades', op)" @change="toggleDE('habilidades', op)">{{ op }}</label></div></div>
-                  <div class="sc-fg" style="margin-top:14px"><label>Experiencia en atención al público</label><textarea class="sc-textarea" v-model="formEditar.datosEspecificos.experienciaPublico" placeholder="Describe la experiencia..."></textarea></div>
+                  <div class="edit-fg" style="margin-top:14px"><label class="edit-label">Disponibilidad</label><div class="check-wrap"><label v-for="op in ['Sábados','Domingos','Entre semana']" :key="op" class="c-opt" :class="{ checked: deIncludes('disponibilidad', op) }"><input type="checkbox" :checked="deIncludes('disponibilidad', op)" @change="toggleDE('disponibilidad', op)">{{ op }}</label></div></div>
+                  <div class="edit-fg" style="margin-top:14px"><label class="edit-label">Habilidades</label><div class="check-wrap"><label v-for="op in ['Atención al público','Organización','Fotografía','Manejo de mascotas']" :key="op" class="c-opt" :class="{ checked: deIncludes('habilidades', op) }"><input type="checkbox" :checked="deIncludes('habilidades', op)" @change="toggleDE('habilidades', op)">{{ op }}</label></div></div>
+                  <div class="edit-fg" style="margin-top:14px"><label class="edit-label">Experiencia en atención al público</label><textarea class="edit-textarea" v-model="formEditar.datosEspecificos.experienciaPublico" placeholder="Describe la experiencia..."></textarea></div>
                 </template>
+
                 <!-- TRANSPORTE -->
                 <template v-if="formEditar.tipo === 'Transporte'">
-                  <div class="sc-form-grid sc-form-grid--4">
-                    <div class="sc-fg"><label>Tipo de vehículo</label><div class="select-wrap"><select class="sc-input" v-model="formEditar.datosEspecificos.tipoVehiculo"><option value="">Seleccione</option><option>Carro</option><option>Moto</option><option>Pick-up</option><option>SUV</option></select><i class='bx bx-chevron-down'></i></div></div>
-                    <div class="sc-fg"><label>Cobertura</label><div class="select-wrap"><select class="sc-input" v-model="formEditar.datosEspecificos.cobertura"><option value="">Seleccione</option><option>Cantón</option><option>Provincia</option><option>Todo el país</option></select><i class='bx bx-chevron-down'></i></div></div>
-                    <div class="sc-fg"><label>Licencia vigente</label><div class="radio-row"><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.licencia" value="Sí"><span>Sí</span></label><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.licencia" value="No"><span>No</span></label></div></div>
+                  <div class="edit-grid edit-grid--4">
+                    <div class="edit-fg">
+                      <label class="edit-label">Tipo de vehículo</label>
+                      <div class="filtro-input-wrap"><select class="filtro-input filtro-select" v-model="formEditar.datosEspecificos.tipoVehiculo"><option value="">Seleccione</option><option>Carro</option><option>Moto</option><option>Pick-up</option><option>SUV</option></select><span class="filtro-icon filtro-icon--right filtro-icon--no-events"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></div>
+                    </div>
+                    <div class="edit-fg">
+                      <label class="edit-label">Cobertura</label>
+                      <div class="filtro-input-wrap"><select class="filtro-input filtro-select" v-model="formEditar.datosEspecificos.cobertura"><option value="">Seleccione</option><option>Cantón</option><option>Provincia</option><option>Todo el país</option></select><span class="filtro-icon filtro-icon--right filtro-icon--no-events"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></div>
+                    </div>
+                    <div class="edit-fg"><label class="edit-label">Licencia vigente</label><div class="radio-row"><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.licencia" value="Sí"><span>Sí</span></label><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.licencia" value="No"><span>No</span></label></div></div>
                   </div>
-                  <div class="sc-fg" style="margin-top:14px"><label>Disponibilidad</label><div class="check-wrap"><label v-for="op in ['Mañanas','Tardes','Noches','Emergencias']" :key="op" class="c-opt" :class="{ checked: deIncludes('disponibilidad', op) }"><input type="checkbox" :checked="deIncludes('disponibilidad', op)" @change="toggleDE('disponibilidad', op)">{{ op }}</label></div></div>
-                  <div class="sc-fg" style="margin-top:14px"><label>Puede transportar</label><div class="check-wrap"><label v-for="op in ['Mascotas pequeñas','Mascotas medianas','Mascotas grandes','Traslados veterinarios']" :key="op" class="c-opt" :class="{ checked: deIncludes('puedeTransp', op) }"><input type="checkbox" :checked="deIncludes('puedeTransp', op)" @change="toggleDE('puedeTransp', op)">{{ op }}</label></div></div>
+                  <div class="edit-fg" style="margin-top:14px"><label class="edit-label">Disponibilidad</label><div class="check-wrap"><label v-for="op in ['Mañanas','Tardes','Noches','Emergencias']" :key="op" class="c-opt" :class="{ checked: deIncludes('disponibilidad', op) }"><input type="checkbox" :checked="deIncludes('disponibilidad', op)" @change="toggleDE('disponibilidad', op)">{{ op }}</label></div></div>
+                  <div class="edit-fg" style="margin-top:14px"><label class="edit-label">Puede transportar</label><div class="check-wrap"><label v-for="op in ['Mascotas pequeñas','Mascotas medianas','Mascotas grandes','Traslados veterinarios']" :key="op" class="c-opt" :class="{ checked: deIncludes('puedeTransp', op) }"><input type="checkbox" :checked="deIncludes('puedeTransp', op)" @change="toggleDE('puedeTransp', op)">{{ op }}</label></div></div>
                 </template>
+
                 <!-- VETERINARIA -->
                 <template v-if="formEditar.tipo === 'Veterinaria'">
-                  <div class="sc-form-grid sc-form-grid--4">
-                    <div class="sc-fg"><label>Profesión</label><div class="select-wrap"><select class="sc-input" v-model="formEditar.datosEspecificos.profesion"><option value="">Seleccione</option><option>Médico veterinario</option><option>Estudiante</option><option>Asistente veterinario</option></select><i class='bx bx-chevron-down'></i></div></div>
-                    <div class="sc-fg"><label>Número de colegiado</label><input class="sc-input" v-model="formEditar.datosEspecificos.colegiado" placeholder="Opcional"></div>
-                    <div class="sc-fg"><label>Clínica</label><input class="sc-input" v-model="formEditar.datosEspecificos.clinica" placeholder="Opcional"></div>
+                  <div class="edit-grid edit-grid--4">
+                    <div class="edit-fg">
+                      <label class="edit-label">Profesión</label>
+                      <div class="filtro-input-wrap"><select class="filtro-input filtro-select" v-model="formEditar.datosEspecificos.profesion"><option value="">Seleccione</option><option>Médico veterinario</option><option>Estudiante</option><option>Asistente veterinario</option></select><span class="filtro-icon filtro-icon--right filtro-icon--no-events"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></div>
+                    </div>
+                    <div class="edit-fg"><label class="edit-label">Nº colegiado</label><input class="filtro-input" style="height:40px;padding:0 13px" v-model="formEditar.datosEspecificos.colegiado" placeholder="Opcional"></div>
+                    <div class="edit-fg"><label class="edit-label">Clínica</label><input class="filtro-input" style="height:40px;padding:0 13px" v-model="formEditar.datosEspecificos.clinica" placeholder="Opcional"></div>
                   </div>
-                  <div class="sc-fg" style="margin-top:14px"><label>Especialidades</label><div class="check-wrap"><label v-for="op in ['Medicina general','Cirugía','Emergencias','Rehabilitación','Dermatología']" :key="op" class="c-opt" :class="{ checked: deIncludes('especialidades', op) }"><input type="checkbox" :checked="deIncludes('especialidades', op)" @change="toggleDE('especialidades', op)">{{ op }}</label></div></div>
-                  <div class="sc-fg" style="margin-top:14px"><label>Disponibilidad</label><div class="check-wrap"><label v-for="op in ['Consultas','Esterilizaciones','Emergencias']" :key="op" class="c-opt" :class="{ checked: deIncludes('disponibilidad', op) }"><input type="checkbox" :checked="deIncludes('disponibilidad', op)" @change="toggleDE('disponibilidad', op)">{{ op }}</label></div></div>
+                  <div class="edit-fg" style="margin-top:14px"><label class="edit-label">Especialidades</label><div class="check-wrap"><label v-for="op in ['Medicina general','Cirugía','Emergencias','Rehabilitación','Dermatología']" :key="op" class="c-opt" :class="{ checked: deIncludes('especialidades', op) }"><input type="checkbox" :checked="deIncludes('especialidades', op)" @change="toggleDE('especialidades', op)">{{ op }}</label></div></div>
+                  <div class="edit-fg" style="margin-top:14px"><label class="edit-label">Disponibilidad</label><div class="check-wrap"><label v-for="op in ['Consultas','Esterilizaciones','Emergencias']" :key="op" class="c-opt" :class="{ checked: deIncludes('disponibilidad', op) }"><input type="checkbox" :checked="deIncludes('disponibilidad', op)" @change="toggleDE('disponibilidad', op)">{{ op }}</label></div></div>
                 </template>
+
                 <!-- REDES SOCIALES -->
                 <template v-if="formEditar.tipo === 'Redes sociales'">
-                  <div class="sc-form-grid sc-form-grid--4">
-                    <div class="sc-fg"><label>Red principal</label><div class="select-wrap"><select class="sc-input" v-model="formEditar.datosEspecificos.red"><option value="">Seleccione</option><option>Instagram</option><option>Facebook</option><option>TikTok</option><option>X</option></select><i class='bx bx-chevron-down'></i></div></div>
-                    <div class="sc-fg"><label>Horas semanales</label><input class="sc-input" type="number" min="1" :value="formEditar.datosEspecificos.horasSemanales" @input="formEditar.datosEspecificos.horasSemanales = $event.target.value"></div>
-                    <div class="sc-fg sc-fg--span2"><label>Portafolio / perfil</label><input class="sc-input" type="url" v-model="formEditar.datosEspecificos.portafolio" placeholder="https://..."></div>
+                  <div class="edit-grid edit-grid--4">
+                    <div class="edit-fg">
+                      <label class="edit-label">Red principal</label>
+                      <div class="filtro-input-wrap"><select class="filtro-input filtro-select" v-model="formEditar.datosEspecificos.red"><option value="">Seleccione</option><option>Instagram</option><option>Facebook</option><option>TikTok</option><option>X</option></select><span class="filtro-icon filtro-icon--right filtro-icon--no-events"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></div>
+                    </div>
+                    <div class="edit-fg"><label class="edit-label">Horas semanales</label><input class="filtro-input" style="height:40px;padding:0 13px" type="number" min="1" :value="formEditar.datosEspecificos.horasSemanales" @input="formEditar.datosEspecificos.horasSemanales = $event.target.value"></div>
+                    <div class="edit-fg" style="grid-column:span 2"><label class="edit-label">Portafolio / perfil</label><input class="filtro-input" style="height:40px;padding:0 13px" type="url" v-model="formEditar.datosEspecificos.portafolio" placeholder="https://..."></div>
                   </div>
-                  <div class="sc-fg" style="margin-top:14px"><label>Experiencia</label><div class="check-wrap"><label v-for="op in ['Diseño gráfico','Fotografía','Video','Copywriting','Community Manager']" :key="op" class="c-opt" :class="{ checked: deIncludes('experiencia', op) }"><input type="checkbox" :checked="deIncludes('experiencia', op)" @change="toggleDE('experiencia', op)">{{ op }}</label></div></div>
-                  <div class="sc-fg" style="margin-top:14px"><label>Programas que maneja</label><div class="check-wrap"><label v-for="op in ['Canva','Photoshop','CapCut','Illustrator']" :key="op" class="c-opt" :class="{ checked: deIncludes('programas', op) }"><input type="checkbox" :checked="deIncludes('programas', op)" @change="toggleDE('programas', op)">{{ op }}</label></div></div>
+                  <div class="edit-fg" style="margin-top:14px"><label class="edit-label">Experiencia</label><div class="check-wrap"><label v-for="op in ['Diseño gráfico','Fotografía','Video','Copywriting','Community Manager']" :key="op" class="c-opt" :class="{ checked: deIncludes('experiencia', op) }"><input type="checkbox" :checked="deIncludes('experiencia', op)" @change="toggleDE('experiencia', op)">{{ op }}</label></div></div>
+                  <div class="edit-fg" style="margin-top:14px"><label class="edit-label">Programas</label><div class="check-wrap"><label v-for="op in ['Canva','Photoshop','CapCut','Illustrator']" :key="op" class="c-opt" :class="{ checked: deIncludes('programas', op) }"><input type="checkbox" :checked="deIncludes('programas', op)" @change="toggleDE('programas', op)">{{ op }}</label></div></div>
                 </template>
+
                 <!-- RESCATISTA -->
                 <template v-if="formEditar.tipo === 'Rescatista'">
-                  <div class="sc-form-grid sc-form-grid--4">
-                    <div class="sc-fg"><label>Años de experiencia <span class="label-readonly-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Solo lectura</span></label><div class="readonly-field"><span class="readonly-value">{{ formEditar.datosEspecificos.anosExp || '—' }}</span></div></div>
-                    <div class="sc-fg"><label>Cantidad de rescates <span class="label-readonly-badge"><svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Solo lectura</span></label><div class="readonly-field"><span class="readonly-value">{{ formEditar.datosEspecificos.cantRescates || '—' }}</span></div></div>
-                    <div class="sc-fg"><label>Disponibilidad</label><div class="select-wrap"><select class="sc-input" v-model="formEditar.datosEspecificos.disponibilidad"><option value="">Seleccione</option><option>Emergencias 24/7</option><option>Solo fines de semana</option><option>Entre semana</option></select><i class='bx bx-chevron-down'></i></div></div>
-                    <div class="sc-fg"><label>Capacitación en manejo animal</label><div class="radio-row"><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.capacitacion" value="Sí"><span>Sí</span></label><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.capacitacion" value="No"><span>No</span></label></div></div>
+                  <div class="edit-grid edit-grid--4">
+                    <div class="edit-fg">
+                      <label class="edit-label">Años de experiencia <span class="label-readonly-badge">Solo lectura</span></label>
+                      <div class="readonly-field"><span class="readonly-value">{{ formEditar.datosEspecificos.anosExp || '—' }}</span></div>
+                    </div>
+                    <div class="edit-fg">
+                      <label class="edit-label">Rescates realizados <span class="label-readonly-badge">Solo lectura</span></label>
+                      <div class="readonly-field"><span class="readonly-value">{{ formEditar.datosEspecificos.cantRescates || '—' }}</span></div>
+                    </div>
+                    <div class="edit-fg">
+                      <label class="edit-label">Disponibilidad</label>
+                      <div class="filtro-input-wrap"><select class="filtro-input filtro-select" v-model="formEditar.datosEspecificos.disponibilidad"><option value="">Seleccione</option><option>Emergencias 24/7</option><option>Solo fines de semana</option><option>Entre semana</option></select><span class="filtro-icon filtro-icon--right filtro-icon--no-events"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></div>
+                    </div>
+                    <div class="edit-fg"><label class="edit-label">Capacitación animal</label><div class="radio-row"><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.capacitacion" value="Sí"><span>Sí</span></label><label class="r-opt"><input type="radio" v-model="formEditar.datosEspecificos.capacitacion" value="No"><span>No</span></label></div></div>
                   </div>
-                  <div class="sc-form-grid sc-form-grid--4" style="margin-top:14px">
-                    <div class="sc-fg sc-fg--span2"><label>Zona — Provincia</label><div class="select-wrap"><select class="sc-input" v-model="formEditar.datosEspecificos.zonaProvincia"><option value="">Seleccione</option><option v-for="p in provincias" :key="p" :value="p">{{ p }}</option></select><i class='bx bx-chevron-down'></i></div></div>
-                    <div class="sc-fg sc-fg--span2"><label>Zona — Cantón</label><div class="select-wrap"><select class="sc-input" v-model="formEditar.datosEspecificos.zonaCanton" :disabled="!formEditar.datosEspecificos.zonaProvincia"><option value="">Seleccione</option><option v-for="c in cantonesZonaEdit" :key="c" :value="c">{{ c }}</option></select><i class='bx bx-chevron-down'></i></div></div>
+                  <div class="edit-grid edit-grid--4" style="margin-top:14px">
+                    <div class="edit-fg" style="grid-column:span 2">
+                      <label class="edit-label">Zona — Provincia</label>
+                      <div class="filtro-input-wrap"><select class="filtro-input filtro-select" v-model="formEditar.datosEspecificos.zonaProvincia"><option value="">Seleccione</option><option v-for="p in provincias" :key="p" :value="p">{{ p }}</option></select><span class="filtro-icon filtro-icon--right filtro-icon--no-events"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></div>
+                    </div>
+                    <div class="edit-fg" style="grid-column:span 2">
+                      <label class="edit-label">Zona — Cantón</label>
+                      <div class="filtro-input-wrap"><select class="filtro-input filtro-select" v-model="formEditar.datosEspecificos.zonaCanton" :disabled="!formEditar.datosEspecificos.zonaProvincia"><option value="">Seleccione</option><option v-for="c in cantonesZonaEdit" :key="c" :value="c">{{ c }}</option></select><span class="filtro-icon filtro-icon--right filtro-icon--no-events"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span></div>
+                    </div>
                   </div>
-                  <div class="sc-fg" style="margin-top:14px"><label>Equipo disponible</label><div class="check-wrap"><label v-for="op in ['Transportadora','Correas','Jaulas trampa','Botiquín']" :key="op" class="c-opt" :class="{ checked: deIncludes('equipo', op) }"><input type="checkbox" :checked="deIncludes('equipo', op)" @change="toggleDE('equipo', op)">{{ op }}</label></div></div>
+                  <div class="edit-fg" style="margin-top:14px"><label class="edit-label">Equipo disponible</label><div class="check-wrap"><label v-for="op in ['Transportadora','Correas','Jaulas trampa','Botiquín']" :key="op" class="c-opt" :class="{ checked: deIncludes('equipo', op) }"><input type="checkbox" :checked="deIncludes('equipo', op)" @change="toggleDE('equipo', op)">{{ op }}</label></div></div>
                 </template>
               </template>
+
             </div>
-            <div class="sc-modal-footer">
-              <button class="sc-btn-cancel" @click="modalEditar = false">Cancelar</button>
-              <button class="sc-btn-save" @click="guardarEdicion">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                Guardar cambios
-              </button>
+
+            <div class="modal-acciones">
+              <button class="btn-cerrar-modal" @click="modalEditar = false">Cancelar</button>
+              <button class="btn-aprobar" style="flex:none;padding:13px 24px" @click="guardarEdicion">Guardar cambios</button>
             </div>
+
           </div>
         </div>
       </Transition>
     </Teleport>
 
-    <!-- ══ MODAL CONFIRMACIÓN ══ -->
+    <!-- ═══════════ MODAL CONFIRMACIÓN ═══════════ -->
     <Teleport to="body">
-      <Transition name="overlay-anim">
-        <div v-if="modalConfirm" class="sc-overlay sc-overlay--top" @click.self="cancelarConfirmacion">
-          <div class="sc-modal sc-modal--sm">
-            <div class="sc-confirm-body">
-              <div class="sc-confirm-icon">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              </div>
-              <h3 class="sc-confirm-title">Confirmar acción</h3>
-              <p class="sc-confirm-text" v-html="mensajeConfirm"></p>
+      <Transition name="modal-fade">
+        <div v-if="modalConfirm" class="modal-overlay" style="z-index:1100" @click.self="cancelarConfirmacion">
+          <div class="modal-box modal-box--sm">
+
+            <button class="modal-close" @click="cancelarConfirmacion">✕</button>
+
+            <div class="confirm-icon-wrap">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
             </div>
-            <div class="sc-modal-footer">
-              <button class="sc-btn-cancel" @click="cancelarConfirmacion">Cancelar</button>
-              <button class="sc-btn-save" @click="confirmarAccion">Confirmar</button>
+
+            <h3 class="confirm-title">Confirmar acción</h3>
+            <p class="confirm-text" v-html="mensajeConfirm"></p>
+
+            <div class="modal-acciones">
+              <button class="btn-cerrar-modal" style="flex:none;padding:13px 20px" @click="cancelarConfirmacion">Cancelar</button>
+              <button class="btn-aprobar" style="flex:1" @click="confirmarAccion">Confirmar</button>
             </div>
+
           </div>
         </div>
       </Transition>
@@ -827,398 +971,685 @@ function iniciales(nombre) {
 </template>
 
 <style scoped>
-/* ═══════════════════════════════════════
-   ROOT
-═══════════════════════════════════════ */
-.sc-root { background: transparent; padding-bottom: 40px; }
+/* ── Variables (idénticas a Donaciones) ─────────────────────── */
+.view-container {
+  --verde:     #3A473C;
+  --verde-sec: #92A894;
+  --fondo:     #F7F8F7;
+  --blanco:    #FFFFFF;
+  --texto:     #2F352F;
+  --texto-sec: #6C756D;
+  --borde:     #E8ECE8;
+  --amarillo:  #F5B942;
+  --verde-ok:  #4CAF6A;
+  background: transparent;
+}
 
-/* ═══════════════════════════════════════
-   TOAST  (idéntico Salud)
-═══════════════════════════════════════ */
-.sc-toast {
+/* ── Encabezado ─────────────────────────────────────────────── */
+.page-header       { margin-bottom: 28px; }
+.admin-page-title  { font-size: 28px; font-weight: 800; color: var(--verde); letter-spacing: -0.5px; line-height: 1.1; }
+.admin-page-sub    { font-size: 14px; color: var(--texto-sec); margin-top: 4px; font-weight: 500; }
+
+/* ── Tarjetas resumen ───────────────────────────────────────── */
+.don-summary {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.don-card {
+  flex: 1;
+  min-width: 150px;
+  background: var(--blanco);
+  border-radius: 14px;
+  padding: 20px;
+  border: 1px solid var(--borde);
+  border-top: 3px solid var(--borde);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.kpi-total      { border-top-color: var(--verde); }
+.kpi-pendientes { border-top-color: var(--amarillo); }
+.kpi-aprobados  { border-top-color: var(--verde-ok); }
+.kpi-rechazados { border-top-color: #E57373; }
+.kpi-inactivos  { border-top-color: var(--texto-sec); }
+
+.don-label { font-size: 11px; color: var(--texto-sec); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+.don-value { font-size: 24px; font-weight: 800; color: var(--verde); line-height: 1; }
+
+/* ── Panel de filtros ───────────────────────────────────────── */
+.filtros-panel {
+  background: var(--blanco);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid var(--borde);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.filtro-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 130px;
+}
+
+.filtro-group--btn {
+  flex: 0 0 auto;
+  min-width: unset;
+}
+
+.filtro-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--verde);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-height: 16px;
+  display: flex;
+  align-items: flex-end;
+}
+
+.filtro-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.filtro-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 36px 0 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--borde);
+  background: #FFFFFF;
+  font-size: 13px;
+  color: var(--texto);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.18s, background 0.18s;
+  box-sizing: border-box;
+}
+
+.filtro-input:focus     { border-color: var(--verde-sec); background: var(--blanco); }
+.filtro-input::placeholder { color: #9CA8A0; }
+.filtro-input:disabled  { background: #F4F6F4; color: #9CA8A0; cursor: not-allowed; }
+
+.filtro-select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.filtro-icon {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  color: var(--texto-sec);
+}
+
+.filtro-icon--right     { right: 11px; }
+.filtro-icon--no-events { pointer-events: none; }
+
+.btn-limpiar {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: 1.5px solid var(--borde);
+  background: transparent;
+  color: var(--texto-sec);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s;
+  font-family: inherit;
+}
+
+.btn-limpiar--activo { border-color: var(--verde); color: var(--verde); }
+.btn-limpiar:hover   { background: var(--verde); color: var(--blanco); border-color: var(--verde); }
+
+/* ── Estado vacío ───────────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 72px 24px;
+  background: var(--blanco);
+  border-radius: 14px;
+  border: 1px solid var(--borde);
+}
+
+.empty-title { font-size: 16px; font-weight: 700; color: var(--texto); margin-bottom: 6px; }
+.empty-sub   { font-size: 13px; color: var(--texto-sec); }
+
+/* ── Tabla ──────────────────────────────────────────────────── */
+.table-wrapper {
+  background: var(--blanco);
+  border-radius: 14px;
+  border: 1px solid var(--borde);
+  overflow: hidden;
+}
+
+.table-scroll          { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+.don-table             { width: 100%; border-collapse: collapse; min-width: 760px; }
+.don-table thead tr    { background: var(--verde); }
+.don-table thead th    { padding: 13px 16px; text-align: left; color: var(--blanco); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; white-space: nowrap; }
+.don-table tbody tr    { border-bottom: 1px solid var(--borde); transition: background 0.15s; }
+.don-table tbody tr:last-child { border-bottom: none; }
+.don-table tbody tr:hover      { background: #F4F6F4; }
+.don-table tbody td    { padding: 13px 16px; vertical-align: middle; }
+
+/* Celda voluntario */
+.vol-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.vol-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #DDE6DE;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.vol-avatar-ini {
+  font-size: 13px;
+  font-weight: 800;
+  color: #5A6E5C;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+.vol-info { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.vol-codigo { font-size: 11px; color: var(--texto-sec); font-family: monospace; }
+
+.donor-name    { display: block; font-size: 13px; font-weight: 700; color: var(--texto); }
+.donor-mail-td { display: block; font-size: 11px; color: var(--texto-sec); margin-top: 2px; }
+.fecha-text    { font-size: 13px; color: var(--texto-sec); white-space: nowrap; }
+
+/* Acciones en tabla */
+.acciones-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.table-footer { padding: 12px 16px; border-top: 1px solid var(--borde); font-size: 12px; color: var(--texto-sec); font-weight: 500; }
+
+.btn-ver {
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: 1.5px solid var(--borde);
+  background: var(--blanco);
+  color: var(--verde);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.btn-ver:hover { background: var(--verde); color: var(--blanco); border-color: var(--verde); }
+
+.btn-accion {
+  padding: 6px 12px;
+  border-radius: 7px;
+  border: none;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.btn-accion--aprobar   { background: #E8F5E9; color: #2E7D32; }
+.btn-accion--aprobar:hover   { background: #2E7D32; color: var(--blanco); }
+.btn-accion--rechazar  { background: #FDECEA; color: #B71C1C; }
+.btn-accion--rechazar:hover  { background: #B71C1C; color: var(--blanco); }
+.btn-accion--editar    { background: rgba(33,150,243,.12); color: #1565C0; }
+.btn-accion--editar:hover    { background: #1565C0; color: var(--blanco); }
+.btn-accion--inactivar { background: #FFF3E0; color: #E65100; }
+.btn-accion--inactivar:hover { background: #E65100; color: var(--blanco); }
+
+/* ── Badges ─────────────────────────────────────────────────── */
+.estado-badge    { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; white-space: nowrap; }
+.badge-pendiente { background: #FFF7E0; color: #96650A; }
+.badge-aprobada  { background: #E8F5E9; color: #2E7D32; }
+.badge-rechazada { background: #FDECEA; color: #B71C1C; }
+.badge-inactivo  { background: #FFF3E0; color: #E65100; }
+.badge-blue      { background: rgba(33,150,243,.13);  color: #1565C0; }
+.badge-purple    { background: rgba(156,39,176,.13);  color: #7B1FA2; }
+.badge-teal      { background: rgba(0,150,136,.13);   color: #00695C; }
+.badge-crimson   { background: rgba(244,67,54,.13);   color: #C62828; }
+.badge-sky       { background: rgba(2,185,250,.13);   color: #006E9B; }
+.badge-gold      { background: rgba(255,193,7,.18);   color: #7A5200; }
+.badge-neutral   { background: #F4F6F4;               color: #6C756D; }
+
+/* ── Toast ──────────────────────────────────────────────────── */
+.vol-toast {
   position: fixed; bottom: 32px; right: 32px; z-index: 9999;
   display: flex; align-items: center; gap: 10px;
   padding: 14px 20px; border-radius: 14px;
   font-size: 14px; font-weight: 600;
   box-shadow: 0 8px 32px rgba(0,0,0,0.16); pointer-events: none;
 }
-.sc-toast.success { background: #3A473C; color: #fff; }
-.sc-toast.error   { background: #c0392b; color: #fff; }
+.vol-toast--exito { background: var(--verde); color: var(--blanco); }
+.vol-toast--error { background: #B71C1C; color: var(--blanco); }
 .toast-anim-enter-active, .toast-anim-leave-active { transition: all 0.25s ease; }
 .toast-anim-enter-from, .toast-anim-leave-to { opacity: 0; transform: translateY(10px); }
 
-/* ═══════════════════════════════════════
-   HEADER  (idéntico Salud)
-═══════════════════════════════════════ */
-.sc-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  margin-bottom: 28px; gap: 16px; flex-wrap: wrap;
+/* ── Modal base ─────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+  overflow-y: auto;
 }
-.sc-title  { font-size: 28px; font-weight: 800; color: #3A473C; letter-spacing: -0.5px; line-height: 1.1; }
-.sc-sub    { font-size: 14px; color: #6C756D; margin-top: 5px; font-weight: 500; }
 
-/* ═══════════════════════════════════════
-   TOOLBAR  (idéntico Salud — una sola fila)
-═══════════════════════════════════════ */
-.sc-toolbar {
+.modal-box {
+  background: #FFFFFF;
+  border-radius: 20px;
+  padding: 36px;
+  width: 100%; max-width: 620px;
+  max-height: 90vh; overflow-y: auto;
+  position: relative;
+  margin: auto;
+}
+
+.modal-box--lg { max-width: 780px; }
+.modal-box--sm { max-width: 420px; text-align: center; }
+
+.modal-close {
+  position: absolute; top: 18px; right: 18px;
+  width: 32px; height: 32px; border-radius: 50%;
+  border: none; background: var(--fondo);
+  color: var(--texto); font-size: 13px; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s; font-family: inherit;
+}
+.modal-close:hover { background: var(--verde); color: var(--blanco); }
+
+.modal-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; }
+
+.modal-id {
+  font-size: 13px; font-family: monospace;
+  background: var(--fondo); border: 1px solid var(--borde);
+  padding: 5px 11px; border-radius: 7px;
+  color: var(--verde); font-weight: 700;
+}
+
+/* Hero voluntario en modal */
+.modal-usuario-hero {
   display: flex;
   align-items: center;
   gap: 16px;
-  margin-bottom: 20px;
-  flex-wrap: nowrap;   /* misma fila siempre */
+  padding: 16px 20px;
+  background: var(--fondo);
+  border-radius: 12px;
+  margin-bottom: 24px;
+  border: 1px solid var(--borde);
 }
 
-/* Tabs (idéntico Salud) */
-.sc-tabs {
-  display: flex; gap: 4px;
-  background: #F4F6F4; border-radius: 12px; padding: 4px;
-  flex-shrink: 0;
-}
-.sc-tab {
-  display: flex; align-items: center; gap: 6px;
-  padding: 8px 16px; border-radius: 9px; border: none;
-  background: transparent; color: #6C756D;
-  font-size: 13px; font-weight: 700; cursor: pointer;
-  transition: all 0.18s; white-space: nowrap; font-family: inherit;
-}
-.sc-tab:hover  { color: #3A473C; background: rgba(255,255,255,0.6); }
-.sc-tab.active { background: #fff; color: #3A473C; box-shadow: 0 1px 4px rgba(58,71,60,0.12); }
-
-/* Filtros (idéntico Salud) */
-.sc-filters {
-  display: flex; align-items: center; gap: 10px;
-  flex: 1; flex-wrap: nowrap;
-  min-width: 0;
-}
-
-/* Búsqueda (idéntico Salud) */
-.sc-search-wrap {
-  position: relative; flex: 1; min-width: 160px; max-width: 260px;
-}
-.sc-search-icon {
-  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-  color: #92A894; pointer-events: none;
-}
-.sc-search {
-  width: 100%; box-sizing: border-box;
-  padding: 9px 12px 9px 34px;
-  border: 1.5px solid #E8ECE8; border-radius: 10px;
-  font-size: 13px; color: #3A473C; background: #fff;
-  outline: none; font-family: inherit; transition: border-color 0.18s;
-  height: 36px;
-}
-.sc-search:focus { border-color: #92A894; }
-
-/* Selects de filtro (mismo alto/borde/radio que sc-search) */
-.sc-select-wrap {
-  position: relative; flex-shrink: 0;
-}
-.sc-filter-select {
-  appearance: none;
-  padding: 0 32px 0 12px;
-  height: 36px;
-  border: 1.5px solid #E8ECE8; border-radius: 10px;
-  font-size: 13px; color: #3A473C; background: #fff;
-  outline: none; font-family: inherit; cursor: pointer;
-  transition: border-color 0.18s; white-space: nowrap;
-  box-sizing: border-box;
-}
-.sc-filter-select:focus { border-color: #92A894; }
-.sc-select-icon {
-  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-  color: #92A894; pointer-events: none;
-}
-
-/* Limpiar (idéntico Salud) */
-.sc-clear {
-  padding: 0 14px; height: 36px;
-  border: 1.5px solid #fdd; border-radius: 10px;
-  background: #fff5f5; color: #c0392b;
-  font-size: 12px; font-weight: 700; font-family: inherit;
-  cursor: pointer; transition: background 0.15s; white-space: nowrap; flex-shrink: 0;
-}
-.sc-clear:hover { background: #ffe5e5; }
-
-/* ═══════════════════════════════════════
-   TABLA  (idéntico Salud)
-═══════════════════════════════════════ */
-.sc-table-wrap {
-  background: #fff; border-radius: 20px;
-  box-shadow: 0 2px 16px rgba(58,71,60,0.06); overflow: hidden;
-}
-.sc-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.sc-table thead { background: #F9FAF9; }
-.sc-table th {
-  padding: 14px 20px;
-  font-size: 11px; font-weight: 800; color: #92A894;
-  text-transform: uppercase; letter-spacing: 0.6px;
-  white-space: nowrap; border-bottom: 1.5px solid #F0F2F0;
-  text-align: left;
-}
-.sc-table td {
-  padding: 14px 20px; font-size: 14px; color: #3A473C;
-  border-bottom: 1px solid #F5F7F5; vertical-align: middle;
-}
-.sc-table tbody tr:last-child td { border-bottom: none; }
-.sc-table tbody tr { transition: background 0.12s; }
-.sc-table tbody tr:hover { background: #FAFBFA; }
-
-/* Avatar circular (idéntico Salud) */
-.sc-avatar {
-  width: 38px; height: 38px; border-radius: 50%;
-  overflow: hidden; flex-shrink: 0;
+.modal-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
   background: #DDE6DE;
-  display: flex; align-items: center; justify-content: center;
-}
-.sc-avatar-ini { font-size: 14px; font-weight: 800; color: #5A6E5C; text-transform: uppercase; line-height: 1; }
-
-.sc-pet-cell { display: flex; align-items: center; gap: 10px; }
-.sc-pet-info  { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.sc-pet-name  { font-weight: 700; font-size: 14px; color: #3A473C; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sc-pet-id    { font-size: 11px; color: #92A894; font-family: monospace; }
-
-.sc-contact-stack { display: flex; flex-direction: column; gap: 2px; }
-.sc-td-main { font-weight: 500; color: #3A473C; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sc-td-sec  { color: #7A8A7C; font-size: 12px; }
-
-/* ── Badges unificados (tamaño y forma idénticos a Salud sc-date-badge) ── */
-.sc-badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 10px; border-radius: 7px;
-  font-size: 12px; font-weight: 600; white-space: nowrap;
-  /* base neutro — sobrescrito por modificadores */
-  background: #F0F4F0; color: #4A6550;
-}
-
-/* Estado badges */
-.badge--green  { background: rgba(76,175,80,.14);  color: #2E7D32; }
-.badge--red    { background: rgba(235,119,119,.16); color: #C45252; }
-.badge--orange { background: rgba(255,152,0,.14);   color: #E65100; }
-.badge--yellow { background: rgba(255,193,7,.16);   color: #9A6A00; }
-
-/* Tipo badges — mismo tamaño, solo color distinto */
-.badge--blue   { background: rgba(33,150,243,.13);  color: #1565C0; }
-.badge--purple { background: rgba(156,39,176,.13);  color: #7B1FA2; }
-.badge--teal   { background: rgba(0,150,136,.13);   color: #00695C; }
-.badge--crimson{ background: rgba(244,67,54,.13);   color: #C62828; }
-.badge--sky    { background: rgba(2,185,250,.13);   color: #006E9B; }
-.badge--gold   { background: rgba(255,193,7,.18);   color: #7A5200; }
-.badge--neutral{ background: #F4F6F4;               color: #6C756D; }
-
-/* ── Botones de acción (idénticos a sc-btn-ver Salud) ── */
-.sc-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
   justify-content: center;
-}
-.sc-btn-ver {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 5px 11px; height: 28px;
-  border: none; border-radius: 8px;
-  font-size: 12px; font-weight: 700; font-family: inherit;
-  cursor: pointer; transition: background 0.15s, opacity 0.15s;
-  white-space: nowrap; flex-shrink: 0;
+  flex-shrink: 0;
 }
 
-.action-icon {
-  width: 10px;
-  height: 10px;
-  object-fit: contain;
-  display: block;
+.modal-avatar-ini {
+  font-size: 20px;
+  font-weight: 800;
+  color: #5A6E5C;
+  text-transform: uppercase;
+  line-height: 1;
 }
 
-.sc-btn-ver--neutral { background: #F0F4F0;               color: #3A473C; }
-.sc-btn-ver--neutral:hover { background: #DDE6DE; }
-.sc-btn-ver--green   { background: rgba(76,175,80,.14);   color: #2E7D32; }
-.sc-btn-ver--green:hover   { background: rgba(76,175,80,.26); }
-.sc-btn-ver--red     { background: rgba(235,119,119,.14); color: #C45252; }
-.sc-btn-ver--red:hover     { background: rgba(235,119,119,.26); }
-.sc-btn-ver--blue    { background: rgba(33,150,243,.12);  color: #1565C0; }
-.sc-btn-ver--blue:hover    { background: rgba(33,150,243,.22); }
-.sc-btn-ver--orange  { background: rgba(255,152,0,.13);   color: #E65100; }
-.sc-btn-ver--orange:hover  { background: rgba(255,152,0,.24); }
+.modal-usuario-nombre {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--texto);
+  margin: 0 0 2px;
+}
 
-/* Empty */
-.sc-empty { padding: 0; }
-.sc-empty-inner {
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 12px; padding: 56px 24px; color: #92A894;
+.modal-usuario-correo {
+  font-size: 13px;
+  color: var(--texto-sec);
+  margin: 0;
 }
-.sc-empty-inner svg { opacity: 0.4; }
-.sc-empty-inner p { font-size: 14px; font-weight: 500; color: #7A8A7C; margin: 0; }
 
-/* ═══════════════════════════════════════
-   OVERLAY / MODAL  (idéntico Salud)
-═══════════════════════════════════════ */
-.sc-overlay {
-  position: fixed; inset: 0; background: rgba(20,30,22,0.5);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 200; padding: 20px; backdrop-filter: blur(2px); overflow-y: auto;
-}
-.sc-overlay--top { z-index: 400; }
-.overlay-anim-enter-active, .overlay-anim-leave-active { transition: all 0.22s ease; }
-.overlay-anim-enter-from, .overlay-anim-leave-to { opacity: 0; }
-.overlay-anim-enter-from .sc-modal, .overlay-anim-leave-to .sc-modal { transform: translateY(16px) scale(0.98); }
-.sc-modal {
-  background: #fff; border-radius: 22px; width: 100%;
-  max-height: 88vh; overflow-y: auto;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.2);
-  transition: transform 0.22s ease; margin: auto;
-}
-.sc-modal--sm { max-width: 420px; }
-.sc-modal--lg { max-width: 900px; }
-.sc-modal-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  padding: 24px 28px 18px; border-bottom: 1.5px solid #F0F2F0;
-}
-.sc-modal-eyebrow { font-size: 11px; font-weight: 800; color: #92A894; text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 4px; }
-.sc-modal-title   { font-size: 20px; font-weight: 800; color: #3A473C; letter-spacing: -0.4px; }
-.sc-modal-close {
-  width: 34px; height: 34px; border-radius: 10px;
-  border: 1.5px solid #E8ECE8; background: #fff; color: #6C756D;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s, border-color 0.15s; flex-shrink: 0;
-}
-.sc-modal-close:hover { background: #F4F6F4; border-color: #ccc; }
-.sc-modal-body { padding: 24px 28px 8px; }
+/* Secciones del modal */
+.sc-modal-body { padding: 0; }
 
-/* Sección label */
-.sc-section-label {
-  display: flex; align-items: center; gap: 10px;
-  font-size: 13px; font-weight: 800; color: #3A473C;
-  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px;
+.modal-section       { margin-bottom: 24px; }
+.modal-section-title {
+  font-size: 11px; font-weight: 700; color: var(--texto-sec);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 14px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--borde);
 }
-.sc-section-label.accent { color: #C08030; }
-.sc-section-num {
-  width: 24px; height: 24px; border-radius: 7px;
-  background: #3A473C; color: #fff;
-  font-size: 11px; font-weight: 800;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-.sc-section-num.orange { background: #F9C17A; color: #8A5A1E; }
+.modal-section-title--accent { color: #C08030; border-bottom-color: rgba(249,193,122,.4); }
 
-/* Grid formulario */
-.sc-form-grid { display: grid; gap: 14px; }
-.sc-form-grid--4 { grid-template-columns: repeat(4, 1fr); }
-.sc-fg { display: flex; flex-direction: column; gap: 6px; }
-.sc-fg--span2 { grid-column: span 2; }
-.sc-fg--full  { grid-column: 1 / -1; }
-.sc-fg label { font-size: 12px; font-weight: 700; color: #5A6E5C; letter-spacing: 0.1px; display: flex; align-items: center; gap: 7px; }
-.sc-input {
-  padding: 10px 13px; border: 1.5px solid #E8ECE8; border-radius: 10px;
-  font-size: 13px; color: #3A473C; background: #FAFBFA;
-  outline: none; font-family: inherit;
-  transition: border-color 0.18s, background 0.18s;
-  width: 100%; box-sizing: border-box;
-}
-.sc-input:focus    { border-color: #92A894; background: #fff; }
-.sc-input:disabled { background: #F4F6F4; color: #9BA99C; cursor: not-allowed; }
-.sc-textarea {
-  padding: 10px 13px; border: 1.5px solid #E8ECE8; border-radius: 10px;
-  font-size: 13px; color: #3A473C; background: #FAFBFA;
-  outline: none; font-family: inherit;
-  transition: border-color 0.18s, background 0.18s;
-  width: 100%; box-sizing: border-box; min-height: 88px; resize: vertical; line-height: 1.5;
-}
-.sc-textarea:focus { border-color: #92A894; background: #fff; }
-.select-wrap { position: relative; }
-.select-wrap select.sc-input { appearance: none; padding-right: 36px; cursor: pointer; }
-.select-wrap i { position: absolute; right: 12px; top: 50%; transform: translateY(-50%); font-size: 18px; color: #92A894; pointer-events: none; }
-.radio-row { display: flex; gap: 16px; align-items: center; padding-top: 4px; }
-.r-opt { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: #3A473C; cursor: pointer; }
-.r-opt input[type="radio"] { accent-color: #92A894; width: 15px; height: 15px; cursor: pointer; }
-.check-wrap { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
-.c-opt { display: inline-flex; align-items: center; gap: 7px; padding: 7px 14px; border-radius: 10px; background: #F4F7F4; border: 1.5px solid #E8EDE8; font-size: 13px; font-weight: 600; color: #6C756D; cursor: pointer; transition: all .15s; }
-.c-opt input[type="checkbox"] { accent-color: #92A894; width: 14px; height: 14px; cursor: pointer; }
-.c-opt.checked { background: #E7F1E8; border-color: #92A894; color: #3A473C; }
-.label-readonly-badge { display: inline-flex; align-items: center; gap: 4px; background: rgba(249,193,122,.18); color: #C08030; font-size: 10px; font-weight: 700; letter-spacing: 0.04em; padding: 2px 8px; border-radius: 99px; border: 1px solid rgba(249,193,122,.35); text-transform: uppercase; }
-.readonly-field { display: flex; align-items: center; gap: 10px; background: #F7F5F0; border: 1.5px solid rgba(249,193,122,.35); border-radius: 10px; padding: 10px 13px; cursor: not-allowed; min-height: 41px; box-sizing: border-box; }
-.readonly-value { font-size: 14px; font-weight: 700; color: #8A7A60; }
-.edit-header-info { display: flex; align-items: center; gap: 14px; flex: 1; min-width: 0; }
-.edit-avatar-sm { width: 44px; height: 44px; min-width: 44px; border-radius: 14px; background: #DDE6DE; color: #5A6E5C; font-size: 16px; font-weight: 800; display: flex; align-items: center; justify-content: center; }
+.modal-grid   { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
+.modal-grid--3 { grid-template-columns: repeat(3,1fr); }
+.modal-field  { display: flex; flex-direction: column; gap: 4px; }
+.modal-field-label { font-size: 10px; font-weight: 700; color: #9CA8A0; text-transform: uppercase; letter-spacing: 0.4px; }
+.modal-field-value { font-size: 14px; color: var(--texto); font-weight: 600; word-break: break-word; }
 
-/* Modal footer */
-.sc-modal-footer {
-  display: flex; justify-content: flex-end; gap: 10px;
-  padding: 18px 28px 24px; border-top: 1.5px solid #F0F2F0; margin-top: 12px;
+.modal-texto-bloque {
+  font-size: 14px; color: var(--texto); line-height: 1.7;
+  background: var(--fondo); border-radius: 10px; padding: 12px 14px;
+  margin: 4px 0 0;
 }
-.sc-btn-cancel { padding: 10px 18px; background: #F4F6F4; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; color: #6C756D; cursor: pointer; transition: background 0.15s; font-family: inherit; }
-.sc-btn-cancel:hover { background: #E5EAE6; }
-.sc-btn-save { display: flex; align-items: center; gap: 7px; padding: 10px 20px; background: #3A473C; border: none; border-radius: 10px; font-size: 13px; font-weight: 700; color: #fff; cursor: pointer; transition: background 0.18s; font-family: inherit; }
-.sc-btn-save:hover { background: #2d3730; }
 
-/* Confirmación */
-.sc-confirm-body { padding: 32px 28px 8px; text-align: center; }
-.sc-confirm-icon { width: 60px; height: 60px; border-radius: 50%; background: #EEF2EE; color: #3A473C; display: flex; align-items: center; justify-content: center; margin: 0 auto 18px; }
-.sc-confirm-title { font-size: 18px; font-weight: 800; color: #3A473C; margin-bottom: 10px; }
-.sc-confirm-text  { font-size: 13px; color: #6C756D; line-height: 1.6; max-width: 320px; margin: 0 auto; }
-
-/* ═══════════════════════════════════════
-   EXPEDIENTE — Modal Ver  (idéntico Salud)
-═══════════════════════════════════════ */
-.exp-header {
-  display: flex; align-items: center; gap: 18px;
-  padding: 26px 28px 22px; border-bottom: 1.5px solid #F0F2F0;
-  background: linear-gradient(135deg, #F7F9F7, white);
+.info-badges-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
+.info-badge {
+  display: inline-block; background: #EEF2EE; color: var(--verde);
+  font-size: 12px; font-weight: 600; padding: 4px 12px;
+  border-radius: 20px; border: 1px solid rgba(146,168,148,.25);
 }
-.exp-avatar { width: 64px; height: 64px; min-width: 64px; border-radius: 18px; background: #DDE6DE; color: #5A6E5C; font-size: 22px; font-weight: 800; display: flex; align-items: center; justify-content: center; box-shadow: 0 8px 20px rgba(58,71,60,0.12); }
-.exp-header-info { flex: 1; min-width: 0; }
-.exp-name { font-size: 20px; font-weight: 800; color: #3A473C; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.exp-meta { display: flex; gap: 8px; flex-wrap: wrap; }
-.exp-body { display: flex; flex-direction: column; gap: 0; }
-.exp-section { border-bottom: 1.5px solid #F4F6F4; padding: 20px 0; }
-.exp-section:last-child { border-bottom: none; }
-.exp-section-title { display: flex; align-items: center; gap: 9px; font-size: 11px; font-weight: 800; letter-spacing: 0.10em; text-transform: uppercase; color: #92A894; margin-bottom: 16px; }
-.exp-section-title.accent-orange { color: #C08030; }
-.exp-section-dot { width: 7px; height: 7px; border-radius: 50%; background: #92A894; flex-shrink: 0; }
-.exp-section-dot.orange { background: #F9C17A; }
-.exp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px; }
-.exp-grid.cols-3 { grid-template-columns: 1fr 1fr 1fr; }
-.exp-field { display: flex; flex-direction: column; gap: 4px; }
-.exp-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #92A894; }
-.exp-value { font-size: 14px; color: #3A473C; }
-.exp-value.fw { font-weight: 700; }
+
 .exp-link { font-size: 13px; color: #3B82F6; text-decoration: none; word-break: break-all; }
 .exp-link:hover { text-decoration: underline; }
-.exp-text-block { font-size: 14px; color: #3A473C; line-height: 1.7; background: #F9FAF9; border-radius: 12px; padding: 12px 14px; margin: 0; }
-.mt-12 { margin-top: 14px !important; }
-.badges-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 4px; }
-.info-badge { display: inline-block; background: #EEF2EE; color: #3A473C; font-size: 12px; font-weight: 600; padding: 5px 12px; border-radius: 999px; border: 1px solid rgba(146,168,148,0.25); }
-.footer-pending { justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
-.pending-actions { display: flex; gap: 8px; align-items: center; }
 
-/* ═══════════════════════════════════════
-   RESPONSIVE
-═══════════════════════════════════════ */
-@media (max-width: 1100px) {
-  .sc-toolbar { flex-wrap: wrap; }
-  .sc-filters  { flex-wrap: wrap; }
+/* Acciones del modal */
+.modal-acciones {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding-top: 24px;
+  border-top: 1px solid var(--borde);
+  margin-top: 8px;
 }
+
+.modal-acciones--pendiente { justify-content: space-between; flex-wrap: wrap; }
+
+.btn-aprobar {
+  flex: 1; padding: 13px; border-radius: 10px; border: none;
+  background: #E8F5E9; color: #2E7D32;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: all 0.2s; font-family: inherit;
+}
+.btn-aprobar:hover { background: #2E7D32; color: var(--blanco); }
+
+.btn-rechazar {
+  flex: 1; padding: 13px; border-radius: 10px; border: none;
+  background: #FDECEA; color: #B71C1C;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: all 0.2s; font-family: inherit;
+}
+.btn-rechazar:hover { background: #B71C1C; color: var(--blanco); }
+
+.btn-cerrar-modal {
+  padding: 13px 20px; border-radius: 10px;
+  border: 1.5px solid var(--borde);
+  background: var(--blanco);
+  color: var(--texto-sec);
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: all 0.18s; font-family: inherit;
+}
+.btn-cerrar-modal:hover { background: var(--fondo); }
+
+/* Confirmación */
+.confirm-icon-wrap {
+  width: 60px; height: 60px;
+  border-radius: 16px;
+  background: #FFF7E0;
+  display: flex; align-items: center; justify-content: center;
+  margin: 0 auto 18px;
+  color: #96650A;
+}
+
+.confirm-title {
+  font-size: 18px; font-weight: 800; color: var(--texto);
+  margin: 0 0 8px;
+}
+
+.confirm-text {
+  font-size: 14px; color: var(--texto-sec);
+  margin: 0 0 24px; line-height: 1.6;
+}
+
+/* ── Formulario de edición ───────────────────────────────────── */
+.edit-body { padding: 0; }
+
+.edit-section-label {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--verde);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 14px;
+}
+
+.edit-section-label--accent { color: #C08030; }
+
+.edit-section-num {
+  width: 24px; height: 24px; border-radius: 7px;
+  background: var(--verde); color: var(--blanco);
+  font-size: 11px; font-weight: 800;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+
+.edit-section-num--amber { background: #F9C17A; color: #8A5A1E; }
+
+.edit-grid { display: grid; gap: 14px; }
+.edit-grid--4 { grid-template-columns: repeat(4, 1fr); }
+.edit-grid--3 { grid-template-columns: repeat(3, 1fr); }
+
+.edit-fg { display: flex; flex-direction: column; gap: 6px; }
+.edit-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--verde);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.edit-textarea {
+  padding: 10px 13px;
+  border: 1.5px solid var(--borde);
+  border-radius: 8px;
+  font-size: 13px;
+  color: var(--texto);
+  background: var(--fondo);
+  outline: none;
+  font-family: inherit;
+  transition: border-color 0.18s, background 0.18s;
+  width: 100%;
+  box-sizing: border-box;
+  min-height: 80px;
+  resize: vertical;
+  line-height: 1.5;
+}
+.edit-textarea:focus { border-color: var(--verde-sec); background: var(--blanco); }
+
+/* Checkboxes y radios */
+.radio-row { display: flex; gap: 16px; align-items: center; padding-top: 4px; }
+.r-opt { display: flex; align-items: center; gap: 7px; font-size: 13px; font-weight: 600; color: var(--texto); cursor: pointer; }
+.r-opt input[type="radio"] { accent-color: var(--verde-sec); width: 15px; height: 15px; cursor: pointer; }
+
+.check-wrap { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 2px; }
+.c-opt {
+  display: inline-flex; align-items: center; gap: 7px;
+  padding: 7px 14px; border-radius: 10px;
+  background: var(--fondo); border: 1.5px solid var(--borde);
+  font-size: 13px; font-weight: 600; color: var(--texto-sec);
+  cursor: pointer; transition: all .15s;
+}
+.c-opt input[type="checkbox"] { accent-color: var(--verde-sec); width: 14px; height: 14px; cursor: pointer; }
+.c-opt.checked { background: #E7F1E8; border-color: var(--verde-sec); color: var(--verde); }
+
+/* Campos de solo lectura */
+.label-readonly-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(249,193,122,.18); color: #C08030;
+  font-size: 10px; font-weight: 700; letter-spacing: 0.04em;
+  padding: 2px 8px; border-radius: 99px;
+  border: 1px solid rgba(249,193,122,.35); text-transform: uppercase;
+}
+.readonly-field {
+  display: flex; align-items: center;
+  background: #F7F5F0; border: 1.5px solid rgba(249,193,122,.35);
+  border-radius: 8px; padding: 0 13px;
+  min-height: 38px; cursor: not-allowed; box-sizing: border-box;
+}
+.readonly-value { font-size: 14px; font-weight: 700; color: #8A7A60; }
+
+/* ── Animaciones ────────────────────────────────────────────── */
+.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.22s ease; }
+.modal-fade-enter-from, .modal-fade-leave-to       { opacity: 0; }
+
+/* ── Responsive ─────────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .sc-form-grid--4 { grid-template-columns: repeat(2, 1fr); }
-  .sc-fg--span2    { grid-column: span 1; }
-  .exp-grid.cols-3 { grid-template-columns: 1fr 1fr; }
+  .don-summary   { display: grid; grid-template-columns: repeat(2,1fr); }
+  .kpi-inactivos { grid-column: span 2; }
+  .edit-grid--4  { grid-template-columns: repeat(2, 1fr); }
+  .modal-grid--3 { grid-template-columns: repeat(2, 1fr); }
 }
+
 @media (max-width: 640px) {
-  .sc-header   { flex-direction: column; align-items: flex-start; }
-  .sc-toolbar  { flex-direction: column; align-items: flex-start; }
-  .sc-tabs     { flex-wrap: wrap; }
-  .sc-filters  { width: 100%; flex-wrap: wrap; }
-  .sc-search-wrap { max-width: 100%; }
-  .sc-form-grid--4 { grid-template-columns: 1fr; }
-  .sc-fg--span2, .sc-fg--full { grid-column: 1; }
-  .sc-table th:nth-child(4),
-  .sc-table td:nth-child(4) { display: none; }
-  .sc-modal-body   { padding: 16px 18px 8px; }
-  .sc-modal-header,
-  .sc-modal-footer { padding-left: 18px; padding-right: 18px; }
-  .exp-grid        { grid-template-columns: 1fr; }
-  .exp-grid.cols-3 { grid-template-columns: 1fr 1fr; }
-  .footer-pending  { flex-direction: column; align-items: stretch; }
-  .pending-actions { justify-content: flex-end; }
+  .filtros-panel     { flex-direction: column; }
+  .filtro-group      { min-width: 100%; }
+  .filtro-group--btn { width: 100%; }
+  .btn-limpiar       { width: 100%; }
+  .don-summary       { grid-template-columns: 1fr; }
+  .kpi-inactivos     { grid-column: span 1; }
+  .modal-box         { padding: 24px 20px; }
+  .modal-grid        { grid-template-columns: 1fr; }
+  .modal-grid--3     { grid-template-columns: 1fr; }
+  .modal-acciones    { flex-direction: column; }
+  .modal-acciones--pendiente > div { flex-direction: column; width: 100%; }
+  .edit-grid--4      { grid-template-columns: 1fr; }
+  .edit-grid--3      { grid-template-columns: 1fr; }
+  .acciones-cell     { flex-direction: column; align-items: flex-start; }
 }
+
+
+/* ── MOBILE RESPONSIVE ── */
+@media (max-width: 768px) {
+  .don-summary {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .kpi-inactivos { grid-column: span 2; }
+
+  .filtros-panel {
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .filtro-group,
+  .filtro-group--btn {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .btn-limpiar {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .acciones-cell {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .btn-ver,
+  .btn-accion {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .modal-box--lg {
+    max-width: calc(100vw - 24px);
+    padding: 22px 14px;
+    max-height: 95vh;
+  }
+
+  .modal-grid { grid-template-columns: 1fr; }
+  .modal-grid--3 { grid-template-columns: 1fr 1fr; }
+
+  .modal-acciones {
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .modal-acciones--pendiente {
+    flex-direction: column;
+  }
+
+  .modal-acciones--pendiente > div {
+    width: 100%;
+    flex-direction: column;
+  }
+
+  .edit-grid--4 { grid-template-columns: repeat(2, 1fr); }
+  .edit-grid--3 { grid-template-columns: 1fr 1fr; }
+
+  .modal-usuario-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .sc-modal-body { padding: 0; }
+
+  .check-wrap { flex-wrap: wrap; }
+}
+
 @media (max-width: 480px) {
-  .exp-grid.cols-3 { grid-template-columns: 1fr; }
+  .don-summary { grid-template-columns: 1fr; }
+  .kpi-inactivos { grid-column: span 1; }
+
+  .edit-grid--4 { grid-template-columns: 1fr; }
+  .edit-grid--3 { grid-template-columns: 1fr; }
+
+  .modal-grid--3 { grid-template-columns: 1fr; }
+
+  .don-table th:nth-child(4),
+  .don-table td:nth-child(4),
+  .don-table th:nth-child(5),
+  .don-table td:nth-child(5) { display: none; }
 }
+
+
 </style>

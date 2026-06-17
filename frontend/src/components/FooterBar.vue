@@ -11,7 +11,7 @@
         <div class="footer-logo-wrap">
 
           <img
-            src="/img-vol/logo.png"
+            src="/img-home/logo.png"
             class="footer-logo-image"
           >
 
@@ -217,13 +217,15 @@
 .footer-brand {
   display: flex;
   flex-direction: column;
-  padding-left: 10px;
+  align-items: center;
+  text-align: center;
+  margin-top: -15px;
 }
 
 .footer-logo-wrap {
-  margin-bottom: 12px;
   display: flex;
-  justify-content: flex-start;
+  justify-content: center;
+  margin-bottom: 0;
 }
 
 .footer-logo-image {
@@ -233,10 +235,17 @@
 }
 
 .footer-brand p {
+
+  margin-top: 0;
+
   max-width: 300px;
+
   font-size: 14px;
-  line-height: 1.7;
+
+  line-height: 1.6;
+
   color: rgba(255,255,255,.80);
+
 }
 
 .social-links {

@@ -127,20 +127,20 @@ function iniciales(nombre = '') {
 }
 
 function rolBadgeClass(rol) {
-  if (rol === 'Admin')      return 'badge--peach'
-  if (rol === 'Voluntario') return 'badge--green'
-  return 'badge--blue'
+  if (rol === 'Admin')      return 'badge-admin'
+  if (rol === 'Voluntario') return 'badge-aprobada'
+  return 'badge-blue'
 }
 
 function solicitudBadgeClass(estado) {
-  if (estado === 'Aprobada')  return 'badge--green'
-  if (estado === 'Rechazada') return 'badge--red'
-  if (estado === 'Pendiente') return 'badge--yellow'
-  return 'badge--neutral'
+  if (estado === 'Aprobada')  return 'badge-aprobada'
+  if (estado === 'Rechazada') return 'badge-rechazada'
+  if (estado === 'Pendiente') return 'badge-pendiente'
+  return 'badge-neutral'
 }
 
 function estadoBadgeClass(user) {
-  return user.activo ? 'badge--green' : 'badge--orange'
+  return user.activo ? 'badge-aprobada' : 'badge-inactivo'
 }
 
 function estadoLabel(user) {
@@ -183,15 +183,21 @@ const usuariosFiltrados = computed(() => {
     return coincideTexto && coincideRol && coincideEstado
   })
 })
+
+const totalUsuarios   = computed(() => usuarios.value.length)
+const totalActivos    = computed(() => usuarios.value.filter(u => u.activo).length)
+const totalInactivos  = computed(() => usuarios.value.filter(u => !u.activo).length)
+const totalVoluntarios = computed(() => usuarios.value.filter(u => u.rol === 'Voluntario').length)
+const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVoluntario?.estado === 'Pendiente').length)
 </script>
 
 <template>
-  <div class="sc-root">
+  <div class="view-container">
 
     <!-- ── Toast ── -->
     <Teleport to="body">
       <Transition name="toast-anim">
-        <div v-if="toast.visible" class="sc-toast" :class="toast.tipo === 'error' ? 'error' : 'success'">
+        <div v-if="toast.visible" class="usr-toast" :class="toast.tipo === 'error' ? 'usr-toast--error' : 'usr-toast--exito'">
           <svg v-if="toast.tipo === 'exito'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
           <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           {{ toast.texto }}
@@ -199,38 +205,77 @@ const usuariosFiltrados = computed(() => {
       </Transition>
     </Teleport>
 
-    <!-- ── Header ── -->
-    <header class="sc-header">
-      <div class="sc-header-left">
-        <h1 class="sc-title">Usuarios</h1>
-        <p class="sc-sub">Control de cuentas y roles del sistema</p>
+    <!-- CABECERA -->
+    <header class="page-header">
+      <div>
+        <h1 class="admin-page-title">Usuarios</h1>
+        <p class="admin-page-sub">Control de cuentas y roles del sistema</p>
       </div>
     </header>
 
-    <!-- ── Toolbar ── -->
-    <div class="sc-toolbar">
-      <div class="sc-filters">
+    <!-- TARJETAS RESUMEN -->
+    <div class="don-summary">
+      <div class="don-card total-usuarios">
+        <span class="don-label">Total usuarios</span>
+        <strong class="don-value">{{ totalUsuarios }}</strong>
+      </div>
+      <div class="don-card total-activos">
+        <span class="don-label">Activos</span>
+        <strong class="don-value">{{ totalActivos }}</strong>
+      </div>
+      <div class="don-card total-inactivos">
+        <span class="don-label">Inactivos</span>
+        <strong class="don-value">{{ totalInactivos }}</strong>
+      </div>
+      <div class="don-card total-voluntarios">
+        <span class="don-label">Voluntarios</span>
+        <strong class="don-value">{{ totalVoluntarios }}</strong>
+      </div>
+      <div class="don-card total-pendientes">
+        <span class="don-label">Solicitudes pendientes</span>
+        <strong class="don-value">{{ totalPendientes }}</strong>
+      </div>
+    </div>
 
-        <!-- Búsqueda -->
-        <div class="sc-search-wrap">
-          <svg class="sc-search-icon" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input class="sc-search" v-model="filtroTexto" placeholder="Nombre, correo, cédula o ID..." />
+    <!-- FILTROS -->
+    <div class="filtros-panel">
+
+      <!-- Buscar usuario -->
+      <div class="filtro-group">
+        <label class="filtro-label">Buscar usuario</label>
+        <div class="filtro-input-wrap">
+          <input
+            v-model="filtroTexto"
+            placeholder="Nombre, correo, cédula o ID..."
+            class="filtro-input filtro-input--icon"
+          />
+          <span class="filtro-icon filtro-icon--right">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </span>
         </div>
+      </div>
 
-        <!-- Filtro rol -->
-        <div class="sc-select-wrap">
-          <select class="sc-filter-select" v-model="filtroRol">
-            <option value="Todos">Rol: Todos</option>
+      <!-- Rol -->
+      <div class="filtro-group">
+        <label class="filtro-label">Rol</label>
+        <div class="filtro-input-wrap">
+          <select v-model="filtroRol" class="filtro-input filtro-select">
+            <option value="Todos">Todos</option>
             <option value="Admin">Admin</option>
             <option value="Voluntario">Voluntario</option>
             <option value="Usuario">Usuario</option>
           </select>
-          <svg class="sc-select-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
         </div>
+      </div>
 
-        <!-- Filtro estado -->
-        <div class="sc-select-wrap">
-          <select class="sc-filter-select" v-model="filtroEstado">
+      <!-- Estado -->
+      <div class="filtro-group">
+        <label class="filtro-label">Estado</label>
+        <div class="filtro-input-wrap">
+          <select v-model="filtroEstado" class="filtro-input filtro-select">
             <option value="Todos">Todos los estados</option>
             <option value="Activo">Activos</option>
             <option value="Inactivo">Inactivos</option>
@@ -238,198 +283,204 @@ const usuariosFiltrados = computed(() => {
             <option value="Aprobada">Solicitud aprobada</option>
             <option value="Rechazada">Solicitud rechazada</option>
           </select>
-          <svg class="sc-select-icon" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </span>
         </div>
+      </div>
 
-        <!-- Limpiar -->
-        <button v-if="hayFiltros" class="sc-clear" @click="limpiarFiltros">Limpiar</button>
+      <!-- Limpiar -->
+      <div class="filtro-group filtro-group--btn">
+        <button
+          type="button"
+          class="btn-limpiar"
+          :class="{ 'btn-limpiar--activo': hayFiltros }"
+          @click="limpiarFiltros"
+        >
+          Limpiar filtros
+        </button>
+      </div>
+
+    </div>
+
+    <!-- ESTADO VACÍO -->
+    <div v-if="usuariosFiltrados.length === 0" class="empty-state">
+      <p class="empty-title">No hay usuarios registrados</p>
+      <p class="empty-sub">Ajusta los filtros o espera nuevos registros.</p>
+    </div>
+
+    <!-- TABLA PRINCIPAL -->
+    <div v-else class="table-wrapper">
+      <div class="table-scroll">
+        <table class="don-table">
+          <thead>
+            <tr>
+              <th>ID</th>
+              <th>Usuario</th>
+              <th>Correo</th>
+              <th>Rol</th>
+              <th>Solicitud</th>
+              <th>Estado</th>
+              <th>Acción</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="u in usuariosFiltrados" :key="u.id" class="don-row">
+
+              <!-- ID -->
+              <td><span class="id-pill">{{ u.codigoVoluntario || u.id }}</span></td>
+
+              <!-- Usuario -->
+              <td>
+                <div class="usr-cell">
+                  <div class="usr-avatar">
+                    <span class="usr-avatar-ini">{{ iniciales(u.nombre) }}</span>
+                  </div>
+                  <span class="donor-name">{{ u.nombre }}</span>
+                </div>
+              </td>
+
+              <!-- Correo -->
+              <td><span class="donor-mail-td">{{ u.correo }}</span></td>
+
+              <!-- Rol -->
+              <td><span class="estado-badge" :class="rolBadgeClass(u.rol)">{{ u.rol }}</span></td>
+
+              <!-- Solicitud voluntario -->
+              <td>
+                <span v-if="u.solicitudVoluntario?.estado" class="estado-badge" :class="solicitudBadgeClass(u.solicitudVoluntario.estado)">
+                  {{ u.solicitudVoluntario.estado }}
+                </span>
+                <span v-else class="fecha-text">—</span>
+              </td>
+
+              <!-- Estado cuenta -->
+              <td><span class="estado-badge" :class="estadoBadgeClass(u)">{{ estadoLabel(u) }}</span></td>
+
+              <!-- Acciones -->
+              <td>
+                <div class="acciones-cell">
+                  <button class="btn-ver" @click="verDetalle(u)" title="Ver detalle">Ver detalle</button>
+                  <button
+                    class="btn-toggle"
+                    :class="u.activo ? 'btn-toggle--desactivar' : 'btn-toggle--activar'"
+                    :disabled="u.id === ADMIN_ID"
+                    :title="u.activo ? 'Desactivar' : 'Activar'"
+                    @click="pedirConfirmacionEstado(u)"
+                  >
+                    {{ u.activo ? 'Desactivar' : 'Activar' }}
+                  </button>
+                </div>
+              </td>
+
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="table-footer">
+        {{ usuariosFiltrados.length }} usuario{{ usuariosFiltrados.length !== 1 ? 's' : '' }} encontrado{{ usuariosFiltrados.length !== 1 ? 's' : '' }}
       </div>
     </div>
 
-    <!-- ── Tabla ── -->
-    <div class="sc-table-wrap">
-      <table class="sc-table">
-        <thead>
-          <tr>
-            <th style="width:60px">ID</th>
-            <th style="width:220px">Usuario</th>
-            <th style="width:220px">Correo</th>
-            <th style="width:120px">Rol</th>
-            <th style="width:130px">Solicitud</th>
-            <th style="width:110px">Estado</th>
-            <th style="width:110px">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-
-          <tr v-for="u in usuariosFiltrados" :key="u.id">
-
-            <!-- ID -->
-            <td>
-              <span class="sc-pet-id" style="font-size:11px">{{ u.codigoVoluntario || u.id }}</span>
-            </td>
-
-            <!-- Usuario -->
-            <td>
-              <div class="sc-pet-cell">
-                <div class="sc-avatar">
-                  <span class="sc-avatar-ini">{{ iniciales(u.nombre) }}</span>
-                </div>
-                <div class="sc-pet-info">
-                  <span class="sc-pet-name">{{ u.nombre }}</span>
-                </div>
-              </div>
-            </td>
-
-            <!-- Correo -->
-            <td>
-              <span class="sc-td-main">{{ u.correo }}</span>
-            </td>
-
-            <!-- Rol -->
-            <td>
-              <span class="sc-badge" :class="rolBadgeClass(u.rol)">{{ u.rol }}</span>
-            </td>
-
-            <!-- Solicitud voluntario -->
-            <td>
-              <span v-if="u.solicitudVoluntario?.estado" class="sc-badge" :class="solicitudBadgeClass(u.solicitudVoluntario.estado)">
-                {{ u.solicitudVoluntario.estado }}
-              </span>
-              <span v-else class="sc-td-sec">—</span>
-            </td>
-
-            <!-- Estado cuenta -->
-            <td>
-              <span class="sc-badge" :class="estadoBadgeClass(u)">
-                {{ estadoLabel(u) }}
-              </span>
-            </td>
-
-            <!-- Acciones -->
-            <td>
-              <div class="sc-actions">
-                <button class="sc-btn-ver sc-btn-ver--neutral" @click="verDetalle(u)" title="Ver detalle">
-                  <img src="/img-acciones/eye.png" class="action-icon" alt="Ver">
-                </button>
-                <button
-                  class="sc-btn-ver"
-                  :class="u.activo ? 'sc-btn-ver--orange' : 'sc-btn-ver--green'"
-                  :disabled="u.id === ADMIN_ID"
-                  :title="u.activo ? 'Desactivar' : 'Activar'"
-                  @click="pedirConfirmacionEstado(u)"
-                >
-                  <img :src="u.activo ? '/img-acciones/unlock.png' : '/img-acciones/padlock.png'" class="action-icon" :alt="u.activo ? 'Desactivar' : 'Activar'">
-                </button>
-              </div>
-            </td>
-
-          </tr>
-
-          <tr v-if="usuariosFiltrados.length === 0">
-            <td colspan="7" class="sc-empty">
-              <div class="sc-empty-inner">
-                <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
-                <p>{{ hayFiltros ? 'Sin resultados para los filtros aplicados' : 'No hay registros para mostrar' }}</p>
-              </div>
-            </td>
-          </tr>
-
-        </tbody>
-      </table>
-    </div>
-
-    <!-- ══ MODAL VER DETALLE ══ -->
+    <!-- ═══════════ MODAL DE DETALLE ═══════════ -->
     <Teleport to="body">
-      <Transition name="overlay-anim">
-        <div v-if="showModal" class="sc-overlay" @click.self="cerrarModal">
-          <div class="sc-modal sc-modal--lg">
+      <Transition name="modal-fade">
+        <div v-if="showModal && selectedUser" class="modal-overlay" @click.self="cerrarModal">
+          <div class="modal-box">
 
-            <div class="exp-header">
-              <div class="exp-avatar">{{ iniciales(selectedUser?.nombre) }}</div>
-              <div class="exp-header-info">
-                <div class="exp-name">{{ selectedUser?.nombre }}</div>
-                <div class="exp-meta">
-                  <span class="sc-badge" :class="rolBadgeClass(selectedUser?.rol)">{{ selectedUser?.rol }}</span>
-                  <span class="sc-badge" :class="estadoBadgeClass(selectedUser)">{{ estadoLabel(selectedUser) }}</span>
-                </div>
-              </div>
-              <button class="sc-modal-close" @click="cerrarModal">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-              </button>
+            <button class="modal-close" @click="cerrarModal">✕</button>
+
+            <div class="modal-header">
+              <span class="modal-id">{{ selectedUser.codigoVoluntario || selectedUser.id }}</span>
+              <span class="estado-badge" :class="estadoBadgeClass(selectedUser)">{{ estadoLabel(selectedUser) }}</span>
+              <span class="estado-badge" :class="rolBadgeClass(selectedUser.rol)">{{ selectedUser.rol }}</span>
             </div>
 
-            <div class="sc-modal-body exp-body" v-if="selectedUser">
-
-              <!-- Información personal -->
-              <div class="exp-section">
-                <div class="exp-section-title"><span class="exp-section-dot"></span>Información personal</div>
-                <div class="exp-grid">
-                  <div class="exp-field"><span class="exp-label">ID / Código</span><span class="exp-value fw">{{ selectedUser.codigoVoluntario || selectedUser.id }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Cédula</span><span class="exp-value">{{ selectedUser.cedula || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Correo electrónico</span><span class="exp-value">{{ selectedUser.correo }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Teléfono</span><span class="exp-value">{{ selectedUser.telefono || '—' }}</span></div>
-                </div>
+            <!-- Avatar + nombre -->
+            <div class="modal-usuario-hero">
+              <div class="modal-avatar">
+                <span class="modal-avatar-ini">{{ iniciales(selectedUser.nombre) }}</span>
               </div>
-
-              <!-- Ubicación -->
-              <div class="exp-section">
-                <div class="exp-section-title"><span class="exp-section-dot"></span>Ubicación</div>
-                <div class="exp-grid">
-                  <div class="exp-field"><span class="exp-label">País</span><span class="exp-value">{{ selectedUser.pais || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Dirección</span><span class="exp-value">{{ selectedUser.direccion || '—' }}</span></div>
-                </div>
-              </div>
-
-              <!-- Rol y estado -->
-              <div class="exp-section">
-                <div class="exp-section-title"><span class="exp-section-dot"></span>Rol y estado</div>
-                <div class="exp-grid">
-                  <div class="exp-field"><span class="exp-label">Rol</span><span class="sc-badge" :class="rolBadgeClass(selectedUser.rol)" style="margin-top:4px">{{ selectedUser.rol }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Tipo de voluntario</span><span class="exp-value">{{ selectedUser.tipoVoluntario || '—' }}</span></div>
-                  <div class="exp-field"><span class="exp-label">Estado de cuenta</span><span class="sc-badge" :class="estadoBadgeClass(selectedUser)" style="margin-top:4px">{{ estadoLabel(selectedUser) }}</span></div>
-                  <div class="exp-field">
-                    <span class="exp-label">Estado de solicitud</span>
-                    <span v-if="selectedUser.solicitudVoluntario?.estado" class="sc-badge" :class="solicitudBadgeClass(selectedUser.solicitudVoluntario.estado)" style="margin-top:4px">{{ selectedUser.solicitudVoluntario.estado }}</span>
-                    <span v-else class="exp-value">—</span>
-                  </div>
-                </div>
-              </div>
-
-            </div>
-
-            <div class="sc-modal-footer" v-if="selectedUser?.id !== ADMIN_ID" style="justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px">
-              <button class="sc-btn-cancel" @click="cerrarModal">Cerrar</button>
-              <div style="display:flex;gap:8px">
-                <button
-                  class="sc-btn-ver sc-btn-ver--green"
-                  :disabled="selectedUser?.activo"
-                  style="padding:8px 16px;height:auto;font-size:13px"
-                  @click="() => { selectedUser.activo = true; guardarUsuarios(); cerrarModal() }"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  Activar
-                </button>
-                <button
-                  class="sc-btn-save"
-                  style="background: #c0392b"
-                  :disabled="!selectedUser?.activo"
-                  @click="() => { selectedUser.activo = false; guardarUsuarios(); cerrarModal() }"
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                  Desactivar
-                </button>
+              <div>
+                <p class="modal-usuario-nombre">{{ selectedUser.nombre }}</p>
+                <p class="modal-usuario-correo">{{ selectedUser.correo }}</p>
               </div>
             </div>
 
-            <div v-else class="sc-modal-footer">
-              <button class="sc-btn-cancel" @click="cerrarModal">Cerrar</button>
+            <div class="modal-section">
+              <h4 class="modal-section-title">Información personal</h4>
+              <div class="modal-grid">
+                <div class="modal-field">
+                  <span class="modal-field-label">Cédula</span>
+                  <strong class="modal-field-value">{{ selectedUser.cedula || '—' }}</strong>
+                </div>
+                <div class="modal-field">
+                  <span class="modal-field-label">Teléfono</span>
+                  <strong class="modal-field-value">{{ selectedUser.telefono || '—' }}</strong>
+                </div>
+                <div class="modal-field">
+                  <span class="modal-field-label">País</span>
+                  <strong class="modal-field-value">{{ selectedUser.pais || '—' }}</strong>
+                </div>
+                <div class="modal-field">
+                  <span class="modal-field-label">Dirección</span>
+                  <strong class="modal-field-value">{{ selectedUser.direccion || '—' }}</strong>
+                </div>
+              </div>
+            </div>
+
+            <div class="modal-section">
+              <h4 class="modal-section-title">Rol y estado</h4>
+              <div class="modal-grid">
+                <div class="modal-field">
+                  <span class="modal-field-label">Rol</span>
+                  <span class="estado-badge" :class="rolBadgeClass(selectedUser.rol)" style="margin-top:4px;display:inline-block">{{ selectedUser.rol }}</span>
+                </div>
+                <div class="modal-field">
+                  <span class="modal-field-label">Tipo de voluntario</span>
+                  <strong class="modal-field-value">{{ selectedUser.tipoVoluntario || '—' }}</strong>
+                </div>
+                <div class="modal-field">
+                  <span class="modal-field-label">Estado de cuenta</span>
+                  <span class="estado-badge" :class="estadoBadgeClass(selectedUser)" style="margin-top:4px;display:inline-block">{{ estadoLabel(selectedUser) }}</span>
+                </div>
+                <div class="modal-field">
+                  <span class="modal-field-label">Solicitud voluntariado</span>
+                  <span
+                    v-if="selectedUser.solicitudVoluntario?.estado"
+                    class="estado-badge"
+                    :class="solicitudBadgeClass(selectedUser.solicitudVoluntario.estado)"
+                    style="margin-top:4px;display:inline-block"
+                  >{{ selectedUser.solicitudVoluntario.estado }}</span>
+                  <strong v-else class="modal-field-value">—</strong>
+                </div>
+              </div>
             </div>
 
             <!-- Nota informativa -->
-            <div class="sc-info-note">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+            <div class="modal-info-note">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               El rol se actualiza automáticamente desde <strong>Solicitudes de Voluntariado</strong> al aprobar o rechazar una postulación.
+            </div>
+
+            <div v-if="selectedUser.id !== ADMIN_ID" class="modal-acciones">
+              <button
+                class="btn-aprobar"
+                :disabled="selectedUser.activo"
+                @click="() => { selectedUser.activo = true; guardarUsuarios(); cerrarModal() }"
+              >
+                Activar usuario
+              </button>
+              <button
+                class="btn-rechazar"
+                :disabled="!selectedUser.activo"
+                @click="() => { selectedUser.activo = false; guardarUsuarios(); cerrarModal() }"
+              >
+                Desactivar usuario
+              </button>
+            </div>
+            <div v-else class="modal-estado-final">
+              <p class="estado-aprobada-msg">Esta es la cuenta de administrador principal.</p>
             </div>
 
           </div>
@@ -437,400 +488,586 @@ const usuariosFiltrados = computed(() => {
       </Transition>
     </Teleport>
 
-<!-- ══ MODAL CONFIRMACIÓN ══ -->
-<Teleport to="body">
-  <Transition name="overlay-anim">
-    <div
-      v-if="modalConfirm"
-      class="sc-overlay"
-      @click.self="cancelarConfirmacion"
-    >
-      <div class="sc-confirm-modal">
+    <!-- ═══════════ MODAL DE CONFIRMACIÓN ═══════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="modalConfirm" class="modal-overlay" @click.self="cancelarConfirmacion">
+          <div class="modal-box modal-box--sm">
 
-        <div class="sc-confirm-icon">
-          <img
-            :src="usuarioSeleccionado?.activo
-              ? '/img-acciones/warning.png'
-              : '/img-acciones/warning.png'"
-            alt=""
-          >
+            <button class="modal-close" @click="cancelarConfirmacion">✕</button>
+
+            <div class="confirm-icon-wrap">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+
+            <h3 class="confirm-title">
+              {{ usuarioSeleccionado?.activo ? 'Desactivar usuario' : 'Activar usuario' }}
+            </h3>
+            <p class="confirm-text">{{ usuarioSeleccionado?.nombre }}</p>
+
+            <div class="modal-acciones">
+              <button class="btn-rechazar" style="flex:none;padding:13px 24px" @click="cancelarConfirmacion">Cancelar</button>
+              <button class="btn-aprobar" style="flex:1" @click="confirmarCambioEstado">Confirmar</button>
+            </div>
+
+          </div>
         </div>
+      </Transition>
+    </Teleport>
 
-        <h3 class="sc-confirm-title">
-          {{ usuarioSeleccionado?.activo
-            ? 'Desactivar usuario'
-            : 'Activar usuario' }}
-        </h3>
-
-        <p class="sc-confirm-text">
-          {{ usuarioSeleccionado?.nombre }}
-        </p>
-
-        <div class="sc-confirm-actions">
-          <button
-            class="sc-btn-cancel"
-            @click="cancelarConfirmacion"
-          >
-            Cancelar
-          </button>
-
-          <button
-            class="sc-btn-save"
-            @click="confirmarCambioEstado"
-          >
-            Confirmar
-          </button>
-        </div>
-
-      </div>
-    </div>
-  </Transition>
-</Teleport>
-
-</div>
-
+  </div>
 </template>
 
 <style scoped>
-/* ═══════════════════════════════════════
-   ROOT
-═══════════════════════════════════════ */
-.sc-root { background: transparent; padding-bottom: 40px; }
+/* ── Variables (idénticas a Donaciones) ─────────────────── */
+.view-container {
+  --verde:     #3A473C;
+  --verde-sec: #92A894;
+  --fondo:     #F7F8F7;
+  --blanco:    #FFFFFF;
+  --texto:     #2F352F;
+  --texto-sec: #6C756D;
+  --borde:     #E8ECE8;
+  --amarillo:  #F5B942;
+  --verde-ok:  #4CAF6A;
+  background: transparent;
+}
 
-/* ═══════════════════════════════════════
-   TOAST
-═══════════════════════════════════════ */
-.sc-toast {
+/* ── Encabezado ─────────────────────────────────────────── */
+.page-header       { margin-bottom: 28px; }
+.admin-page-title  { font-size: 28px; font-weight: 800; color: var(--verde); letter-spacing: -0.5px; line-height: 1.1; }
+.admin-page-sub    { font-size: 14px; color: var(--texto-sec); margin-top: 4px; font-weight: 500; }
+
+/* ── Tarjetas resumen ───────────────────────────────────── */
+.don-summary {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.don-card {
+  flex: 1;
+  min-width: 150px;
+  background: var(--blanco);
+  border-radius: 14px;
+  padding: 20px;
+  border: 1px solid var(--borde);
+  border-top: 3px solid var(--borde);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.total-usuarios  { border-top-color: var(--verde); }
+.total-activos   { border-top-color: var(--verde-ok); }
+.total-inactivos { border-top-color: #E57373; }
+.total-voluntarios { border-top-color: var(--verde-sec); }
+.total-pendientes  { border-top-color: var(--amarillo); }
+
+.don-label { font-size: 11px; color: var(--texto-sec); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+.don-value { font-size: 24px; font-weight: 800; color: var(--verde); line-height: 1; }
+
+/* ── Panel de filtros ───────────────────────────────────── */
+.filtros-panel {
+  background: var(--blanco);
+  border-radius: 14px;
+  padding: 20px;
+  margin-bottom: 20px;
+  border: 1px solid var(--borde);
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  align-items: flex-end;
+}
+
+.filtro-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex: 1;
+  min-width: 130px;
+}
+
+.filtro-group--btn {
+  flex: 0 0 auto;
+  min-width: unset;
+}
+
+.filtro-label {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--verde);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  min-height: 16px;
+  display: flex;
+  align-items: flex-end;
+}
+
+.filtro-input-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.filtro-input {
+  width: 100%;
+  height: 38px;
+  padding: 0 36px 0 12px;
+  border-radius: 8px;
+  border: 1.5px solid var(--borde);
+  background: var(--fondo);
+  font-size: 13px;
+  color: var(--texto);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.18s, background 0.18s;
+  box-sizing: border-box;
+}
+
+.filtro-input:focus {
+  border-color: var(--verde-sec);
+  background: var(--blanco);
+}
+
+.filtro-input::placeholder { color: #9CA8A0; }
+
+.filtro-select {
+  appearance: none;
+  -webkit-appearance: none;
+  cursor: pointer;
+}
+
+.filtro-icon {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  color: var(--texto-sec);
+}
+
+.filtro-icon--right       { right: 11px; }
+.filtro-icon--no-events   { pointer-events: none; }
+
+.btn-limpiar {
+  height: 38px;
+  padding: 0 16px;
+  border-radius: 8px;
+  border: 1.5px solid var(--borde);
+  background: transparent;
+  color: var(--texto-sec);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s;
+  font-family: inherit;
+}
+
+.btn-limpiar--activo  { border-color: var(--verde); color: var(--verde); }
+.btn-limpiar:hover    { background: var(--verde); color: var(--blanco); border-color: var(--verde); }
+
+/* ── Estado vacío ───────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 72px 24px;
+  background: var(--blanco);
+  border-radius: 14px;
+  border: 1px solid var(--borde);
+}
+
+.empty-title { font-size: 16px; font-weight: 700; color: var(--texto); margin-bottom: 6px; }
+.empty-sub   { font-size: 13px; color: var(--texto-sec); }
+
+/* ── Tabla ──────────────────────────────────────────────── */
+.table-wrapper {
+  background: var(--blanco);
+  border-radius: 14px;
+  border: 1px solid var(--borde);
+  overflow: hidden;
+}
+
+.table-scroll          { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+.don-table             { width: 100%; border-collapse: collapse; min-width: 720px; }
+.don-table thead tr    { background: var(--verde); }
+.don-table thead th    { padding: 13px 16px; text-align: left; color: var(--blanco); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; white-space: nowrap; }
+.don-table tbody tr    { border-bottom: 1px solid var(--borde); transition: background 0.15s; }
+.don-table tbody tr:last-child { border-bottom: none; }
+.don-table tbody tr:hover      { background: #F4F6F4; }
+.don-table tbody td    { padding: 13px 16px; vertical-align: middle; }
+
+.id-pill     { font-size: 11px; font-family: monospace; background: var(--fondo); border: 1px solid var(--borde); padding: 3px 9px; border-radius: 6px; color: var(--verde); font-weight: 700; white-space: nowrap; }
+.fecha-text  { font-size: 13px; color: var(--texto-sec); white-space: nowrap; }
+.donor-name  { font-size: 13px; font-weight: 700; color: var(--texto); }
+.donor-mail-td { font-size: 13px; color: var(--texto-sec); }
+
+/* Avatar en tabla */
+.usr-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.usr-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #DDE6DE;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.usr-avatar-ini {
+  font-size: 13px;
+  font-weight: 800;
+  color: #5A6E5C;
+  text-transform: uppercase;
+  line-height: 1;
+}
+
+/* Acciones en tabla */
+.acciones-cell {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+}
+
+.table-footer { padding: 12px 16px; border-top: 1px solid var(--borde); font-size: 12px; color: var(--texto-sec); font-weight: 500; }
+
+.btn-ver {
+  padding: 6px 14px;
+  border-radius: 7px;
+  border: 1.5px solid var(--borde);
+  background: var(--blanco);
+  color: var(--verde);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.btn-ver:hover { background: var(--verde); color: var(--blanco); border-color: var(--verde); }
+
+.btn-toggle {
+  padding: 6px 14px;
+  border-radius: 7px;
+  border: 1.5px solid var(--borde);
+  background: transparent;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.btn-toggle:disabled { opacity: 0.35; cursor: not-allowed; }
+
+.btn-toggle--activar {
+  border-color: #C8E6C9;
+  color: #2E7D32;
+  background: #E8F5E9;
+}
+.btn-toggle--activar:hover:not(:disabled) { background: #2E7D32; color: var(--blanco); border-color: #2E7D32; }
+
+.btn-toggle--desactivar {
+  border-color: #FFCDD2;
+  color: #B71C1C;
+  background: #FDECEA;
+}
+.btn-toggle--desactivar:hover:not(:disabled) { background: #B71C1C; color: var(--blanco); border-color: #B71C1C; }
+
+/* ── Badges ─────────────────────────────────────────────── */
+.estado-badge    { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; white-space: nowrap; }
+.badge-pendiente { background: #FFF7E0; color: #96650A; }
+.badge-aprobada  { background: #E8F5E9; color: #2E7D32; }
+.badge-rechazada { background: #FDECEA; color: #B71C1C; }
+.badge-inactivo  { background: #FFF3E0; color: #E65100; }
+.badge-admin     { background: rgba(249,193,122,.18); color: #D18C3A; }
+.badge-blue      { background: rgba(33,150,243,.13); color: #1565C0; }
+.badge-neutral   { background: #F4F6F4; color: #6C756D; }
+
+/* ── Toast ──────────────────────────────────────────────── */
+.usr-toast {
   position: fixed; bottom: 32px; right: 32px; z-index: 9999;
   display: flex; align-items: center; gap: 10px;
   padding: 14px 20px; border-radius: 14px;
   font-size: 14px; font-weight: 600;
   box-shadow: 0 8px 32px rgba(0,0,0,0.16); pointer-events: none;
 }
-.sc-toast.success { background: #3A473C; color: #fff; }
-.sc-toast.error   { background: #c0392b; color: #fff; }
+.usr-toast--exito { background: var(--verde); color: var(--blanco); }
+.usr-toast--error { background: #B71C1C; color: var(--blanco); }
 .toast-anim-enter-active, .toast-anim-leave-active { transition: all 0.25s ease; }
 .toast-anim-enter-from, .toast-anim-leave-to { opacity: 0; transform: translateY(10px); }
 
-/* ═══════════════════════════════════════
-   HEADER
-═══════════════════════════════════════ */
-.sc-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  margin-bottom: 28px; gap: 16px; flex-wrap: wrap;
-}
-.sc-title { font-size: 28px; font-weight: 800; color: #3A473C; letter-spacing: -0.5px; line-height: 1.1; }
-.sc-sub   { font-size: 14px; color: #6C756D; margin-top: 5px; font-weight: 500; }
-
-/* ═══════════════════════════════════════
-   TOOLBAR
-═══════════════════════════════════════ */
-.sc-toolbar {
-  display: flex; align-items: center; gap: 16px;
-  margin-bottom: 20px; flex-wrap: nowrap;
-}
-
-.sc-filters {
-  display: flex; align-items: center; gap: 10px;
-  flex: 1; flex-wrap: nowrap; min-width: 0;
-}
-
-.sc-search-wrap {
-  position: relative; flex: 1; min-width: 160px; max-width: 260px;
-}
-.sc-search-icon {
-  position: absolute; left: 12px; top: 50%; transform: translateY(-50%);
-  color: #92A894; pointer-events: none;
-}
-.sc-search {
-  width: 100%; box-sizing: border-box;
-  padding: 9px 12px 9px 34px;
-  border: 1.5px solid #E8ECE8; border-radius: 10px;
-  font-size: 13px; color: #3A473C; background: #fff;
-  outline: none; font-family: inherit; transition: border-color 0.18s;
-  height: 36px;
-}
-.sc-search:focus { border-color: #92A894; }
-
-.sc-select-wrap { position: relative; flex-shrink: 0; }
-.sc-filter-select {
-  appearance: none;
-  padding: 0 32px 0 12px; height: 36px;
-  border: 1.5px solid #E8ECE8; border-radius: 10px;
-  font-size: 13px; color: #3A473C; background: #fff;
-  outline: none; font-family: inherit; cursor: pointer;
-  transition: border-color 0.18s; white-space: nowrap;
-  box-sizing: border-box;
-}
-.sc-filter-select:focus { border-color: #92A894; }
-.sc-select-icon {
-  position: absolute; right: 10px; top: 50%; transform: translateY(-50%);
-  color: #92A894; pointer-events: none;
-}
-
-.sc-clear {
-  padding: 0 14px; height: 36px;
-  border: 1.5px solid #fdd; border-radius: 10px;
-  background: #fff5f5; color: #c0392b;
-  font-size: 12px; font-weight: 700; font-family: inherit;
-  cursor: pointer; transition: background 0.15s; white-space: nowrap; flex-shrink: 0;
-}
-.sc-clear:hover { background: #ffe5e5; }
-
-/* ═══════════════════════════════════════
-   TABLA
-═══════════════════════════════════════ */
-.sc-table-wrap {
-  background: #fff; border-radius: 20px;
-  box-shadow: 0 2px 16px rgba(58,71,60,0.06); overflow: hidden;
-}
-.sc-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-.sc-table thead { background: #F9FAF9; }
-.sc-table th {
-  padding: 14px 20px;
-  font-size: 11px; font-weight: 800; color: #92A894;
-  text-transform: uppercase; letter-spacing: 0.6px;
-  white-space: nowrap; border-bottom: 1.5px solid #F0F2F0;
-  text-align: left;
-}
-.sc-table td {
-  padding: 14px 20px; font-size: 14px; color: #3A473C;
-  border-bottom: 1px solid #F5F7F5; vertical-align: middle;
-}
-.sc-table tbody tr:last-child td { border-bottom: none; }
-.sc-table tbody tr { transition: background 0.12s; }
-.sc-table tbody tr:hover { background: #FAFBFA; }
-
-/* Avatar */
-.sc-avatar {
-  width: 38px; height: 38px; border-radius: 50%;
-  overflow: hidden; flex-shrink: 0;
-  background: #DDE6DE;
+/* ── Modal ──────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
   display: flex; align-items: center; justify-content: center;
-}
-.sc-avatar-ini { font-size: 14px; font-weight: 800; color: #5A6E5C; text-transform: uppercase; line-height: 1; }
-
-.sc-pet-cell { display: flex; align-items: center; gap: 10px; }
-.sc-pet-info  { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
-.sc-pet-name  { font-weight: 700; font-size: 14px; color: #3A473C; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.sc-pet-id    { font-size: 11px; color: #92A894; font-family: monospace; }
-
-.sc-td-main { font-weight: 500; color: #3A473C; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; display: block; }
-.sc-td-sec  { color: #7A8A7C; font-size: 12px; }
-
-/* ── Badges ── */
-.sc-badge {
-  display: inline-flex; align-items: center; gap: 5px;
-  padding: 4px 10px; border-radius: 7px;
-  font-size: 12px; font-weight: 600; white-space: nowrap;
-  background: #F0F4F0; color: #4A6550;
-}
-.badge--green   { background: rgba(76,175,80,.14);   color: #2E7D32; }
-.badge--red     { background: rgba(235,119,119,.16);  color: #C45252; }
-.badge--orange  { background: rgba(255,152,0,.14);    color: #E65100; }
-.badge--yellow  { background: rgba(255,193,7,.16);    color: #9A6A00; }
-.badge--blue    { background: rgba(33,150,243,.13);   color: #1565C0; }
-.badge--peach   { background: rgba(249,193,122,.18);  color: #D18C3A; }
-.badge--purple  { background: rgba(156,39,176,.13);   color: #7B1FA2; }
-.badge--neutral { background: #F4F6F4;                color: #6C756D; }
-
-/* ── Botones de acción ── */
-.sc-actions {
-  display: flex; align-items: center; gap: 4px; justify-content: center;
-}
-.sc-btn-ver {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 5px 11px; height: 28px;
-  border: none; border-radius: 8px;
-  font-size: 12px; font-weight: 700; font-family: inherit;
-  cursor: pointer; transition: background 0.15s, opacity 0.15s;
-  white-space: nowrap; flex-shrink: 0;
-}
-.sc-btn-ver:disabled { opacity: 0.35; cursor: not-allowed; }
-
-.action-icon { width: 10px; height: 10px; object-fit: contain; display: block; }
-
-.sc-btn-ver--neutral { background: #F0F4F0;               color: #3A473C; }
-.sc-btn-ver--neutral:hover { background: #DDE6DE; }
-.sc-btn-ver--green   { background: rgba(76,175,80,.14);   color: #2E7D32; }
-.sc-btn-ver--green:hover   { background: rgba(76,175,80,.26); }
-.sc-btn-ver--red     { background: rgba(235,119,119,.14); color: #C45252; }
-.sc-btn-ver--red:hover     { background: rgba(235,119,119,.26); }
-.sc-btn-ver--blue    { background: rgba(33,150,243,.12);  color: #1565C0; }
-.sc-btn-ver--blue:hover    { background: rgba(33,150,243,.22); }
-.sc-btn-ver--orange  { background: rgba(255,152,0,.13);   color: #E65100; }
-.sc-btn-ver--orange:hover  { background: rgba(255,152,0,.24); }
-
-/* Empty state */
-.sc-empty { padding: 0; }
-.sc-empty-inner {
-  display: flex; flex-direction: column; align-items: center;
-  justify-content: center; gap: 12px; padding: 56px 24px; color: #92A894;
-}
-.sc-empty-inner svg { opacity: 0.4; }
-.sc-empty-inner p { font-size: 14px; font-weight: 500; color: #7A8A7C; margin: 0; }
-
-/* ═══════════════════════════════════════
-   OVERLAY / MODAL
-═══════════════════════════════════════ */
-.sc-overlay {
-  position: fixed; inset: 0; background: rgba(20,30,22,0.5);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 200; padding: 20px; backdrop-filter: blur(2px); overflow-y: auto;
-}
-.overlay-anim-enter-active, .overlay-anim-leave-active { transition: all 0.22s ease; }
-.overlay-anim-enter-from, .overlay-anim-leave-to { opacity: 0; }
-.overlay-anim-enter-from .sc-modal, .overlay-anim-leave-to .sc-modal { transform: translateY(16px) scale(0.98); }
-.sc-modal {
-  background: #fff; border-radius: 22px; width: 100%;
-  max-height: 88vh; overflow-y: auto;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.2);
-  transition: transform 0.22s ease; margin: auto;
-}
-.sc-modal--lg { max-width: 720px; }
-
-.sc-confirm-modal {
-  width: 340px;
-  background: white;
-  border-radius: 20px;
   padding: 24px;
-  text-align: center;
-  box-shadow: 0 20px 50px rgba(0,0,0,.18);
 }
 
-.sc-confirm-icon {
-  width: 60px;
-  height: 60px;
-  margin: 0 auto 14px;
-  border-radius: 16px;
-  background: #F4F6F4;
+.modal-box {
+  background: #FFFFFF;
+  border-radius: 20px;
+  padding: 36px;
+  width: 100%; max-width: 620px;
+  max-height: 90vh; overflow-y: auto;
+  position: relative;
+}
+
+.modal-box--sm {
+  max-width: 400px;
+  text-align: center;
+}
+
+.modal-close {
+  position: absolute; top: 18px; right: 18px;
+  width: 32px; height: 32px; border-radius: 50%;
+  border: none; background: var(--fondo);
+  color: var(--texto); font-size: 13px; font-weight: 700;
+  cursor: pointer; display: flex; align-items: center; justify-content: center;
+  transition: all 0.2s; font-family: inherit;
+}
+.modal-close:hover { background: var(--verde); color: var(--blanco); }
+
+.modal-header { display: flex; align-items: center; gap: 10px; margin-bottom: 20px; }
+
+.modal-id {
+  font-size: 13px; font-family: monospace;
+  background: var(--fondo); border: 1px solid var(--borde);
+  padding: 5px 11px; border-radius: 7px;
+  color: var(--verde); font-weight: 700;
+}
+
+/* Avatar hero en modal */
+.modal-usuario-hero {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--fondo);
+  border-radius: 12px;
+  margin-bottom: 24px;
+  border: 1px solid var(--borde);
+}
+
+.modal-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: #DDE6DE;
   display: flex;
   align-items: center;
   justify-content: center;
+  flex-shrink: 0;
 }
 
-.sc-confirm-icon img {
-  width: 28px;
-  height: 28px;
-}
-
-.sc-confirm-title {
-  font-size: 18px;
+.modal-avatar-ini {
+  font-size: 20px;
   font-weight: 800;
-  color: #3A473C;
-  margin-bottom: 6px;
+  color: #5A6E5C;
+  text-transform: uppercase;
+  line-height: 1;
 }
 
-.sc-confirm-text {
-  font-size: 14px;
-  color: #6C756D;
+.modal-usuario-nombre {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--texto);
+  margin: 0 0 2px;
+}
+
+.modal-usuario-correo {
+  font-size: 13px;
+  color: var(--texto-sec);
+  margin: 0;
+}
+
+.modal-section       { margin-bottom: 24px; }
+.modal-section-title {
+  font-size: 11px; font-weight: 700; color: var(--texto-sec);
+  text-transform: uppercase; letter-spacing: 0.5px;
+  margin-bottom: 14px; padding-bottom: 10px;
+  border-bottom: 1px solid var(--borde);
+}
+
+.modal-grid   { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
+.modal-field  { display: flex; flex-direction: column; gap: 4px; }
+.modal-field-label { font-size: 10px; font-weight: 700; color: #9CA8A0; text-transform: uppercase; letter-spacing: 0.4px; }
+.modal-field-value { font-size: 14px; color: var(--texto); font-weight: 600; word-break: break-word; }
+
+/* Nota informativa en modal */
+.modal-info-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(146,168,148,.10);
+  border-radius: 10px;
+  font-size: 12px;
+  color: #5A6E5C;
+  line-height: 1.6;
   margin-bottom: 20px;
 }
 
-.sc-confirm-actions {
-  display: flex;
-  gap: 10px;
+.modal-info-note svg { flex-shrink: 0; margin-top: 1px; color: #5A6E5C; }
+
+.modal-acciones {
+  display: flex; gap: 10px;
+  padding-top: 24px; border-top: 1px solid var(--borde); margin-top: 8px;
 }
 
-.sc-confirm-actions button {
-  flex: 1;
+.btn-aprobar {
+  flex: 1; padding: 13px; border-radius: 10px; border: none;
+  background: #E8F5E9; color: #2E7D32;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: all 0.2s; font-family: inherit;
 }
+.btn-aprobar:hover:not(:disabled) { background: #2E7D32; color: var(--blanco); }
+.btn-aprobar:disabled { opacity: 0.4; cursor: not-allowed; }
 
-/* Cabecera del modal (estilo expediente) */
-.exp-header {
-  display: flex; align-items: center; gap: 18px;
-  padding: 26px 28px 22px; border-bottom: 1.5px solid #F0F2F0;
-  background: linear-gradient(135deg, #F7F9F7, white);
+.btn-rechazar {
+  flex: 1; padding: 13px; border-radius: 10px; border: none;
+  background: #FDECEA; color: #B71C1C;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: all 0.2s; font-family: inherit;
 }
-.exp-avatar {
-  width: 64px; height: 64px; min-width: 64px; border-radius: 18px;
-  background: #DDE6DE; color: #5A6E5C;
-  font-size: 22px; font-weight: 800;
+.btn-rechazar:hover:not(:disabled) { background: #B71C1C; color: var(--blanco); }
+.btn-rechazar:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.modal-estado-final { padding-top: 20px; border-top: 1px solid var(--borde); text-align: center; }
+.estado-aprobada-msg  { color: #2E7D32; font-weight: 700; font-size: 14px; }
+.estado-rechazada-msg { color: #B71C1C; font-weight: 700; font-size: 14px; }
+
+/* Confirmación */
+.confirm-icon-wrap {
+  width: 60px; height: 60px;
+  border-radius: 16px;
+  background: #FFF7E0;
   display: flex; align-items: center; justify-content: center;
-  box-shadow: 0 8px 20px rgba(58,71,60,0.12);
+  margin: 0 auto 18px;
+  color: #96650A;
 }
-.exp-header-info { flex: 1; min-width: 0; }
-.exp-name { font-size: 20px; font-weight: 800; color: #3A473C; margin-bottom: 8px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.exp-meta { display: flex; gap: 8px; flex-wrap: wrap; }
 
-.sc-modal-close {
-  width: 34px; height: 34px; border-radius: 10px;
-  border: 1.5px solid #E8ECE8; background: #fff; color: #6C756D;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: background 0.15s, border-color 0.15s; flex-shrink: 0;
+.confirm-title {
+  font-size: 18px; font-weight: 800; color: var(--texto);
+  margin: 0 0 8px; text-align: center;
 }
-.sc-modal-close:hover { background: #F4F6F4; border-color: #ccc; }
 
-.sc-modal-body { padding: 24px 28px 8px; }
-.exp-body { display: flex; flex-direction: column; gap: 0; }
+.confirm-text {
+  font-size: 14px; color: var(--texto-sec);
+  margin: 0 0 24px; text-align: center;
+}
 
-.exp-section { border-bottom: 1.5px solid #F4F6F4; padding: 20px 0; }
-.exp-section:last-child { border-bottom: none; }
-.exp-section-title {
-  display: flex; align-items: center; gap: 9px;
-  font-size: 11px; font-weight: 800; letter-spacing: 0.10em;
-  text-transform: uppercase; color: #92A894; margin-bottom: 16px;
-}
-.exp-section-dot { width: 7px; height: 7px; border-radius: 50%; background: #92A894; flex-shrink: 0; }
-.exp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px 20px; }
-.exp-field { display: flex; flex-direction: column; gap: 4px; }
-.exp-label { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: #92A894; }
-.exp-value { font-size: 14px; color: #3A473C; }
-.exp-value.fw { font-weight: 700; }
+/* ── Animaciones ────────────────────────────────────────── */
+.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.22s ease; }
+.modal-fade-enter-from, .modal-fade-leave-to       { opacity: 0; }
 
-/* Footer modal */
-.sc-modal-footer {
-  display: flex; justify-content: flex-end; gap: 10px;
-  padding: 18px 28px 0; border-top: 1.5px solid #F0F2F0; margin-top: 12px;
-}
-.sc-btn-cancel {
-  padding: 10px 18px; background: #F4F6F4; border: none; border-radius: 10px;
-  font-size: 13px; font-weight: 700; color: #6C756D; cursor: pointer;
-  transition: background 0.15s; font-family: inherit;
-}
-.sc-btn-cancel:hover { background: #E5EAE6; }
-.sc-btn-save {
-  display: flex; align-items: center; gap: 7px; padding: 10px 20px;
-  background: #3A473C; border: none; border-radius: 10px;
-  font-size: 13px; font-weight: 700; color: #fff; cursor: pointer;
-  transition: background 0.18s; font-family: inherit;
-}
-.sc-btn-save:hover { background: #2d3730; }
-.sc-btn-save:disabled { opacity: 0.4; cursor: not-allowed; }
-
-/* Nota informativa */
-.sc-info-note {
-  display: flex; align-items: flex-start; gap: 10px;
-  margin: 12px 28px 24px; padding: 14px 18px;
-  background: rgba(146,168,148,.10);
-  border-radius: 14px; font-size: 13px; color: #5A6E5C; line-height: 1.6;
-}
-.sc-info-note svg { flex-shrink: 0; margin-top: 1px; color: #5A6E5C; }
-
-/* ═══════════════════════════════════════
-   RESPONSIVE
-═══════════════════════════════════════ */
-@media (max-width: 1100px) {
-  .sc-toolbar { flex-wrap: wrap; }
-  .sc-filters  { flex-wrap: wrap; }
-}
+/* ── Responsive ─────────────────────────────────────────── */
 @media (max-width: 900px) {
-  .sc-table th:nth-child(5),
-  .sc-table td:nth-child(5) { display: none; }
+  .don-summary { display: grid; grid-template-columns: repeat(2,1fr); }
+  .total-pendientes { grid-column: span 2; }
 }
+
 @media (max-width: 640px) {
-  .sc-header  { flex-direction: column; align-items: flex-start; }
-  .sc-toolbar { flex-direction: column; align-items: flex-start; }
-  .sc-filters { width: 100%; flex-wrap: wrap; }
-  .sc-search-wrap { max-width: 100%; }
-  .sc-table th:nth-child(1),
-  .sc-table td:nth-child(1) { display: none; }
-  .sc-table th:nth-child(4),
-  .sc-table td:nth-child(4) { display: none; }
-  .exp-grid { grid-template-columns: 1fr; }
-  .sc-modal-body   { padding: 16px 18px 8px; }
-  .sc-modal-footer,
-  .exp-header      { padding-left: 18px; padding-right: 18px; }
-  .sc-info-note    { margin-left: 18px; margin-right: 18px; }
+  .filtros-panel     { flex-direction: column; }
+  .filtro-group      { min-width: 100%; }
+  .filtro-group--btn { width: 100%; }
+  .btn-limpiar       { width: 100%; }
+  .modal-grid        { grid-template-columns: 1fr; }
+  .modal-box         { padding: 24px 20px; }
+  .modal-acciones    { flex-direction: column; }
+  .don-summary       { grid-template-columns: 1fr; }
+  .total-pendientes  { grid-column: span 1; }
+  .acciones-cell     { flex-direction: column; align-items: flex-start; }
 }
+
+/* ── MOBILE RESPONSIVE ── */
+@media (max-width: 768px) {
+  .don-summary {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .total-pendientes { grid-column: span 2; }
+
+  .filtros-panel {
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+  }
+
+  .filtro-group,
+  .filtro-group--btn {
+    min-width: unset;
+    width: 100%;
+  }
+
+  .btn-limpiar {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .table-scroll {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .acciones-cell {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 4px;
+  }
+
+  .btn-ver,
+  .btn-toggle {
+    width: 100%;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .modal-box {
+    padding: 22px 16px;
+    max-height: 95vh;
+  }
+
+  .modal-grid { grid-template-columns: 1fr; }
+
+  .modal-acciones {
+    flex-direction: column;
+  }
+
+  .btn-aprobar,
+  .btn-rechazar {
+    width: 100%;
+  }
+
+  .modal-usuario-hero {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 12px 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .don-summary { grid-template-columns: 1fr; }
+  .total-pendientes { grid-column: span 1; }
+
+  .don-table th:nth-child(3),
+  .don-table td:nth-child(3),
+  .don-table th:nth-child(6),
+  .don-table td:nth-child(6) { display: none; }
+}
+
 </style>

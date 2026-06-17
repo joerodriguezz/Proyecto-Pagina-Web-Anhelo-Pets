@@ -26,29 +26,7 @@ const stories = [
 ]
 
 // Formulario de registro de rescates
-const formRescate = ref({
-  fecha: '',
-  ubicacion: '',
-  descripcion: ''
-})
-
-const mensajeExito = ref('')
-
-const registrarRescate = () => {
-  if (!formRescate.value.fecha || !formRescate.value.ubicacion || !formRescate.value.descripcion) {
-    alert('Por favor completa todos los campos')
-    return
-  }
-
-  // TODO: enviar al backend cuando exista la API
-  console.log('Rescate registrado:', formRescate.value)
-  mensajeExito.value = '✓ Rescate registrado exitosamente'
-
-  // limpiar formulario
-  formRescate.value = { fecha: '', ubicacion: '', descripcion: '' }
-
-  setTimeout(() => { mensajeExito.value = '' }, 3000)
-}
+// El formulario de registro de rescates se eliminó de esta vista
 </script>
 
 <template>
@@ -62,7 +40,7 @@ const registrarRescate = () => {
     <section class="hero">
 
       <img
-        src="/img-rescates/IMG_1494.JPG"
+        src="/img-rescates/herorescates.PNG"
         class="hero-image"
       >
 
@@ -149,93 +127,7 @@ const registrarRescate = () => {
 
     </section>
 
-    <!-- FORMULARIO DE REGISTRO DE RESCATES -->
-
-    <section class="registro-rescates-section">
-
-      <div class="container">
-
-        <div class="registro-header">
-
-          <span>REGISTRA UN RESCATE</span>
-
-          <h2>Ayuda a registrar un rescate</h2>
-
-          <p>Comparte los detalles de un rescate realizado para mantener un registro completo y ayudar al seguimiento del animal.</p>
-
-        </div>
-
-        <div class="form-wrapper">
-
-          <form class="rescate-form" @submit.prevent="registrarRescate">
-
-            <div class="form-group">
-
-              <label for="fecha">Fecha del rescate *</label>
-
-              <input
-                type="date"
-                id="fecha"
-                v-model="formRescate.fecha"
-                class="form-input"
-                required
-              >
-
-            </div>
-
-            <div class="form-group">
-
-              <label for="ubicacion">Ubicación *</label>
-
-              <input
-                type="text"
-                id="ubicacion"
-                v-model="formRescate.ubicacion"
-                class="form-input"
-                placeholder="Ej: San José, Barrio La California"
-                required
-              >
-
-            </div>
-
-            <div class="form-group full-width">
-
-              <label for="descripcion">Descripción del rescate *</label>
-
-              <textarea
-                id="descripcion"
-                v-model="formRescate.descripcion"
-                class="form-textarea"
-                placeholder="Cuéntanos los detalles del rescate, estado del animal, condiciones encontradas, etc."
-                rows="6"
-                required
-              ></textarea>
-
-            </div>
-
-            <div class="form-actions">
-
-              <button type="submit" class="btn-registrar">
-
-                Registrar rescate
-
-              </button>
-
-            </div>
-
-          </form>
-
-          <div v-if="mensajeExito" class="mensaje-exito">
-
-            {{ mensajeExito }}
-
-          </div>
-
-        </div>
-
-      </div>
-
-    </section>
+    <!-- Se removió el formulario de registro de rescates de esta vista -->
 
     <FooterBar />
 
@@ -258,7 +150,7 @@ const registrarRescate = () => {
 
   position: relative;
 
-  height: 560px;
+  height: 430px;
 
   overflow: hidden;
 }
@@ -271,7 +163,7 @@ const registrarRescate = () => {
 
   object-fit: cover;
 
-  object-position: center 55%;
+  object-position: center 30%;
 
   transform: scale(1.02);
 
@@ -287,23 +179,24 @@ const registrarRescate = () => {
   inset: 0;
 
   background:
-  linear-gradient(
-    90deg,
-    rgba(58,71,60,0.88) 0%,
-    rgba(58,71,60,0.58) 45%,
-    rgba(58,71,60,0.18) 100%
-  );
+    linear-gradient(
+      90deg,
+      rgba(0,0,0,0.72) 0%,
+      rgba(0,0,0,0.45) 35%,
+      rgba(0,0,0,0.12) 70%,
+      rgba(0,0,0,0) 100%
+    );
 }
 
 .hero-content {
 
   position: absolute;
 
-  left: 8%;
+  left: 7%;
 
   bottom: 55px;
 
-  max-width: 540px;
+  max-width: 560px;
 
   z-index: 2;
 }
@@ -320,8 +213,7 @@ const registrarRescate = () => {
 
   backdrop-filter: blur(10px);
 
-  border:
-    1px solid rgba(255,255,255,0.16);
+  border: 1px solid rgba(255,255,255,0.16);
 
   color: white;
 
@@ -331,20 +223,20 @@ const registrarRescate = () => {
 
   letter-spacing: 1.5px;
 
-  margin-bottom: 28px;
+  margin-bottom: 24px;
 }
 
 .hero-content h1 {
 
-  font-size: 60px;
+  font-size: 62px;
 
   line-height: 0.95;
 
   letter-spacing: -3px;
 
-  color: white;
-
   font-weight: 800;
+
+  color: white;
 
   margin-bottom: 24px;
 }
@@ -356,13 +248,15 @@ const registrarRescate = () => {
 
 .hero-content p {
 
-  font-size: 17px;
+  font-size: 16px;
 
-  line-height: 1.9;
+  line-height: 1.7;
 
-  color: rgba(255,255,255,0.88);
+  color: rgba(255,255,255,0.92);
 
-  max-width: 430px;
+  max-width: 420px;
+
+  margin: 0;
 }
 
 /* STORIES */
@@ -457,7 +351,7 @@ const registrarRescate = () => {
 
 .story-card:hover {
   transform: translateY(-8px);
-  border-color: #92A894;
+  border-color: #3A473C;
   box-shadow: 0 16px 42px rgba(58,71,60,0.08);
 }
 
@@ -580,240 +474,7 @@ const registrarRescate = () => {
   line-height: 1.7;
 }
 
-/* FORMULARIO DE REGISTRO */
-
-.registro-rescates-section {
-
-  padding: 100px 24px;
-
-  background: linear-gradient(135deg, #FAFAFA 0%, #F5F7F6 100%);
-}
-
-.registro-header {
-
-  text-align: center;
-
-  margin-bottom: 60px;
-}
-
-.registro-header span {
-
-  color: #92A894;
-
-  font-size: 12px;
-
-  font-weight: 700;
-
-  letter-spacing: 1.5px;
-
-  text-transform: uppercase;
-}
-
-.registro-header h2 {
-
-  font-size: 48px;
-
-  line-height: 1;
-
-  letter-spacing: -2px;
-
-  color: #3A473C;
-
-  font-weight: 800;
-
-  margin: 16px 0;
-}
-
-.registro-header p {
-
-  color: #6C756D;
-
-  font-size: 16px;
-
-  line-height: 1.8;
-
-  max-width: 600px;
-
-  margin: auto;
-}
-
-.form-wrapper {
-
-  max-width: 700px;
-
-  margin: auto;
-
-  background: white;
-
-  border-radius: 24px;
-
-  padding: 50px;
-
-  border: 1px solid rgba(146,168,148,0.15);
-
-  box-shadow: 0 8px 32px rgba(58,71,60,0.06);
-}
-
-.rescate-form {
-
-  display: grid;
-
-  gap: 28px;
-}
-
-.form-group {
-
-  display: flex;
-
-  flex-direction: column;
-
-  gap: 10px;
-}
-
-.form-group.full-width {
-
-  grid-column: 1;
-}
-
-.form-group label {
-
-  color: #3A473C;
-
-  font-size: 14px;
-
-  font-weight: 700;
-
-  letter-spacing: 0.5px;
-}
-
-.form-input,
-.form-textarea {
-
-  padding: 14px 18px;
-
-  border-radius: 12px;
-
-  border: 2px solid rgba(146,168,148,0.20);
-
-  font-family: inherit;
-
-  font-size: 15px;
-
-  color: #3A473C;
-
-  transition: 0.3s ease;
-
-  background: #FAFAFA;
-}
-
-.form-input:focus,
-.form-textarea:focus {
-
-  outline: none;
-
-  border-color: #92A894;
-
-  background: white;
-
-  box-shadow: 0 0 0 3px rgba(146,168,148,0.10);
-}
-
-.form-textarea {
-
-  resize: vertical;
-
-  font-size: 14px;
-
-  line-height: 1.6;
-}
-
-.form-textarea::placeholder,
-.form-input::placeholder {
-
-  color: #92A894;
-}
-
-.form-actions {
-
-  display: flex;
-
-  justify-content: center;
-
-  margin-top: 20px;
-}
-
-.btn-registrar {
-
-  padding: 14px 48px;
-
-  border-radius: 12px;
-
-  border: none;
-
-  background: linear-gradient(135deg, #92A894 0%, #7A8F7C 100%);
-
-  color: white;
-
-  font-size: 15px;
-
-  font-weight: 700;
-
-  letter-spacing: 0.5px;
-
-  cursor: pointer;
-
-  transition: 0.3s ease;
-
-  box-shadow: 0 4px 16px rgba(146,168,148,0.25);
-}
-
-.btn-registrar:hover {
-
-  transform: translateY(-2px);
-
-  box-shadow: 0 6px 24px rgba(146,168,148,0.35);
-}
-
-.btn-registrar:active {
-
-  transform: translateY(0);
-}
-
-.mensaje-exito {
-
-  margin-top: 20px;
-
-  padding: 16px 20px;
-
-  background: #E8F5E9;
-
-  border-radius: 12px;
-
-  color: #2E7D32;
-
-  text-align: center;
-
-  font-weight: 600;
-
-  animation: slideIn 0.3s ease;
-}
-
-@keyframes slideIn {
-
-  from {
-
-    opacity: 0;
-
-    transform: translateY(-10px);
-  }
-
-  to {
-
-    opacity: 1;
-
-    transform: translateY(0);
-  }
-}
+/* Estilos del formulario de registro eliminados porque no se muestran en esta vista */
 
 /* RESPONSIVE */
 
@@ -831,7 +492,7 @@ const registrarRescate = () => {
 
   .hero {
 
-    height: 500px;
+    height: 430px;
   }
 
   .hero-content {
@@ -861,6 +522,93 @@ const registrarRescate = () => {
       90px;
   }
 
+}
+
+/* ── MOBILE RESPONSIVE ── */
+@media (max-width: 768px) {
+  .hero {
+    height: 320px;
+  }
+
+  .hero-content {
+    left: 16px;
+    right: 16px;
+    bottom: 32px;
+    max-width: 100%;
+  }
+
+  .hero-content h1 {
+    font-size: 36px;
+    letter-spacing: -1.5px;
+    margin-bottom: 14px;
+  }
+
+  .hero-content p {
+    font-size: 14px;
+    max-width: 100%;
+  }
+
+  .stories-section {
+    padding: 60px 16px 80px;
+  }
+
+  .stories-header {
+    margin-bottom: 40px;
+  }
+
+  .stories-header h2 {
+    font-size: 36px;
+    letter-spacing: -2px;
+    margin: 10px 0;
+  }
+
+  .stories-header p {
+    font-size: 14px;
+  }
+
+  .stories-grid {
+    grid-template-columns: 1fr;
+    gap: 20px;
+  }
+
+  .story-card {
+    border-radius: 22px;
+  }
+
+  .story-image-wrap {
+    height: 220px;
+  }
+
+  .story-content {
+    padding: 22px 20px;
+  }
+
+  .story-content h3 {
+    font-size: 22px;
+    margin-bottom: 12px;
+  }
+
+  .story-content p {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero {
+    height: 280px;
+  }
+
+  .hero-content h1 {
+    font-size: 28px;
+  }
+
+  .stories-header h2 {
+    font-size: 28px;
+  }
+
+  .story-image-wrap {
+    height: 180px;
+  }
 }
 
 </style>

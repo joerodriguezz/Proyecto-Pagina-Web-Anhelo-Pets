@@ -1,8 +1,7 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import NavBar from '../components/NavBar.vue'
 import FooterBar from '../components/FooterBar.vue'
-import { usePetsStore } from '../stores/usePetsStore'
 import {
   Search,
   Plus,
@@ -13,19 +12,9 @@ import {
   Cat,
   Home,
   Building,
-  Calendar
+  Calendar,
+  ChevronDown
 } from '@boxicons/vue';
-
-const petsStore = usePetsStore()
-
-const hoveredStep = ref(null)
-
-// ── Mascotas destacadas dinámicas desde el store ──
-const featuredPets = computed(() =>
-  petsStore.pets
-    .filter(p => p.status === 'Disponible')
-    .slice(0, 4)
-)
 
 const iconComponents = {
   search: Search,
@@ -100,6 +89,36 @@ const stats = [
   { value: '5',    label: 'Casas cuna', icon: 'building' },
   { value: '3 años', label: 'Trabajando para ellos', icon: 'calendar' },
 ]
+
+// ── FAQ ──
+const faqs = [
+  {
+    question: '¿Quiénes pueden adoptar una mascota?',
+    answer: 'Cualquier persona mayor de edad que cumpla con los requisitos y pase el proceso de evaluación de adopción.',
+  },
+  {
+    question: '¿Las mascotas se entregan vacunadas?',
+    answer: 'Sí. Todas las mascotas disponibles para adopción se entregan con su control veterinario al día según su edad y condición.',
+  },
+  {
+    question: '¿Cuánto tarda el proceso de adopción?',
+    answer: 'Generalmente entre 24 y 72 horas después de enviar la solicitud, dependiendo de la revisión y disponibilidad del equipo.',
+  },
+  {
+    question: '¿Puedo adoptar si vivo en apartamento?',
+    answer: 'Sí, siempre que el espacio sea adecuado para la mascota y se garantice su bienestar.',
+  },
+  {
+    question: '¿Cómo puedo ayudar si no puedo adoptar?',
+    answer: 'Puedes realizar donaciones, convertirte en voluntario o apoyar compartiendo nuestras publicaciones.',
+  },
+]
+
+const openFaq = ref(null)
+
+function toggleFaq(index) {
+  openFaq.value = openFaq.value === index ? null : index
+}
 </script>
 
 <template>
@@ -108,47 +127,31 @@ const stats = [
   <!-- ══════════════════════════════════
        HERO
   ══════════════════════════════════ -->
-  <section class="hero">
-    <div class="hero-inner">
-      <div class="hero-image-wrap">
-        <div class="hero-img-placeholder">
-          <img class="img-hero" src="/img-perros/Hola.PNG" alt="">
-        </div>
+<section class="hero">
+  <div class="hero-inner">
+
+    <div class="hero-content">
+
+      <h1>
+        Cada animal merece<br>
+        un hogar con <span class="highlight">AMOR</span>
+      </h1>
+
+      <p>
+        Rescatamos, cuidamos y encontramos familias responsables
+        para perros y gatos en necesidad.
+      </p>
+
+      <div class="hero-actions">
+        <RouterLink to="/donar" class="btn-primary">Hacer una donación</RouterLink>
+        <RouterLink to="/voluntarios" class="btn-secondary">Ser voluntario</RouterLink>
       </div>
 
-      <div class="hero-content">
-        <h1>
-  Cada animal merece<br>
-  un hogar con <span class="highlight">AMOR</span>
-</h1>
-        <p>Rescatamos, cuidamos y encontramos familias responsables para perros y gatos en necesidad.</p>
-        
-      </div>
     </div>
-  </section>
 
-  <!-- ══════════════════════════════════
-       STATS BAR
-  ══════════════════════════════════ -->
-  <section class="stats-bar">
-    <div class="stats-inner container">
-      <div
-        v-for="stat in stats"
-        :key="stat.label"
-        class="stat-item"
-      >
-        <div class="stat-icon-wrap">
-          <Heart     v-if="stat.icon === 'heart'"    class="stat-icon" />
-          <Cat       v-if="stat.icon === 'cat'"      class="stat-icon" />
-          <Home      v-if="stat.icon === 'home'"     class="stat-icon" />
-          <Building  v-if="stat.icon === 'building'" class="stat-icon building-fix" />
-          <Calendar  v-if="stat.icon === 'calendar'" class="stat-icon" />
-        </div>
-        <span class="stat-value">{{ stat.value }}</span>
-        <span class="stat-label">{{ stat.label }}</span>
-      </div>
-    </div>
-  </section>
+  </div>
+</section>
+
 
   <!-- ══════════════════════════════════
        CÓMO ADOPTAR
@@ -190,96 +193,28 @@ const stats = [
   </section>
 
   <!-- ══════════════════════════════════
-       FEATURED PETS TEASER
+       PREGUNTAS FRECUENTES (FAQ)
   ══════════════════════════════════ -->
-  <section class="featured-section">
+  <section class="faq-section">
     <div class="container">
-      <h2 class="section-title">Mascotas destacadas</h2>
-      <p class="section-subtitle">Conoce a algunos de nuestros amigos que esperan hogar</p>
+      <h2 class="section-title">Preguntas frecuentes</h2>
+      <p class="section-subtitle">Resolvemos las dudas más comunes sobre el proceso de adopción</p>
 
-      <!-- Sin mascotas disponibles -->
-      <div v-if="featuredPets.length === 0" class="empty-pets">
-        <p>No hay mascotas disponibles en este momento.</p>
-      </div>
-
-      <div v-else class="pets-grid">
+      <div class="faq-list">
         <div
-          v-for="pet in featuredPets"
-          :key="pet.id"
-          class="pet-card"
+          v-for="(faq, idx) in faqs"
+          :key="idx"
+          class="faq-item"
+          :class="{ open: openFaq === idx }"
         >
-          <div class="pet-photo">
-            <img
-              :src="pet.images?.[0]?.preview || '/img-mascotas/mascotas.jpg'"
-              :alt="pet.name"
-              class="pet-image"
-            >
-          </div>
-
-          <div class="pet-info">
-            <div class="pet-header">
-              <span class="pet-name">{{ pet.name }}</span>
-              <span class="badge badge-green">{{ pet.status }}</span>
-            </div>
-
-            <p class="pet-meta">
-              {{ pet.type }} · {{ pet.age }} · {{ pet.sex }}
-            </p>
-
-            <p class="pet-description">
-              {{ pet.personality }}
-            </p>
-
-            <RouterLink to="/mascotas" class="btn-outline-green pet-btn">
-              Ver perfil
-            </RouterLink>
+          <button class="faq-question" @click="toggleFaq(idx)">
+            <span>{{ faq.question }}</span>
+            <ChevronDown class="faq-icon" />
+          </button>
+          <div class="faq-answer-wrap">
+            <p class="faq-answer">{{ faq.answer }}</p>
           </div>
         </div>
-      </div>
-
-    </div>
-  </section>
-
-  <!-- ══════════════════════════════════
-       DONATE / HELP STRIP
-  ══════════════════════════════════ -->
-  <section class="help-strip">
-    <div class="container">
-      <h2 class="section-title">¿Cómo puedes ayudar?</h2>
-      <p class="section-subtitle">Cada pequeña acción puede cambiar la vida de un animal rescatado.</p>
-
-      <div class="help-grid">
-
-        <!-- DONAR -->
-        <div class="help-card">
-          <div class="help-image-wrap">
-            <img src="/img-ayuda/donar.png" class="help-image">
-          </div>
-          <h3>Dona</h3>
-          <p>Tu contribución ayuda con alimento, rescates, medicamentos y tratamientos veterinarios.</p>
-          <RouterLink to="/donar" class="btn-primary">Hacer una donación</RouterLink>
-        </div>
-
-        <!-- CASA CUNA -->
-        <div class="help-card">
-          <div class="help-image-wrap">
-            <img src="/img-ayuda/casa.png" class="help-image">
-          </div>
-          <h3>Sé casa cuna</h3>
-          <p>Brinda un hogar temporal mientras encuentran una familia definitiva y segura.</p>
-          <RouterLink to="/voluntarios" class="btn-primary">Quiero ser casa cuna</RouterLink>
-        </div>
-
-        <!-- VOLUNTARIO -->
-        <div class="help-card">
-          <div class="help-image-wrap">
-            <img src="/img-ayuda/voluntario.png" class="help-image">
-          </div>
-          <h3>Voluntariado</h3>
-          <p>Ayuda en eventos, rescates, transporte, limpieza y cuidado de animales.</p>
-          <RouterLink to="/voluntarios" class="btn-primary">Ser voluntario</RouterLink>
-        </div>
-
       </div>
     </div>
   </section>
@@ -290,92 +225,99 @@ const stats = [
 <style scoped>
 
 /* ─── HERO ─── */
+
 .hero {
-  background: #FFFFFF;
-  min-height: 100vh;
+  height: 430px;
+
+  background-image: url('/img-home/herohome.jpg');
+  background-size: cover;
+  background-position: right 20%;
+  background-repeat: no-repeat;
+
   display: flex;
   align-items: center;
-  overflow: visible;
-  padding: 0;
+
+  position: relative;
+  overflow: hidden;
+}
+
+.hero::before {
+  content: '';
+
+  position: absolute;
+  inset: 0;
+
+  background:
+    linear-gradient(
+      90deg,
+      rgba(0,0,0,0.72) 0%,
+      rgba(0,0,0,0.45) 35%,
+      rgba(0,0,0,0.12) 70%,
+      rgba(0,0,0,0) 100%
+    );
 }
 
 .hero-inner {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
   width: 100%;
-  max-width: 100%;
-  gap: 0;
-}
-
-.hero-image-wrap {
-  width: 60%;
-  margin-left: 0;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-}
-
-.hero-img-placeholder {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-}
-
-.img-hero {
-  width: 1050px;
-  max-width: none;
-  height: auto;
-  display: block;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 0 80px;
 }
 
 .hero-content {
-  width: 42%;
-  padding-right: 60px;
+  position: relative;
+  z-index: 2;
+
+  max-width: 560px;
+
+  margin-left: 0;
+  margin-top: 0;
 }
 
 .hero-content h1 {
-  font-size: 72px;
+  font-size: 62px;
   font-weight: 800;
-  color: #3A473C;
-  line-height: 1.05;
+
+  color: white;
+
+  line-height: 0.95;
+
   margin-bottom: 24px;
-  letter-spacing: -2px;
+
+  letter-spacing: -3px;
 }
 
 .highlight {
-  color: #C9A06A;
-  position: relative;
-  display: inline-block;
+  color: #E4C28A;
 }
-
 
 .hero-content p {
-  font-size: 19px;
-  color: #6C756D;
-  line-height: 1.9;
-  max-width: 520px;
-  margin-bottom: 36px;
+  font-size: 16px;
+
+  color: rgba(255,255,255,0.92);
+
+  line-height: 1.7;
+
+  max-width: 420px;
 }
 
+/* ─── HERO ACTIONS ─── */
 .hero-actions {
   display: flex;
   gap: 14px;
   flex-wrap: wrap;
+  margin-top: 36px;
+  position: relative;
+  z-index: 2;
 }
 
-/* Interacciones y Botones del Hero (Forzado de colores correctos) */
-.hero-actions .btn-primary,
-.hero-actions .btn-success,
-.hero-actions a[href*="mascotas"],
-.hero-actions a[href*="disponibles"] {
-  background: #3A473C !important;
-  color: #FFFFFF !important;
-  border: 2px solid #3A473C !important;
-  padding: 14px 28px;
-  border-radius: 14px;
-  font-size: 15px;
+.hero-actions .btn-primary {
+  background: #3A473C;
+  color: #FFFFFF;
+  border: 2px solid #3A473C;
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 13px;
   font-weight: 700;
   text-decoration: none;
   display: inline-flex;
@@ -384,27 +326,20 @@ const stats = [
   transition: 0.25s ease;
 }
 
-.hero-actions .btn-primary:hover,
-.hero-actions .btn-success:hover,
-.hero-actions a[href*="mascotas"]:hover,
-.hero-actions a[href*="disponibles"]:hover {
-  background: #2D372F !important;
-  border-color: #2D372F !important;
+.hero-actions .btn-primary:hover {
+  background: #2D372F;
+  border-color: #2D372F;
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(58, 71, 60, 0.15);
 }
 
-.hero-actions .btn-secondary,
-.hero-actions .btn-outline-success,
-.hero-actions a[href*="dona"],
-.hero-actions a[href*="cuna"],
-.hero-actions a[href*="voluntario"] {
-  background: transparent !important;
-  color: #3A473C !important;
-  border: 2px solid #92A894 !important;
-  padding: 14px 28px;
-  border-radius: 14px;
-  font-size: 15px;
+.hero-actions .btn-secondary {
+  background: transparent;
+  color: #FFFFFF;
+  border: 2px solid rgba(255, 255, 255, 0.6);
+  padding: 10px 20px;
+  border-radius: 10px;
+  font-size: 13px;
   font-weight: 700;
   text-decoration: none;
   display: inline-flex;
@@ -413,14 +348,9 @@ const stats = [
   transition: 0.25s ease;
 }
 
-.hero-actions .btn-secondary:hover,
-.hero-actions .btn-outline-success:hover,
-.hero-actions a[href*="dona"]:hover,
-.hero-actions a[href*="cuna"]:hover,
-.hero-actions a[href*="voluntario"]:hover {
-  background: #F4F6F4 !important;
-  border-color: #3A473C !important;
-  color: #3A473C !important;
+.hero-actions .btn-secondary:hover {
+  background: rgba(255, 255, 255, 0.12);
+  border-color: #FFFFFF;
   transform: translateY(-2px);
 }
 
@@ -443,23 +373,23 @@ const stats = [
 }
 
 .stat-item {
-  width: 170px;
-  height: 230px;
+  width: 160px;
+  height: 210px;
   background: #FFFFFF;
   border-radius: 18px;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 12px;
   box-shadow: 0 4px 18px rgba(58, 71, 60, 0.02);
   border: 1px solid #F4F6F4;
   transition: 0.25s ease;
 }
 
 .stat-icon-wrap {
-  width: 72px;
-  height: 72px;
+  width: 66px;
+  height: 66px;
   border-radius: 50%;
   background: rgba(146, 168, 148, 0.15);
   display: flex;
@@ -469,8 +399,8 @@ const stats = [
 }
 
 .stat-icon {
-  width: 36px;
-  height: 36px;
+  width: 32px;
+  height: 32px;
   color: #5A6E5C;
   display: flex;
   align-items: center;
@@ -479,35 +409,35 @@ const stats = [
   top: -1px;
 }
 
-.building-fix { transform: translateY(-4px); }
+.building-fix {
+  transform: translateY(-4px);
+}
 
-.stat-item:hover { 
-  transform: translateY(-5px); 
-  border-color: #92A894;
+.stat-item:hover {
+  transform: translateY(-5px);
+  border-color: #3A473C;
 }
 
 .stat-value {
-  font-size: 42px;
+  font-size: 38px;
   font-weight: 800;
   color: #3A473C;
   line-height: 1;
 }
 
 .stat-label {
-  font-size: 14px;
+  font-size: 13px;
   font-weight: 700;
   color: #6C756D;
   text-align: center;
-  max-width: 120px;
-  line-height: 1.5;
+  max-width: 110px;
+  line-height: 1.4;
 }
-
 /* ─── HOW SECTION ─── */
 .how-section {
   background: #FAF8F5;
-  padding: 60px 24px 40px;
+  padding: 40px 24px 20px;
 }
-
 .steps-modern {
   max-width: 1000px;
   margin: 25px auto 0;
@@ -519,7 +449,7 @@ const stats = [
 }
 
 .step-modern {
-  width: 180px;
+  width: 150px;
   flex: none;
   position: relative;
   text-align: center;
@@ -556,7 +486,7 @@ const stats = [
 
 .step-modern:hover .step-circle {
   transform: translateY(-4px);
-  border-color: #92A894;
+  border-color: #3A473C;
   box-shadow: 0 12px 30px rgba(58, 71, 60, 0.05);
 }
 
@@ -612,7 +542,7 @@ const stats = [
   justify-content: space-between;
   gap: 20px;
   flex-wrap: wrap;
-  margin-bottom: -20px;
+  margin-bottom: 40px;
   position: relative;
   z-index: 1;
   box-shadow: 0 10px 30px rgba(58, 71, 60, 0.12);
@@ -654,222 +584,122 @@ const stats = [
   color: #3A473C;
 }
 
-/* ─── FEATURED PETS (FOTOS EXTRAÍDAS TOTALMENTE) ─── */
-.featured-section {
-  background: #FFFFFF;
-  padding: 80px 24px 60px;
-  border-top: 2px solid #F4F6F4;
-}
+/* ─── FAQ SECTION ─── */
+.faq-section {
+  position: relative;
 
+  background-image: url('/img-home/fondohome.PNG');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 
-.pets-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 20px;
-  margin-bottom: 36px;
-}
+  padding: 80px 24px 90px;
 
-.pet-photo {
-  width: 100%;
-  height: 260px;
   overflow: hidden;
 }
 
-.pet-image {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
+.faq-section::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+
+  background: rgba(58, 71, 60, 0.72);
 }
 
-.pet-card {
-  background: #FFFFFF;
-  border: 2px solid #F4F6F4;
-  border-radius: 20px;
-  overflow: hidden;
-  box-shadow: 0 4px 20px rgba(58, 71, 60, 0.02);
-  transition: all 0.25s ease;
-  display: flex;
-  flex-direction: column;
-  height: 100%;
+.faq-section .container {
+  position: relative;
+  z-index: 2;
 }
 
-.pet-card:hover {
-  box-shadow: 0 10px 25px rgba(58, 71, 60, 0.05);
-  border-color: #92A894;
-  transform: translateY(-3px);
-}
-
-.pet-info {
-  padding: 24px;
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-}
-
-.pet-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 8px;
-}
-
-.pet-name { font-size: 20px; font-weight: 800; color: #3A473C; letter-spacing: -0.3px; }
-.pet-meta { font-size: 13px; color: #6C756D; font-weight: 600; margin-bottom: 14px; }
-
-.pet-description {
-  font-size: 14px;
-  color: #3A473C;
-  line-height: 1.6;
-  margin-bottom: 18px;
-  flex: 1;
-}
-
-.pet-btn {
-  font-size: 13px;
-  padding: 10px 16px;
-  width: 100%;
-  border-radius: 12px;
-  border: 2px solid #F4F6F4;
-  background: #F4F6F4;
-  color: #3A473C;
-  font-weight: 700;
-  cursor: pointer;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  transition: all 0.2s ease;
-
-  margin-top: auto;
-}
-
-.pet-card:hover .pet-btn {
-  background: #3A473C;
-  border-color: #3A473C;
+.faq-section .section-title {
   color: #FFFFFF;
 }
 
-.pet-btn,
-.en-proceso-block {
-  margin-top: auto;
+.faq-section .section-subtitle {
+  color: rgba(255,255,255,0.85);
 }
 
-.see-all-wrap { text-align: center; }
-
-.empty-pets {
-  text-align: center;
-  padding: 40px;
-  color: #6C756D;
-  font-size: 15px;
-  font-weight: 500;
-}
-
-.badge { padding: 6px 12px; border-radius: 10px; font-size: 12px; font-weight: 700; display: inline-block; }
-.badge-green { background: rgba(146, 168, 148, 0.2); color: #5A6E5C; }
-
-/* ─── HELP STRIP ─── */
-.help-strip {
-  background: #F4F6F4;
-  padding: 90px 24px;
-}
-
-.help-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 28px;
-  margin-top: 50px;
-}
-
-.help-card {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(14px);
-  border-radius: 28px;
-  padding: 34px 28px;
-  border: 2px solid #FFFFFF;
-  text-align: center;
-  box-shadow: 0 8px 24px rgba(58, 71, 60, 0.02);
-  transition: all 0.35s ease;
-  position: relative;
-  overflow: hidden;
-
+.faq-list {
+  max-width: 800px;
+  margin: 40px auto 0;
   display: flex;
   flex-direction: column;
+  gap: 14px;
 }
 
-.help-card p {
-  font-size: 15px;
-  line-height: 1.7;
-  color: #6C756D;
-  margin-bottom: 24px;
+.faq-item {
+  background: rgba(255,255,255,0.92);
+  backdrop-filter: blur(8px);
 
-  flex: 1;
+  border: 2px solid rgba(255,255,255,0.15);
+  border-radius: 18px;
+
+  overflow: hidden;
+  transition: 0.25s ease;
 }
 
-
-.help-card::before {
-  content: '';
-  position: absolute;
-  top: -120%;
-  left: -40%;
-  width: 180%;
-  height: 180%;
-  background: linear-gradient(120deg, transparent, rgba(255, 255, 255, 0.4), transparent);
-  transform: rotate(25deg);
-  transition: 0.8s ease;
+.faq-item.open,
+.faq-item:hover {
+  border-color: #3A473C;
 }
 
-.help-card:hover::before { top: 120%; }
+.faq-question {
+  width: 100%;
 
-.help-card:hover {
-  transform: translateY(-12px) scale(1.02);
-  border-color: #92A894;
-  box-shadow: 0 22px 50px rgba(58, 71, 60, 0.06);
-}
-
-.help-image-wrap {
-  width: 100px;
-  height: 100px;
-  margin: 0 auto 24px;
-  border-radius: 50%;
-  background: #FAFAFA;
   display: flex;
   align-items: center;
-  justify-content: center;
-  transition: 0.35s ease;
-}
+  justify-content: space-between;
 
-.help-card:hover .help-image-wrap { transform: scale(1.08); background: #FFFFFF; }
+  gap: 16px;
+  padding: 20px 24px;
 
-.help-image { width: 58px; height: 58px; object-fit: contain; }
+  background: transparent;
+  border: none;
 
-.help-card h3 { font-size: 24px; font-weight: 800; margin-bottom: 14px; color: #3A473C; letter-spacing: -0.5px; }
-.help-card p  { font-size: 15px; line-height: 1.7; color: #6C756D; margin-bottom: 24px; }
+  cursor: pointer;
+  text-align: left;
 
-
-.help-card .btn-primary {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  padding: 14px 24px;
-  background: #3A473C !important;
-  color: #FFFFFF !important;
-  border: 2px solid #3A473C !important;
-  border-radius: 14px;
-  text-decoration: none;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
-  transition: 0.25s ease;
+  color: #3A473C;
 
-  margin-top: auto;
+  font-family: inherit;
 }
 
-.help-card .btn-primary:hover {
-  background: #2D372F !important;
-  border-color: #2D372F !important;
-  color: #FFFFFF !important;
-  transform: translateY(-2px);
+.faq-icon {
+  width: 22px;
+  height: 22px;
+
+  color: #5A6E5C;
+
+  flex-shrink: 0;
+  transition: transform 0.25s ease;
 }
 
+.faq-item.open .faq-icon {
+  transform: rotate(180deg);
+}
+
+.faq-answer-wrap {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+
+.faq-item.open .faq-answer-wrap {
+  max-height: 240px;
+}
+
+.faq-answer {
+  padding: 0 24px 20px;
+
+  font-size: 14px;
+  line-height: 1.8;
+
+  color: #6C756D;
+
+  margin: 0;
+}
 
 /* ─── Títulos de sección ─── */
 .section-title {
@@ -911,13 +741,137 @@ const stats = [
   .hero-inner      { flex-direction: column; text-align: center; gap: 30px; }
   .hero-content p  { margin: 0 auto 28px; }
   .hero-actions    { justify-content: center; }
-  .pets-grid       { grid-template-columns: 1fr 1fr; }
-  .help-grid       { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 560px) {
-  .pets-grid  { grid-template-columns: 1fr; }
-  .help-grid  { grid-template-columns: 1fr; }
-  .cta-banner { flex-direction: column; text-align: center; }
+  .hero-actions    { flex-direction: column; width: 100%; }
+  .hero-actions .btn-primary,
+  .hero-actions .btn-secondary { width: 100%; }
+}
+
+/* ── MOBILE RESPONSIVE ── */
+@media (max-width: 768px) {
+  .hero {
+    height: 380px;
+  }
+
+  .hero-inner {
+    padding: 0 20px;
+  }
+
+  .hero-content h1 {
+    font-size: 42px;
+    letter-spacing: -2px;
+    margin-bottom: 16px;
+  }
+
+  .hero-content p {
+    font-size: 14px;
+    max-width: 100%;
+  }
+
+  .hero-actions {
+    margin-top: 24px;
+    gap: 10px;
+  }
+
+  .how-section {
+    padding: 36px 16px 40px;
+  }
+
+  .section-title {
+    font-size: 28px;
+    letter-spacing: -0.5px;
+  }
+
+  .section-subtitle {
+    font-size: 14px;
+  }
+
+  .steps-modern {
+    flex-direction: column;
+    align-items: center;
+    gap: 36px;
+  }
+
+  .step-modern {
+    width: 100%;
+    max-width: 320px;
+  }
+
+  .step-line {
+    display: none;
+  }
+
+  .modern-title {
+    font-size: 14px;
+    margin-top: 18px;
+    margin-bottom: 8px;
+  }
+
+  .modern-description {
+    font-size: 13px;
+    max-width: 100%;
+  }
+
+  .cta-banner {
+    flex-direction: column;
+    text-align: center;
+    padding: 22px 20px;
+    border-radius: 18px;
+    gap: 14px;
+    margin: 40px 0 0;
+  }
+
+  .cta-text strong {
+    font-size: 20px;
+  }
+
+  .cta-text span {
+    font-size: 13px;
+  }
+
+  .cta-button {
+    width: 100%;
+    text-align: center;
+    padding: 14px 20px;
+    border-radius: 12px;
+  }
+
+  .faq-section {
+    padding: 56px 16px 64px;
+  }
+
+  .faq-list {
+    margin-top: 28px;
+    gap: 10px;
+  }
+
+  .faq-question {
+    font-size: 14px;
+    padding: 16px 18px;
+  }
+
+  .faq-answer {
+    font-size: 13px;
+    padding: 0 18px 16px;
+  }
+}
+
+@media (max-width: 480px) {
+  .hero {
+    height: 340px;
+  }
+
+  .hero-content h1 {
+    font-size: 34px;
+    letter-spacing: -1.5px;
+  }
+
+  .hero-actions .btn-primary,
+  .hero-actions .btn-secondary {
+    width: 100%;
+    justify-content: center;
+  }
 }
 </style>
