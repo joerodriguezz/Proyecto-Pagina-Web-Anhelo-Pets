@@ -157,6 +157,57 @@ const router = createRouter({
 
 })
 
+const DYNAMIC_IMPORT_RELOAD_KEY =
+  'anhelo_dynamic_import_reload'
+
+function isDynamicImportError(error) {
+  const message = String(
+    error?.message || error || ''
+  )
+
+  return (
+    message.includes(
+      'Failed to fetch dynamically imported module'
+    ) ||
+    message.includes(
+      'Importing a module script failed'
+    ) ||
+    message.includes(
+      'error loading dynamically imported module'
+    )
+  )
+}
+
+router.onError((error, to) => {
+  if (!isDynamicImportError(error)) return
+
+  if (
+    sessionStorage.getItem(
+      DYNAMIC_IMPORT_RELOAD_KEY
+    ) === '1'
+  ) {
+    sessionStorage.removeItem(
+      DYNAMIC_IMPORT_RELOAD_KEY
+    )
+    return
+  }
+
+  sessionStorage.setItem(
+    DYNAMIC_IMPORT_RELOAD_KEY,
+    '1'
+  )
+
+  window.location.assign(
+    to.fullPath || window.location.pathname
+  )
+})
+
+router.afterEach(() => {
+  sessionStorage.removeItem(
+    DYNAMIC_IMPORT_RELOAD_KEY
+  )
+})
+
 /* ─────────────────────────────
    PROTEGER RUTAS
 ───────────────────────────── */
