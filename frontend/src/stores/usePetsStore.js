@@ -2,6 +2,7 @@
 
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { animalsApi } from '../services/api'
 
 export const usePetsStore = defineStore('pets', () => {
 
@@ -9,6 +10,8 @@ export const usePetsStore = defineStore('pets', () => {
   // Estado global
   // ─────────────────────────────────────────────
   const nextId = ref(1)
+  const isLoading = ref(false)
+  const loadError = ref('')
 
   const pets = ref(
 
@@ -25,6 +28,100 @@ function savePets() {
     JSON.stringify(pets.value)
   )
 
+}
+
+function formatAge(animal) {
+  const years = Number(animal.ageYears || 0)
+  const months = Number(animal.ageMonths || 0)
+
+  if (years > 0 && months > 0) {
+    return `${years} año${years !== 1 ? 's' : ''} y ${months} mes${months !== 1 ? 'es' : ''}`
+  }
+
+  if (years > 0) {
+    return `${years} año${years !== 1 ? 's' : ''}`
+  }
+
+  if (months > 0) {
+    return `${months} mes${months !== 1 ? 'es' : ''}`
+  }
+
+  return 'Edad por confirmar'
+}
+
+function normalizePhotoUrl(photoUrl) {
+  if (!photoUrl || typeof photoUrl !== 'string') {
+    return '/img-mascotas/mascotas.jpg'
+  }
+
+  const trimmed = photoUrl.trim()
+
+  if (trimmed.startsWith('/')) {
+    return trimmed
+  }
+
+  try {
+    const url = new URL(trimmed)
+    if (!['http:', 'https:'].includes(url.protocol)) {
+      return '/img-mascotas/mascotas.jpg'
+    }
+
+    if (!url.hostname.includes('.')) {
+      return '/img-mascotas/mascotas.jpg'
+    }
+
+    return trimmed
+  } catch {
+    return '/img-mascotas/mascotas.jpg'
+  }
+}
+
+function normalizeAnimal(animal) {
+  const image = normalizePhotoUrl(animal.photoUrl)
+
+  return {
+    id: animal.animalId,
+    name: animal.animalName,
+    type: animal.species,
+    breed: animal.breed,
+    age: formatAge(animal),
+    sex: animal.sex,
+    size: '',
+    personality: animal.photoDescription || '',
+    healthBasic: animal.healthStatus,
+    status: animal.animalStatus,
+    description: animal.description,
+    internalNotes: '',
+    image,
+    images: [
+      {
+        preview: image,
+      },
+    ],
+    featured: false,
+    requests: [],
+  }
+}
+
+async function loadPets() {
+  isLoading.value = true
+  loadError.value = ''
+
+  try {
+    const animals = await animalsApi.getAll({
+      status: 'Todos',
+    })
+
+    pets.value = Array.isArray(animals)
+      ? animals.map(normalizeAnimal)
+      : []
+
+    savePets()
+  } catch (error) {
+    loadError.value = error?.message || 'No se pudieron cargar las mascotas.'
+  } finally {
+    isLoading.value = false
+  }
 }
 
   // ─────────────────────────────────────────────
@@ -263,6 +360,8 @@ savePets()
     // estado
     pets,
     nextId,
+    isLoading,
+    loadError,
 
     // computed
     publicPets,
@@ -271,6 +370,7 @@ savePets()
 
     // acciones
     addPet,
+    loadPets,
     updatePet,
     changeStatus,
     deactivatePet,
