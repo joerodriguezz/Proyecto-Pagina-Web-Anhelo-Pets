@@ -6,7 +6,7 @@ import {
   useRouter
 } from 'vue-router'
 
-import HamburgerMenu from './HamburgerMenu.vue'
+import HamburgerMenu from './Hamburgermenu.vue'
 
 const route = useRoute()
 const router = useRouter()
