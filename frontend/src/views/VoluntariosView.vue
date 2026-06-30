@@ -50,6 +50,81 @@ const volunteerTypes = [
   { value: 'Rescatista', label: 'Rescatista' }
 ]
 
+/* ─── INFORMACIÓN DINÁMICA POR TIPO DE VOLUNTARIADO ──── */
+
+const volunteerInfo = {
+  'Casa cuna': {
+    title: 'Casa cuna',
+    description: 'Brinda un hogar temporal a mascotas rescatadas mientras encuentran una familia definitiva.',
+    responsibilities: [
+      'Hospedar mascotas temporalmente.',
+      'Brindar alimento y agua.',
+      'Dar cariño y socialización.',
+      'Informar cambios de salud.',
+      'Coordinar citas veterinarias.'
+    ]
+  },
+  'Eventos de adopción': {
+    title: 'Eventos de adopción',
+    description: 'Apoya en ferias y jornadas de adopción para conectar mascotas con nuevas familias.',
+    responsibilities: [
+      'Atender al público en el evento.',
+      'Mostrar y presentar a las mascotas.',
+      'Explicar el proceso de adopción.',
+      'Organizar el espacio del evento.',
+      'Apoyar en el traslado de mascotas.'
+    ]
+  },
+  'Transporte': {
+    title: 'Transporte',
+    description: 'Colabora trasladando mascotas entre hogares, veterinarias y eventos de adopción.',
+    responsibilities: [
+      'Trasladar mascotas de forma segura.',
+      'Coordinar horarios de traslado.',
+      'Mantener el vehículo en condiciones adecuadas.',
+      'Apoyar en traslados de emergencia.',
+      'Confirmar entregas con la fundación.'
+    ]
+  },
+  'Veterinaria': {
+    title: 'Veterinaria',
+    description: 'Brinda apoyo profesional en la atención médica de las mascotas rescatadas.',
+    responsibilities: [
+      'Realizar consultas y revisiones.',
+      'Apoyar en esterilizaciones.',
+      'Atender emergencias médicas.',
+      'Dar seguimiento a tratamientos.',
+      'Asesorar sobre cuidados de salud.'
+    ]
+  },
+  'Redes sociales': {
+    title: 'Redes sociales',
+    description: 'Ayuda a difundir rescates, adopciones y campañas a través de contenido digital.',
+    responsibilities: [
+      'Crear contenido para redes.',
+      'Editar fotos y videos.',
+      'Redactar publicaciones.',
+      'Gestionar comunidad y mensajes.',
+      'Apoyar campañas de difusión.'
+    ]
+  },
+  'Rescatista': {
+    title: 'Rescatista',
+    description: 'Participa directamente en el rescate de mascotas en situación de calle o riesgo.',
+    responsibilities: [
+      'Atender reportes de rescate.',
+      'Capturar mascotas de forma segura.',
+      'Brindar primeros auxilios básicos.',
+      'Coordinar traslado a veterinaria.',
+      'Dar seguimiento al caso rescatado.'
+    ]
+  }
+}
+
+const currentVolunteerInfo = computed(() =>
+  volunteerType.value ? volunteerInfo[volunteerType.value] : null
+)
+
 /* ─── CAMPOS BASE ─────────────────────────────────────── */
 
 const fullName      = ref('')
@@ -570,18 +645,32 @@ function submitVolunteer() {
         </div>
 
         <div class="types-strip">
-          <div class="types-strip-label">Tipos de voluntariado</div>
-          <div class="types-list">
-            <div
-              v-for="t in volunteerTypes"
-              :key="t.value"
-              class="type-pill"
-              :class="{ active: volunteerType === t.value }"
-            >
-              <span class="type-icon">{{ t.icon }}</span>
-              {{ t.label }}
+          <template v-if="!currentVolunteerInfo">
+            <div class="types-strip-label">Tipos de voluntariado</div>
+            <div class="types-list">
+              <div
+                v-for="t in volunteerTypes"
+                :key="t.value"
+                class="type-pill"
+                :class="{ active: volunteerType === t.value }"
+              >
+                <span class="type-icon">{{ t.icon }}</span>
+                {{ t.label }}
+              </div>
             </div>
-          </div>
+          </template>
+
+          <template v-else>
+            <div class="types-strip-label">{{ currentVolunteerInfo.title }}</div>
+            <p class="vol-info-desc">{{ currentVolunteerInfo.description }}</p>
+            <div class="vol-info-subtitle">Responsabilidades:</div>
+            <ul class="vol-info-list">
+              <li v-for="(r, idx) in currentVolunteerInfo.responsibilities" :key="idx">
+                <i class='bx bx-check'></i>
+                <span>{{ r }}</span>
+              </li>
+            </ul>
+          </template>
         </div>
       </div>
 
@@ -1650,6 +1739,49 @@ function submitVolunteer() {
 
 .type-icon {
   font-size: 15px;
+}
+
+/* TYPES STRIP — INFO DINÁMICA */
+.vol-info-desc {
+  font-size: 13px;
+  line-height: 1.7;
+  color: #6C756D;
+  margin: 0 0 14px;
+}
+
+.vol-info-subtitle {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #3A473C;
+  margin-bottom: 10px;
+}
+
+.vol-info-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.vol-info-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 13px;
+  color: #3A473C;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.vol-info-list li i {
+  color: #5A8060;
+  font-size: 16px;
+  margin-top: 1px;
+  flex-shrink: 0;
 }
 
 /* ═══════════════════════════════════════════════════════
