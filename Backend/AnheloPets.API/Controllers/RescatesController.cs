@@ -22,14 +22,14 @@ public class RescatesController : ControllerBase
     public IActionResult GetById(long id)
     {
         var rescate = _rescateService.GetById(id);
-        if (rescate == null) return NotFound();
+        if (rescate == null)
+            return NotFound(new { message = $"No se encontró el rescate con ID {id}." });
         return Ok(rescate);
     }
 
     [HttpPost]
     public IActionResult Create([FromBody] RescateDto rescate)
     {
-        if (rescate == null) return BadRequest();
         var created = _rescateService.Create(rescate);
         return CreatedAtAction(nameof(GetById), new { id = created.RescateId }, created);
     }
@@ -37,16 +37,17 @@ public class RescatesController : ControllerBase
     [HttpPut("{id}")]
     public IActionResult Update(long id, [FromBody] RescateDto rescate)
     {
-        if (rescate == null) return BadRequest();
         var updated = _rescateService.Update(id, rescate);
-        if (updated == null) return NotFound();
+        if (updated == null)
+            return NotFound(new { message = $"No se encontró el rescate con ID {id}." });
         return Ok(updated);
     }
 
     [HttpDelete("{id}")]
     public IActionResult Delete(long id)
     {
-        if (!_rescateService.Delete(id)) return NotFound();
+        if (!_rescateService.Delete(id))
+            return NotFound(new { message = $"No se encontró el rescate con ID {id}." });
         return NoContent();
     }
 }
