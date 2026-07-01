@@ -54,6 +54,7 @@ const requestsTarget      = ref(null)
 
 const showViewModal       = ref(false)
 const viewTarget          = ref(null)
+const expedienteTab       = ref('general')
 
 const showStatusModal     = ref(false)
 const statusTargetPet     = ref(null)
@@ -257,6 +258,7 @@ function closeForm() {
 // ─────────────────────────────────────────────
 function openView(pet) {
   viewTarget.value    = pet
+  expedienteTab.value = 'general'
   showViewModal.value = true
 }
 
@@ -317,6 +319,144 @@ function getNombreCasaCuna(pet) {
   }
   return 'Sin asignar'
 }
+
+// ─────────────────────────────────────────────
+// EXPEDIENTE COMPLETO — únicamente lectura de datos ya
+// existentes en el sistema (localStorage). No se crea
+// ninguna fuente de datos nueva, no se modifica la forma
+// en que se cargan o guardan mascotas, rescates, solicitudes
+// ni historiales médicos. Solo se consulta y se presenta.
+// ─────────────────────────────────────────────
+
+const expedienteHistorialMedico = computed(() => {
+  if (!viewTarget.value) return []
+  const datosSalud = JSON.parse(localStorage.getItem('anhelo_salud_v3')) || {}
+  const d = datosSalud[viewTarget.value.id]
+  if (!d || !Array.isArray(d.medicalHistory)) return []
+  return [...d.medicalHistory].sort((a, b) =>
+    String(b.fecha || '').localeCompare(String(a.fecha || ''))
+  )
+})
+
+const expedienteVacunas = computed(() => {
+  if (!viewTarget.value) return []
+  const datosSalud = JSON.parse(localStorage.getItem('anhelo_salud_v3')) || {}
+  const d = datosSalud[viewTarget.value.id]
+  if (!d || !Array.isArray(d.vaccines)) return []
+  return [...d.vaccines].sort((a, b) =>
+    String(b.fechaAplicacion || '').localeCompare(String(a.fechaAplicacion || ''))
+  )
+})
+
+const expedienteTratamientos = computed(() => {
+  if (!viewTarget.value) return []
+  const datosSalud = JSON.parse(localStorage.getItem('anhelo_salud_v3')) || {}
+  const d = datosSalud[viewTarget.value.id]
+  if (!d || !Array.isArray(d.treatments)) return []
+  return [...d.treatments].sort((a, b) =>
+    String(b.fecha || '').localeCompare(String(a.fecha || ''))
+  )
+})
+
+const expedienteRescates = computed(() => {
+  if (!viewTarget.value) return []
+  const rescates = JSON.parse(localStorage.getItem('anhelo_rescates')) || []
+  return rescates
+    .filter(r => r.mascotaId === viewTarget.value.id || r.mascota === viewTarget.value.name)
+    .sort((a, b) =>
+      String(b.fechaRescate || b.fechaCreacion || '').localeCompare(String(a.fechaRescate || a.fechaCreacion || ''))
+    )
+})
+
+const expedienteSolicitudes = computed(() => {
+  if (!viewTarget.value) return []
+  const solicitudes = JSON.parse(localStorage.getItem('anhelo_solicitudes')) || []
+  return solicitudes
+    .filter(s => s.petId === viewTarget.value.id || s.mascota === viewTarget.value.name)
+    .sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')))
+})
+
+const expedienteAdopciones = computed(() =>
+  expedienteSolicitudes.value.filter(s => s.estado === 'Aprobada')
+)
+
+const expedienteTimeline = computed(() => {
+  if (!viewTarget.value) return []
+  const eventos = []
+
+  expedienteRescates.value.forEach(r => {
+    eventos.push({
+      fecha:   r.fechaRescate || r.fechaCreacion || '',
+      icono:   '🐾',
+      titulo:  'Rescatada',
+      detalle: r.ubicacion || [r.provincia, r.canton, r.distrito].filter(Boolean).join(' · ')
+    })
+    if (r.casaCuna && r.casaCuna !== 'Sin asignar') {
+      eventos.push({
+        fecha:   r.fechaCreacion || r.fechaRescate || '',
+        icono:   '🏠',
+        titulo:  'Asignada a casa cuna',
+        detalle: r.casaCuna
+      })
+    }
+  })
+
+  expedienteHistorialMedico.value.forEach(h => {
+    eventos.push({
+      fecha:   h.fecha || '',
+      icono:   '🩺',
+      titulo:  'Revisión médica',
+      detalle: h.diagnostico || ''
+    })
+  })
+
+  expedienteVacunas.value.forEach(v => {
+    eventos.push({
+      fecha:   v.fechaAplicacion || '',
+      icono:   '💉',
+      titulo:  `Vacunación${v.tipo ? ': ' + v.tipo : ''}`,
+      detalle: v.vet || ''
+    })
+  })
+
+  expedienteTratamientos.value.forEach(t => {
+    eventos.push({
+      fecha:   t.fecha || '',
+      icono:   '💊',
+      titulo:  `Tratamiento${t.tipo ? ': ' + t.tipo : ''}`,
+      detalle: t.medicamento || ''
+    })
+  })
+
+  expedienteSolicitudes.value.forEach(s => {
+    eventos.push({
+      fecha:   s.fecha || '',
+      icono:   '📋',
+      titulo:  `Solicitud recibida${s.solicitante ? ' — ' + s.solicitante : ''}`,
+      detalle: s.estado || ''
+    })
+    if (s.estado === 'Aprobada') {
+      eventos.push({
+        fecha:   s.fecha || '',
+        icono:   '🎉',
+        titulo:  'Adopción aprobada',
+        detalle: s.solicitante || ''
+      })
+    }
+    if (s.estado === 'Rechazada') {
+      eventos.push({
+        fecha:   s.fecha || '',
+        icono:   '✕',
+        titulo:  'Solicitud rechazada',
+        detalle: s.solicitante || ''
+      })
+    }
+  })
+
+  return eventos
+    .filter(e => e.fecha)
+    .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)))
+})
 </script>
 
 <template>
@@ -497,7 +637,7 @@ function getNombreCasaCuna(pet) {
           <!-- Sección 3: Notas internas -->
           <div class="section-label">
             <span class="section-num">3</span> Notas internas
-            <span class="private-badge">🔒 Solo admin</span>
+            <span class="private-badge">Solo admin</span>
           </div>
           <div class="form-grid form-grid--4" style="margin-bottom:28px">
             <div class="fg fg--full">
@@ -533,7 +673,7 @@ function getNombreCasaCuna(pet) {
             @click="imageInputRef.click()"
             style="margin-bottom:8px"
           >
-            <div class="upload-icon">📷</div>
+            <div class="upload-icon"></div>
             <p class="upload-title">Subir fotos del animal</p>
             <p class="upload-sub">Haz clic para seleccionar · JPG, PNG, WebP</p>
           </div>
@@ -761,93 +901,237 @@ function getNombreCasaCuna(pet) {
 
 
     <!-- ══════════════════════════════════════
-         MODAL: Ver mascota
+         MODAL: Ver mascota → Expediente completo
     ══════════════════════════════════════ -->
     <Teleport to="body">
       <Transition name="modal-fade">
         <div v-if="showViewModal && viewTarget" class="modal-overlay" @click.self="showViewModal = false">
-          <div class="modal-box">
-            <button class="modal-close" @click="showViewModal = false">✕</button>
+          <div class="modal-box modal-box--expediente">
+            <button class="modal-close modal-close--hero" @click="showViewModal = false">✕</button>
 
-            <div class="modal-header">
-              <div class="pet-avatar pet-avatar--lg">
+            <!-- Hero -->
+            <div class="exp-hero">
+              <div class="exp-hero-photo">
                 <img
                   v-if="viewTarget.images?.length > 0"
                   :src="viewTarget.images[0].preview"
-                  class="pet-avatar-img"
                   :alt="viewTarget.name"
                 />
-                <span v-else class="pet-avatar-ini pet-avatar-ini--lg">{{ viewTarget.name?.charAt(0) }}</span>
+                <span v-else class="exp-hero-photo-ini">{{ viewTarget.name?.charAt(0) }}</span>
               </div>
-              <div class="modal-header-info">
-                <p class="modal-eyebrow">Detalle de mascota</p>
-                <h2 class="modal-title">{{ viewTarget.name }}</h2>
-                <p class="modal-sub">{{ viewTarget.breed }}</p>
-              </div>
-              <div class="modal-header-badges">
-                <span class="id-pill">{{ viewTarget.id }}</span>
-                <span class="estado-badge" :class="statusBadgeClass(viewTarget.status)">{{ viewTarget.status }}</span>
-              </div>
-            </div>
-
-            <div class="modal-section">
-              <h4 class="modal-section-title">Información general</h4>
-              <div class="modal-grid modal-grid--3">
-                <div class="modal-field">
-                  <span class="modal-field-label">Tipo</span>
-                  <strong class="modal-field-value">{{ viewTarget.type }}</strong>
-                </div>
-                <div class="modal-field">
-                  <span class="modal-field-label">Edad</span>
-                  <strong class="modal-field-value">{{ viewTarget.age }}</strong>
-                </div>
-                <div class="modal-field">
-                  <span class="modal-field-label">Sexo</span>
-                  <strong class="modal-field-value">{{ viewTarget.sex }}</strong>
-                </div>
-                <div class="modal-field">
-                  <span class="modal-field-label">Tamaño</span>
-                  <strong class="modal-field-value">{{ viewTarget.size }}</strong>
-                </div>
-                <div class="modal-field">
-                  <span class="modal-field-label">Salud básica</span>
-                  <strong class="modal-field-value">{{ viewTarget.healthBasic }}</strong>
-                </div>
-                <div class="modal-field">
-                  <span class="modal-field-label">Casa cuna</span>
-                  <strong class="modal-field-value">{{ getNombreCasaCuna(viewTarget) }}</strong>
-                </div>
-                <div v-if="viewTarget.personality" class="modal-field">
-                  <span class="modal-field-label">Personalidad</span>
-                  <strong class="modal-field-value">{{ viewTarget.personality }}</strong>
+              <div class="exp-hero-info">
+                <span class="exp-hero-eyebrow">Expediente N.º {{ viewTarget.id }}</span>
+                <h2 class="exp-hero-name">{{ viewTarget.name }}</h2>
+                <p class="exp-hero-breed">{{ viewTarget.breed }} · {{ viewTarget.type }}</p>
+                <div class="exp-hero-badges">
+                  <span class="estado-badge" :class="statusBadgeClass(viewTarget.status)">{{ viewTarget.status }}</span>
+                  <span class="exp-chip">{{ viewTarget.sex }}</span>
+                  <span class="exp-chip">{{ viewTarget.age }}</span>
                 </div>
               </div>
             </div>
 
-            <div v-if="viewTarget.description" class="modal-section">
-              <h4 class="modal-section-title">Descripción pública</h4>
-              <p class="modal-mensaje">{{ viewTarget.description }}</p>
+            <!-- Pestañas -->
+            <div class="exp-tabs">
+              <button class="exp-tab" :class="{ active: expedienteTab === 'general' }" @click="expedienteTab = 'general'">
+                <span class="exp-tab-ico"></span> General
+              </button>
+              <button class="exp-tab" :class="{ active: expedienteTab === 'medico' }" @click="expedienteTab = 'medico'">
+                <span class="exp-tab-ico"></span> Médico
+                <span v-if="expedienteHistorialMedico.length + expedienteVacunas.length + expedienteTratamientos.length" class="exp-tab-count">{{ expedienteHistorialMedico.length + expedienteVacunas.length + expedienteTratamientos.length }}</span>
+              </button>
+              <button class="exp-tab" :class="{ active: expedienteTab === 'rescate' }" @click="expedienteTab = 'rescate'">
+                <span class="exp-tab-ico"></span> Rescate
+                <span v-if="expedienteRescates.length" class="exp-tab-count">{{ expedienteRescates.length }}</span>
+              </button>
+              <button class="exp-tab" :class="{ active: expedienteTab === 'adopcion' }" @click="expedienteTab = 'adopcion'">
+                <span class="exp-tab-ico"></span> Adopción
+                <span v-if="expedienteSolicitudes.length" class="exp-tab-count">{{ expedienteSolicitudes.length }}</span>
+              </button>
+              <button class="exp-tab" :class="{ active: expedienteTab === 'linea' }" @click="expedienteTab = 'linea'">
+                <span class="exp-tab-ico"></span> Línea de tiempo
+              </button>
             </div>
 
-            <div v-if="viewTarget.internalNotes" class="modal-section">
-              <h4 class="modal-section-title">🔒 Notas internas</h4>
-              <p class="modal-mensaje modal-mensaje--private">{{ viewTarget.internalNotes }}</p>
+            <div class="exp-body">
+
+              <!-- TAB: General -->
+              <template v-if="expedienteTab === 'general'">
+                <div class="modal-section">
+                  <h4 class="modal-section-title">Información general</h4>
+                  <div class="modal-grid modal-grid--3">
+                    <div class="modal-field">
+                      <span class="modal-field-label">Tipo</span>
+                      <strong class="modal-field-value">{{ viewTarget.type }}</strong>
+                    </div>
+                    <div class="modal-field">
+                      <span class="modal-field-label">Edad</span>
+                      <strong class="modal-field-value">{{ viewTarget.age }}</strong>
+                    </div>
+                    <div class="modal-field">
+                      <span class="modal-field-label">Sexo</span>
+                      <strong class="modal-field-value">{{ viewTarget.sex }}</strong>
+                    </div>
+                    <div class="modal-field">
+                      <span class="modal-field-label">Tamaño</span>
+                      <strong class="modal-field-value">{{ viewTarget.size }}</strong>
+                    </div>
+                    <div class="modal-field">
+                      <span class="modal-field-label">Salud básica</span>
+                      <strong class="modal-field-value">{{ viewTarget.healthBasic }}</strong>
+                    </div>
+                    <div class="modal-field">
+                      <span class="modal-field-label">Casa cuna</span>
+                      <strong class="modal-field-value">{{ getNombreCasaCuna(viewTarget) }}</strong>
+                    </div>
+                    <div v-if="viewTarget.personality" class="modal-field">
+                      <span class="modal-field-label">Personalidad</span>
+                      <strong class="modal-field-value">{{ viewTarget.personality }}</strong>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="viewTarget.description" class="modal-section">
+                  <h4 class="modal-section-title">Descripción pública</h4>
+                  <p class="modal-mensaje">{{ viewTarget.description }}</p>
+                </div>
+
+                <div v-if="viewTarget.internalNotes" class="modal-section">
+                  <h4 class="modal-section-title">🔒 Notas internas</h4>
+                  <p class="modal-mensaje modal-mensaje--private">{{ viewTarget.internalNotes }}</p>
+                </div>
+
+                <div v-if="viewTarget.images?.length > 1" class="modal-section">
+                  <h4 class="modal-section-title">Galería</h4>
+                  <div class="modal-gallery">
+                    <img
+                      v-for="(img, i) in viewTarget.images.slice(1)"
+                      :key="i"
+                      :src="img.preview"
+                      :alt="viewTarget.name"
+                      class="gallery-img"
+                    />
+                  </div>
+                </div>
+              </template>
+
+              <!-- TAB: Médico -->
+              <template v-if="expedienteTab === 'medico'">
+                <div class="modal-section">
+                  <h4 class="modal-section-title">Historial médico</h4>
+                  <div v-if="expedienteHistorialMedico.length" class="expediente-list">
+                    <div v-for="h in expedienteHistorialMedico" :key="h.id" class="expediente-item expediente-item--medico">
+                      <div class="expediente-item-header">
+                        <span class="expediente-fecha">{{ h.fecha || '—' }}</span>
+                        <span class="id-pill">{{ h.id }}</span>
+                      </div>
+                      <p class="expediente-diag"><strong>Diagnóstico:</strong> {{ h.diagnostico || '—' }}</p>
+                      <p class="expediente-detalle" v-if="h.vet">Veterinario: {{ h.vet }}</p>
+                      <p class="expediente-detalle" v-if="h.peso">Peso registrado: {{ h.peso }} kg</p>
+                      <p class="expediente-detalle" v-if="h.observaciones">{{ h.observaciones }}</p>
+                    </div>
+                  </div>
+                  <p v-else class="modal-empty-text">No existen registros médicos para esta mascota.</p>
+                </div>
+
+                <div v-if="expedienteVacunas.length" class="modal-section">
+                  <h4 class="modal-section-title">Vacunas aplicadas</h4>
+                  <div class="expediente-list">
+                    <div v-for="v in expedienteVacunas" :key="v.id" class="expediente-item expediente-item--vacuna">
+                      <div class="expediente-item-header">
+                        <span class="expediente-fecha">{{ v.fechaAplicacion || '—' }}</span>
+                        <span class="id-pill">{{ v.id }}</span>
+                      </div>
+                      <p class="expediente-diag"><strong>{{ v.tipo }}</strong></p>
+                      <p class="expediente-detalle" v-if="v.vet">Veterinario: {{ v.vet }}</p>
+                      <p class="expediente-detalle" v-if="v.proximaDosis">Próxima dosis: {{ v.proximaDosis }}</p>
+                      <p class="expediente-detalle" v-if="v.observaciones">{{ v.observaciones }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div v-if="expedienteTratamientos.length" class="modal-section">
+                  <h4 class="modal-section-title">Tratamientos</h4>
+                  <div class="expediente-list">
+                    <div v-for="t in expedienteTratamientos" :key="t.id" class="expediente-item expediente-item--tratamiento">
+                      <div class="expediente-item-header">
+                        <span class="expediente-fecha">{{ t.fecha || '—' }}</span>
+                        <span class="id-pill">{{ t.id }}</span>
+                      </div>
+                      <p class="expediente-diag"><strong>{{ t.tipo }}</strong></p>
+                      <p class="expediente-detalle" v-if="t.medicamento">Medicamento: {{ t.medicamento }} {{ t.dosis ? '· ' + t.dosis : '' }}</p>
+                      <p class="expediente-detalle" v-if="t.observaciones">{{ t.observaciones }}</p>
+                    </div>
+                  </div>
+                </div>
+              </template>
+
+              <!-- TAB: Rescate -->
+              <template v-if="expedienteTab === 'rescate'">
+                <div class="modal-section">
+                  <h4 class="modal-section-title">Historial de rescates</h4>
+                  <div v-if="expedienteRescates.length" class="expediente-list">
+                    <div v-for="r in expedienteRescates" :key="r.id" class="expediente-item expediente-item--rescate">
+                      <div class="expediente-item-header">
+                        <span class="expediente-fecha">{{ r.fechaRescate || '—' }}</span>
+                        <span class="id-pill">{{ r.id }}</span>
+                      </div>
+                      <p class="expediente-diag">{{ r.ubicacion || [r.provincia, r.canton, r.distrito].filter(Boolean).join(' · ') || '—' }}</p>
+                      <p class="expediente-detalle" v-if="r.rescatista">Rescatista: {{ r.rescatista }}</p>
+                      <p class="expediente-detalle" v-if="r.descripcion">{{ r.descripcion }}</p>
+                    </div>
+                  </div>
+                  <p v-else class="modal-empty-text">Esta mascota no posee registros de rescate.</p>
+                </div>
+              </template>
+
+              <!-- TAB: Adopción -->
+              <template v-if="expedienteTab === 'adopcion'">
+                <div class="modal-section">
+                  <h4 class="modal-section-title">Solicitudes de adopción</h4>
+                  <div v-if="expedienteSolicitudes.length" class="expediente-list">
+                    <div v-for="s in expedienteSolicitudes" :key="s.id" class="expediente-item expediente-item--solicitud">
+                      <div class="expediente-item-header">
+                        <span class="expediente-fecha">{{ s.fecha || '—' }}</span>
+                        <span
+                          class="estado-badge"
+                          :class="{
+                            'badge-aprobada': s.estado === 'Aprobada',
+                            'badge-pendiente': s.estado === 'Pendiente',
+                            'badge-proceso': s.estado === 'En proceso',
+                            'badge-rechazada': s.estado === 'Rechazada',
+                          }"
+                        >{{ s.estado }}</span>
+                      </div>
+                      <p class="expediente-diag">{{ s.solicitante || '—' }}</p>
+                      <p class="expediente-detalle" v-if="s.observaciones">{{ s.observaciones }}</p>
+                    </div>
+                  </div>
+                  <p v-else class="modal-empty-text">No hay solicitudes registradas para esta mascota.</p>
+                </div>
+              </template>
+
+              <!-- TAB: Línea de tiempo -->
+              <template v-if="expedienteTab === 'linea'">
+                <div class="modal-section">
+                  <h4 class="modal-section-title">Línea de tiempo</h4>
+                  <div v-if="expedienteTimeline.length" class="timeline-list">
+                    <div v-for="(e, i) in expedienteTimeline" :key="i" class="timeline-item">
+                      <span class="timeline-icon">{{ e.icono }}</span>
+                      <div class="timeline-content">
+                        <span class="timeline-fecha">{{ e.fecha }}</span>
+                        <strong class="timeline-titulo">{{ e.titulo }}</strong>
+                        <span v-if="e.detalle" class="timeline-detalle">{{ e.detalle }}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <p v-else class="modal-empty-text">Aún no hay eventos suficientes para construir una línea de tiempo.</p>
+                </div>
+              </template>
+
             </div>
 
-            <div v-if="viewTarget.images?.length > 1" class="modal-section">
-              <h4 class="modal-section-title">Galería</h4>
-              <div class="modal-gallery">
-                <img
-                  v-for="(img, i) in viewTarget.images.slice(1)"
-                  :key="i"
-                  :src="img.preview"
-                  :alt="viewTarget.name"
-                  class="gallery-img"
-                />
-              </div>
-            </div>
-
-            <div class="modal-acciones">
+            <div class="exp-footer">
               <button class="btn-limpiar btn-limpiar--activo" @click="showViewModal = false">Cerrar</button>
               <button class="btn-guardar" @click="openEdit(viewTarget)">
                 <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
@@ -858,6 +1142,8 @@ function getNombreCasaCuna(pet) {
         </div>
       </Transition>
     </Teleport>
+
+
 
 
     <!-- ══════════════════════════════════════
@@ -1696,6 +1982,314 @@ function getNombreCasaCuna(pet) {
 .request-header { display: flex; align-items: center; gap: 12px; }
 .request-user { flex: 1; display: flex; flex-direction: column; gap: 3px; }
 .request-user h4 { margin: 0; font-size: 14px; font-weight: 700; color: var(--texto); }
+
+/* ════════════════════════════════════════════════════
+   EXPEDIENTE — modal "Ver mascota" rediseñado
+   Cabecera tipo dossier, pestañas y tarjetas con acento
+   ════════════════════════════════════════════════════ */
+
+.modal-box--expediente {
+  padding: 0;
+  max-width: 760px;
+}
+.modal-close--hero {
+  background: rgba(255,255,255,.16);
+  color: #fff;
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255,255,255,.22);
+}
+.modal-close--hero:hover { background: rgba(255,255,255,.32); color: #fff; }
+
+/* ── Hero ── */
+.exp-hero {
+  position: relative;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 30px 34px 26px;
+  border-radius: 20px 20px 0 0;
+  background:
+    radial-gradient(120% 160% at 0% 0%, rgba(255,255,255,.07) 0%, transparent 55%),
+    linear-gradient(135deg, #28332A 0%, #3A473C 55%, #4C5C4F 100%);
+  color: #fff;
+}
+.exp-hero::after {
+  content: '';
+  position: absolute;
+  right: -60px;
+  top: -70px;
+  width: 220px;
+  height: 220px;
+  border-radius: 50%;
+  background: rgba(255,255,255,.05);
+  pointer-events: none;
+}
+.exp-hero::before {
+  content: '';
+  position: absolute;
+  left: -40px;
+  bottom: -90px;
+  width: 180px;
+  height: 180px;
+  border-radius: 50%;
+  background: rgba(245,185,66,.08);
+  pointer-events: none;
+}
+.exp-hero-photo {
+  position: relative;
+  z-index: 1;
+  width: 88px; height: 88px;
+  flex-shrink: 0;
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(255,255,255,.10);
+  border: 3px solid rgba(255,255,255,.32);
+  box-shadow: 0 14px 30px rgba(0,0,0,.30);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.exp-hero-photo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.exp-hero-photo-ini {
+  font-size: 32px;
+  font-weight: 800;
+  color: #fff;
+  font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+}
+.exp-hero-info { position: relative; z-index: 1; flex: 1; min-width: 0; }
+.exp-hero-eyebrow {
+  display: inline-block;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  color: rgba(255,255,255,.62);
+}
+.exp-hero-name {
+  font-family: Georgia, 'Iowan Old Style', 'Palatino Linotype', serif;
+  font-size: 27px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  margin: 3px 0 2px;
+  color: #fff;
+  line-height: 1.15;
+}
+.exp-hero-breed {
+  font-size: 13px;
+  color: rgba(255,255,255,.72);
+  margin: 0 0 12px;
+}
+.exp-hero-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+.exp-chip {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 4px 11px;
+  border-radius: 20px;
+  background: rgba(255,255,255,.14);
+  border: 1px solid rgba(255,255,255,.20);
+  color: #fff;
+  white-space: nowrap;
+}
+
+/* ── Pestañas ── */
+.exp-tabs {
+  display: flex;
+  gap: 2px;
+  padding: 0 26px;
+  background: var(--blanco);
+  border-bottom: 1px solid var(--borde);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.exp-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 14px 14px 12px;
+  border: none;
+  background: transparent;
+  color: var(--texto-sec);
+  font-size: 12.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  border-bottom: 2.5px solid transparent;
+  margin-bottom: -1px;
+  transition: color 0.18s, border-color 0.18s;
+  font-family: inherit;
+}
+.exp-tab-ico { font-size: 13px; }
+.exp-tab-count {
+  font-size: 10px;
+  font-weight: 800;
+  background: var(--fondo);
+  color: var(--verde);
+  border: 1px solid var(--borde);
+  border-radius: 20px;
+  padding: 1px 6px;
+  line-height: 1.4;
+}
+.exp-tab:hover { color: var(--verde); }
+.exp-tab.active { color: var(--verde); border-bottom-color: var(--amarillo); }
+.exp-tab.active .exp-tab-count { background: rgba(245,185,66,.18); border-color: rgba(245,185,66,.4); }
+
+/* ── Cuerpo ── */
+.exp-body {
+  padding: 26px 34px 4px;
+  min-height: 220px;
+}
+.exp-footer {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 18px 34px 28px;
+  border-top: 1px solid var(--borde);
+  margin-top: 18px;
+}
+
+/* ── Campos de información general (refinados) ── */
+.modal-field {
+  background: var(--fondo);
+  border: 1px solid var(--borde);
+  border-radius: 12px;
+  padding: 11px 13px;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.modal-field:hover { border-color: #D5DED6; box-shadow: 0 2px 10px rgba(58,71,60,0.06); }
+
+/* ── Expediente: listas de historial/rescates/solicitudes ── */
+.expediente-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.expediente-item {
+  position: relative;
+  background: var(--blanco);
+  border: 1px solid var(--borde);
+  border-left: 3px solid var(--verde-sec);
+  border-radius: 4px 12px 12px 4px;
+  padding: 13px 16px;
+  box-shadow: 0 1px 4px rgba(58,71,60,0.05);
+  transition: box-shadow 0.18s, transform 0.18s;
+}
+.expediente-item:hover {
+  box-shadow: 0 6px 18px rgba(58,71,60,0.10);
+  transform: translateX(2px);
+}
+.expediente-item--medico       { border-left-color: #4F8A6F; }
+.expediente-item--vacuna       { border-left-color: #3E7CB1; }
+.expediente-item--tratamiento  { border-left-color: #C98A35; }
+.expediente-item--rescate      { border-left-color: #A85C2E; }
+.expediente-item--solicitud    { border-left-color: #6B5B95; }
+
+.expediente-item-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 7px;
+}
+.expediente-fecha {
+  font-size: 11.5px;
+  font-weight: 800;
+  letter-spacing: 0.3px;
+  color: var(--verde-sec);
+  text-transform: uppercase;
+}
+.expediente-diag {
+  font-size: 13.5px;
+  color: var(--texto);
+  margin: 0 0 3px;
+  line-height: 1.5;
+}
+.expediente-detalle {
+  font-size: 12px;
+  color: var(--texto-sec);
+  margin: 0;
+  line-height: 1.55;
+}
+.modal-empty-text {
+  font-size: 13px;
+  color: var(--verde-sec);
+  background: var(--fondo);
+  border: 1px dashed var(--borde);
+  border-radius: 12px;
+  padding: 22px 16px;
+  margin: 0;
+  text-align: center;
+}
+
+/* ── Expediente: línea de tiempo ── */
+.timeline-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  position: relative;
+  padding-left: 2px;
+}
+.timeline-item {
+  display: flex;
+  gap: 14px;
+  padding: 11px 0;
+  position: relative;
+}
+.timeline-item:not(:last-child)::before {
+  content: '';
+  position: absolute;
+  left: 15px;
+  top: 38px;
+  bottom: -7px;
+  width: 2px;
+  background: linear-gradient(var(--borde), var(--borde) 80%, transparent);
+}
+.timeline-icon {
+  width: 32px; height: 32px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--blanco);
+  border: 1.5px solid var(--borde);
+  box-shadow: 0 2px 6px rgba(58,71,60,0.08);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  z-index: 1;
+}
+.timeline-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 3px;
+}
+.timeline-fecha {
+  font-size: 10.5px;
+  font-weight: 800;
+  color: var(--verde-sec);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+.timeline-titulo {
+  font-size: 13.5px;
+  color: var(--texto);
+  font-weight: 700;
+}
+.timeline-detalle {
+  font-size: 12px;
+  color: var(--texto-sec);
+}
+
+@media (max-width: 640px) {
+  .exp-hero { padding: 24px 20px 20px; gap: 14px; }
+  .exp-hero-photo { width: 68px; height: 68px; border-radius: 14px; }
+  .exp-hero-name { font-size: 21px; }
+  .exp-tabs { padding: 0 14px; }
+  .exp-tab { padding: 12px 10px 10px; font-size: 11.5px; }
+  .exp-body { padding: 20px 18px 4px; }
+  .exp-footer { padding: 16px 18px 22px; flex-direction: column; }
+}
 
 /* Animaciones modal */
 .modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.22s ease; }

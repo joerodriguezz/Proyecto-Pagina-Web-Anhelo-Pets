@@ -163,6 +163,17 @@ const hoursAlone = ref('')
 
 const termsAccepted = ref(false)
 
+/* ---------------- PANTALLA PREVIA DE REQUISITOS ---------------- */
+
+const mostrarFormulario = ref(false)
+const requisitosConfirmados = ref(false)
+
+function continuarSolicitud() {
+
+  mostrarFormulario.value = true
+
+}
+
 function filterPhoneNumber() {
 
   phone.value =
@@ -437,17 +448,92 @@ function goBack() {
   <div class="page-hero">
     <div class="hero-bg-layer"></div>
     <div class="hero-content">
-      <span class="hero-tag">Proceso Responsable</span>
-      <h1>Formulario de Adopción</h1>
-      <div class="hero-divider-line"></div>
-      <p class="section-subtitle">
-        Completa los siguientes datos para procesar tu postulación de forma segura.
-      </p>
+
+      <template v-if="!mostrarFormulario">
+        <h1>Antes de comenzar tu solicitud de adopción</h1>
+        <div class="hero-divider-line"></div>
+        <p class="section-subtitle">
+          Antes de iniciar tu solicitud queremos asegurarnos de que conoces el proceso de adopción responsable. Lee cuidadosamente los siguientes requisitos antes de continuar.
+        </p>
+      </template>
+
+      <template v-else>
+      
+        <h1>Formulario de Adopción</h1>
+        <div class="hero-divider-line"></div>
+        <p class="section-subtitle">
+        Completa el formulario con información verídica para que nuestro equipo pueda evaluar tu solicitud de adopción responsable.
+        </p>
+      </template>
+
     </div>
   </div>
 
+  <!-- ───── PANTALLA PREVIA DE REQUISITOS ───── -->
+  <section class="container form-section" v-if="!mostrarFormulario">
+    <div class="card">
+
+      <div class="requisitos-card">
+        <h3 class="requisitos-title">Requisitos de adopción responsable</h3>
+
+        <ul class="requisitos-list">
+          <li>
+            <span class="requisito-check">✔</span>
+            Tengo un hogar adecuado para una mascota.
+          </li>
+          <li>
+            <span class="requisito-check">✔</span>
+            Puedo cubrir alimentación, cuidados y atención veterinaria.
+          </li>
+          <li>
+            <span class="requisito-check">✔</span>
+            Comprendo que adoptar es un compromiso de muchos años.
+          </li>
+          <li>
+            <span class="requisito-check">✔</span>
+            Todas las personas que viven conmigo están de acuerdo con la adopción.
+          </li>
+          <li>
+            <span class="requisito-check">✔</span>
+            Acepto posibles visitas o seguimiento por parte de la fundación.
+          </li>
+          <li>
+            <span class="requisito-check">✔</span>
+            La información que proporcionaré será verdadera.
+          </li>
+        </ul>
+
+        <div class="tc-wrapper requisitos-confirm-wrapper">
+          <label class="tc-checkbox-row">
+            <input
+              type="checkbox"
+              v-model="requisitosConfirmados"
+              class="tc-checkbox"
+            />
+            <span class="tc-checkbox-label">
+              Confirmo que cumplo con todos los requisitos anteriores.
+            </span>
+          </label>
+        </div>
+
+        <div class="actions-group">
+          <button
+            type="button"
+            class="pet-btn"
+            :disabled="!requisitosConfirmados"
+            @click="continuarSolicitud"
+          >
+            Continuar con mi solicitud
+          </button>
+        </div>
+
+      </div>
+
+    </div>
+  </section>
+
   <!-- ───── FORMULARIO ───── -->
-  <section class="container form-section">
+  <section class="container form-section" v-if="mostrarFormulario">
     <div class="card">
 
       <div v-if="!submitted">
@@ -731,71 +817,84 @@ function goBack() {
 
 .page-hero {
   position: relative;
-  background: #2D372F;
   height: 430px;
   display: flex;
   align-items: center;
-  justify-content: center;
-  text-align: center;
-  padding: 0 24px;
+  justify-content: flex-start;
+  padding: 0 8%;
   overflow: hidden;
+
+  background-image:
+    linear-gradient(
+      rgba(45,55,47,0.45),
+      rgba(45,55,47,0.45)
+    ),
+    url('/img-mascotas/heroadopcion.PNG');
+
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
 }
 
 .hero-bg-layer {
   position: absolute;
   inset: 0;
-  background:
-    radial-gradient(ellipse 70% 60% at 50% 110%, rgba(201,160,106,0.12) 0%, transparent 70%),
-    radial-gradient(ellipse 50% 40% at 80% -10%, rgba(58,71,60,0.6) 0%, transparent 60%);
+  background: transparent;
   pointer-events: none;
 }
 
 .hero-content {
   position: relative;
   z-index: 2;
-  max-width: 600px;
+  width: 480px;
+  max-width: 100%;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  gap: 0;
+  align-items: flex-start;
+  justify-content: center;
+  text-align: left;
+  animation: heroFadeUp 0.6s ease both;
 }
 
-.hero-tag {
-  display: inline-block;
-  font-size: 10px;
-  text-transform: uppercase;
-  letter-spacing: 3px;
-  color: #C9A06A;
-  font-weight: 700;
-  margin-bottom: 20px;
-  padding: 6px 16px;
-  border: 1px solid rgba(201,160,106,0.35);
-  border-radius: 100px;
-  background: rgba(201,160,106,0.08);
+.hero-content > * {
+  align-self: flex-start;
+  width: 100%;
+  text-align: left;
 }
 
 .page-hero h1 {
-  font-size: 46px;
+  font-size: 40px;
   font-weight: 800;
   color: #F4F6F4;
-  margin: 0 0 20px 0;
-  line-height: 1.08;
-  letter-spacing: -1.5px;
+  margin: 0;
+  line-height: 1.18;
+  letter-spacing: -1px;
 }
 
 .hero-divider-line {
-  width: 36px;
+  width: 42px;
   height: 2px;
   background: #C9A06A;
-  margin-bottom: 20px;
+  margin: 22px 0;
   border-radius: 2px;
 }
 
 .section-subtitle {
-  font-size: 15px;
-  color: rgba(220,228,221,0.78);
+  font-size: 16px;
+  color: rgba(255,255,255,.88);
   line-height: 1.7;
-  max-width: 420px;
+  margin: 0;
+}
+
+@keyframes heroFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 /* ═══════════════════════════════════
@@ -820,6 +919,85 @@ function goBack() {
     0 2px 4px rgba(58,71,60,0.03),
     0 8px 24px rgba(58,71,60,0.06),
     0 32px 64px rgba(58,71,60,0.06);
+  animation: cardFadeUp 0.5s ease both;
+}
+
+@keyframes cardFadeUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* ═══════════════════════════════════
+   PANTALLA PREVIA DE REQUISITOS
+═══════════════════════════════════ */
+
+.requisitos-card {
+  display: flex;
+  flex-direction: column;
+  gap: 28px;
+}
+
+.requisitos-title {
+  font-size: 21px;
+  font-weight: 800;
+  color: #2D372F;
+  margin: 0;
+  letter-spacing: -0.4px;
+  line-height: 1.3;
+}
+
+.requisitos-list {
+  list-style: none;
+  margin: 0;
+  padding: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background: #F8FAF8;
+  border: 1px solid rgba(58,71,60,0.07);
+  border-radius: 16px;
+}
+
+.requisitos-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  font-size: 14px;
+  color: #3A473C;
+  line-height: 1.6;
+  font-weight: 500;
+}
+
+.requisito-check {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(201,160,106,0.14);
+  color: #A07840;
+  border: 1px solid rgba(201,160,106,0.3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  margin-top: 1px;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.requisitos-list li:hover .requisito-check {
+  background: rgba(201,160,106,0.24);
+  transform: scale(1.06);
+}
+
+.requisitos-confirm-wrapper {
+  margin-bottom: 0;
 }
 
 /* ═══════════════════════════════════
@@ -831,7 +1009,7 @@ function goBack() {
   background: #F4F6F4;
   border-radius: 20px;
   overflow: hidden;
-  margin-bottom: 40px;
+  margin-bottom: 44px;
   border: 1px solid rgba(58,71,60,0.07);
 }
 
@@ -846,6 +1024,7 @@ function goBack() {
   width: 100%;
   height: 100%;
   object-fit: cover;
+  transition: transform 0.4s ease;
 }
 
 .carousel-controls {
@@ -873,19 +1052,20 @@ function goBack() {
   align-items: center;
   justify-content: center;
   box-shadow: 0 2px 8px rgba(0,0,0,0.12);
-  transition: background 0.2s;
+  transition: background 0.2s ease, transform 0.2s ease;
 }
 
 .carousel-arrow:hover {
   background: #fff;
+  transform: scale(1.06);
 }
 
 .pet-card-info {
-  padding: 28px 30px;
+  padding: 28px 32px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 6px;
+  gap: 7px;
 }
 
 .pet-card-tag {
@@ -901,7 +1081,7 @@ function goBack() {
   font-weight: 800;
   color: #2D372F;
   letter-spacing: -0.8px;
-  margin: 2px 0 4px;
+  margin: 3px 0 5px;
   line-height: 1.1;
 }
 
@@ -915,7 +1095,7 @@ function goBack() {
 .pet-card-badge {
   display: inline-flex;
   align-items: center;
-  margin-top: 10px;
+  margin-top: 12px;
   padding: 5px 12px;
   background: rgba(201,160,106,0.12);
   color: #A07840;
@@ -932,10 +1112,14 @@ function goBack() {
 ═══════════════════════════════════ */
 
 .form-block {
-  margin-bottom: 8px;
+  margin-bottom: 24px;
   border: 1px solid rgba(58,71,60,0.07);
   border-radius: 20px;
   overflow: hidden;
+}
+
+.form-block:last-of-type {
+  margin-bottom: 32px;
 }
 
 .block-header {
@@ -970,21 +1154,22 @@ function goBack() {
   font-weight: 700;
   color: #2D372F;
   margin: 0;
-  line-height: 1.2;
+  line-height: 1.3;
 }
 
 .block-subtitle {
   font-size: 12px;
   color: #7A876B;
-  margin: 3px 0 0;
+  margin: 4px 0 0;
   font-weight: 400;
+  line-height: 1.5;
 }
 
 .fields-wrapper {
   padding: 28px;
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: 22px;
 }
 
 /* ═══════════════════════════════════
@@ -999,11 +1184,12 @@ function goBack() {
 
 .form-label {
   display: block;
-  margin-bottom: 8px;
+  margin-bottom: 9px;
   font-size: 13px;
   font-weight: 700;
   color: #3A473C;
   letter-spacing: 0.1px;
+  line-height: 1.4;
 }
 
 .req {
@@ -1051,7 +1237,7 @@ function goBack() {
 
 textarea.form-input {
   height: auto;
-  min-height: 88px;
+  min-height: 92px;
   padding: 14px 16px;
   resize: vertical;
   line-height: 1.6;
@@ -1060,7 +1246,7 @@ textarea.form-input {
 .grid-2-col {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 18px;
 }
 
 /* ═══════════════════════════════════
@@ -1093,7 +1279,7 @@ textarea.form-input {
   justify-content: center;
   gap: 6px;
   padding: 0 12px;
-  transition: border-color 0.18s, background 0.18s;
+  transition: border-color 0.18s ease, background 0.18s ease;
 }
 
 .code-selector-btn:hover {
@@ -1123,6 +1309,18 @@ textarea.form-input {
   overflow: hidden;
   z-index: 200;
   box-shadow: 0 8px 30px rgba(0,0,0,0.10);
+  animation: dropdownFade 0.16s ease both;
+}
+
+@keyframes dropdownFade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .search-box-container {
@@ -1163,7 +1361,7 @@ textarea.form-input {
   align-items: center;
   font-size: 13px;
   color: #3A473C;
-  transition: background 0.15s;
+  transition: background 0.15s ease;
 }
 
 .code-results-list li:hover {
@@ -1183,7 +1381,7 @@ textarea.form-input {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin-top: 12px;
+  margin-top: 14px;
 }
 
 .checkbox-label {
@@ -1200,7 +1398,7 @@ textarea.form-input {
 .radio-cards-group {
   display: flex;
   gap: 12px;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .radio-card {
@@ -1210,7 +1408,7 @@ textarea.form-input {
   border: 1.5px solid #DCE4DD;
   background: #FAFAFA;
   cursor: pointer;
-  transition: border-color 0.18s, background 0.18s, color 0.18s;
+  transition: border-color 0.18s ease, background 0.18s ease, color 0.18s ease;
   font-size: 14px;
   font-weight: 600;
   color: #7A876B;
@@ -1238,6 +1436,18 @@ textarea.form-input {
   padding: 20px;
   border-radius: 14px;
   border: 1px solid rgba(58,71,60,0.07);
+  animation: dynamicFieldFade 0.2s ease both;
+}
+
+@keyframes dynamicFieldFade {
+  from {
+    opacity: 0;
+    transform: translateY(-4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 .autocomplete-wrapper {
@@ -1266,7 +1476,7 @@ textarea.form-input {
   cursor: pointer;
   font-size: 13px;
   color: #3A473C;
-  transition: background 0.15s;
+  transition: background 0.15s ease;
 }
 
 .autocomplete-results li:hover {
@@ -1278,7 +1488,7 @@ textarea.form-input {
 ═══════════════════════════════════ */
 
 .tc-wrapper {
-  margin-bottom: 24px;
+  margin-bottom: 28px;
   padding: 20px 24px;
   background: #F8FAF8;
   border-radius: 14px;
@@ -1391,6 +1601,7 @@ textarea.form-input {
 .tc-tooltip-anchor:hover .tc-tooltip,
 .tc-tooltip-anchor:focus-within .tc-tooltip {
   display: block;
+  animation: dropdownFade 0.16s ease both;
 }
 
 /* ═══════════════════════════════════
@@ -1454,11 +1665,12 @@ textarea.form-input {
 
 .success-screen {
   text-align: center;
-  padding: 40px 20px;
+  padding: 48px 20px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 16px;
+  gap: 18px;
+  animation: cardFadeUp 0.4s ease both;
 }
 
 .success-icon-wrap svg {
@@ -1487,23 +1699,36 @@ textarea.form-input {
 @media (max-width: 768px) {
 
   .page-hero {
-    height: 380px;
+    height: 340px;
+    padding: 0 24px;
+  }
+
+  .hero-content {
+    width: 100%;
   }
 
   .page-hero h1 {
-    font-size: 32px;
-    letter-spacing: -0.8px;
+    font-size: 28px;
+    letter-spacing: -0.6px;
+    line-height: 1.22;
   }
 
+  .hero-divider-line {
+    margin: 18px 0;
+  }
 
+  .section-subtitle {
+    font-size: 14px;
+    line-height: 1.65;
+  }
 
-  .fields-wrapper {
-    padding: 20px;
-    gap: 16px;
+  .form-section {
+    padding: 0 16px 56px;
+    margin-top: -44px;
   }
 
   .card {
-    padding: 24px 20px;
+    padding: 26px 22px;
     border-radius: 20px;
   }
 
@@ -1511,8 +1736,14 @@ textarea.form-input {
     padding: 18px 20px;
   }
 
+  .fields-wrapper {
+    padding: 20px;
+    gap: 18px;
+  }
+
   .grid-2-col {
     grid-template-columns: 1fr;
+    gap: 16px;
   }
 
   .actions-group {
@@ -1521,97 +1752,24 @@ textarea.form-input {
 
   .carousel-container {
     width: 100%;
-    height: 240px;
-  }
-
-  .pet-card-info {
-    padding: 22px 20px;
-  }
-
-}
-
-@media (max-width: 480px) {
-
-  .form-section {
-    padding: 0 12px 48px;
-  }
-
-  .page-hero h1 {
-    font-size: 26px;
-  }
-
-  .block-number {
-    display: none;
-  }
-
-}
-
-
-/* ── MOBILE RESPONSIVE ── */
-@media (max-width: 768px) {
-  .page-hero {
-    height: 300px;
-    padding: 0 16px;
-  }
-
-  .page-hero h1 {
-    font-size: 30px;
-    letter-spacing: -0.5px;
-    margin: 0 0 14px;
-  }
-
-  .section-subtitle {
-    font-size: 13px;
-  }
-
-  .form-section {
-    padding: 0 12px 48px;
-    margin-top: -40px;
-  }
-
-  .card {
-    padding: 24px 16px;
-    border-radius: 18px;
+    height: 220px;
   }
 
   .aesthetic-pet-card {
     flex-direction: column;
-  }
-
-  .carousel-container {
-    width: 100%;
-    height: 200px;
-    flex-shrink: 0;
+    margin-bottom: 32px;
   }
 
   .pet-card-info {
-    padding: 18px 16px 20px;
+    padding: 22px 20px 24px;
   }
 
   .pet-card-name {
-    font-size: 22px;
+    font-size: 23px;
   }
 
-  .block-header {
-    padding: 14px 16px;
-  }
-
-  .block-header-left {
-    gap: 10px;
-  }
-
-  .form-section-title {
-    font-size: 14px;
-  }
-
-  .fields-wrapper {
-    padding: 16px;
-    gap: 14px;
-  }
-
-  .grid-2-col {
-    grid-template-columns: 1fr;
-    gap: 14px;
+  .form-block {
+    margin-bottom: 18px;
   }
 
   .phone-group {
@@ -1620,14 +1778,14 @@ textarea.form-input {
   }
 
   .code-selector-btn {
-    min-width: 80px;
-    height: 46px;
+    min-width: 82px;
+    height: 48px;
     font-size: 12px;
   }
 
   .form-input {
-    height: 46px;
-    font-size: 13px;
+    height: 48px;
+    font-size: 13.5px;
   }
 
   .code-dropdown-box {
@@ -1636,27 +1794,22 @@ textarea.form-input {
   }
 
   .radio-cards-group {
-    gap: 8px;
+    gap: 10px;
   }
 
   .radio-card {
-    padding: 12px 14px;
-    font-size: 13px;
-  }
-
-  .actions-group {
-    flex-direction: column;
-    gap: 10px;
+    padding: 13px 14px;
+    font-size: 13.5px;
   }
 
   .pet-btn,
   .pet-btn-outline {
     height: 50px;
-    font-size: 14px;
+    font-size: 14.5px;
   }
 
   .tc-wrapper {
-    padding: 14px 16px;
+    padding: 16px 18px;
   }
 
   .tc-tooltip {
@@ -1671,25 +1824,37 @@ textarea.form-input {
   .tc-tooltip::after {
     display: none;
   }
+
+  .requisitos-list {
+    padding: 20px;
+    gap: 14px;
+  }
 }
 
 @media (max-width: 480px) {
-  .page-hero h1 {
-    font-size: 24px;
+
+  .page-hero {
+    height: 300px;
   }
 
-  .hero-tag {
-    font-size: 9px;
-    letter-spacing: 2px;
-    padding: 5px 12px;
+  .page-hero h1 {
+    font-size: 24px;
   }
 
   .block-number {
     display: none;
   }
 
+  .form-section {
+    padding: 0 12px 48px;
+  }
+
   .card {
-    padding: 18px 12px;
+    padding: 20px 16px;
+  }
+
+  .requisitos-title {
+    font-size: 18px;
   }
 }
 
