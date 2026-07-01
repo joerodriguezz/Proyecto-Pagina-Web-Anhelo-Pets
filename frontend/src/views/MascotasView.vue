@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
 import FooterBar from '../components/FooterBar.vue'
@@ -40,10 +40,6 @@ function mainImage(pet) {
   return pet.image || ''
 }
 
-function handleImageError(event) {
-  event.target.src = '/img-mascotas/mascotas.jpg'
-}
-
 function goAdopt(pet) {
   router.push({ name: 'adoptar', params: { id: pet.id }, query: { name: pet.name } })
 }
@@ -54,10 +50,6 @@ function clearFilters() {
   filterStatus.value = 'Todos'
   searchQuery.value  = ''
 }
-
-onMounted(() => {
-  store.loadPets()
-})
 </script>
 
 <template>
@@ -108,7 +100,7 @@ onMounted(() => {
       </div>
     </div>
 
-    <div v-if="!store.isLoading" class="results-top">
+    <div class="results-top">
       <p class="results-count">
         {{ filtered.length }} mascota{{ filtered.length !== 1 ? 's' : '' }}
         encontrada{{ filtered.length !== 1 ? 's' : '' }}
@@ -116,28 +108,11 @@ onMounted(() => {
       <button class="clear-btn" @click="clearFilters">Limpiar filtros</button>
     </div>
 
-    <!-- Estado de carga -->
-    <div v-if="store.isLoading" class="loading-state" role="status" aria-live="polite">
-      <span class="loading-spinner"></span>
-      <div>
-        <h3>Cargando mascotas</h3>
-        <p>Estamos consultando la base de datos.</p>
-      </div>
-    </div>
-
-    <!-- Error de carga -->
-    <div v-else-if="store.loadError" class="empty-state">
-      <i class='bx bx-error-circle'></i>
-      <h3>No pudimos cargar las mascotas</h3>
-      <p>{{ store.loadError }}</p>
-      <button class="clear-btn retry-btn" @click="store.loadPets">Intentar de nuevo</button>
-    </div>
-
     <!-- Grid de mascotas -->
-    <div v-else-if="filtered.length" class="pets-grid">
+    <div v-if="filtered.length" class="pets-grid">
       <div v-for="pet in filtered" :key="pet.id" class="pet-card">
         <div class="pet-photo">
-          <img :src="mainImage(pet)" :alt="pet.name" class="pet-image" @error="handleImageError" />
+          <img :src="mainImage(pet)" :alt="pet.name" class="pet-image" />
           <div class="pet-photo-overlay"></div>
           <span class="badge floating-badge" :class="statusColor(pet.status)">{{ pet.status }}</span>
           <div v-if="pet.images && pet.images.length > 1" class="gallery-dots">
@@ -206,9 +181,9 @@ onMounted(() => {
     <div class="happy-grid">
       <div v-for="pet in adoptedPets" :key="pet.id" class="happy-card">
         <div class="happy-photo">
-          <img :src="mainImage(pet)" :alt="pet.name" @error="handleImageError" />
+          <img :src="mainImage(pet)" :alt="pet.name" />
           <div class="happy-overlay">
-            <span class="happy-badge">Adoptada ♥</span>
+            <span class="happy-badge">Adoptada</span>
           </div>
         </div>
         <div class="happy-body">
@@ -432,54 +407,6 @@ onMounted(() => {
 .clear-btn:hover {
   background: #E7EEE7;
   color: #2F352F;
-}
-
-/* ══ ESTADO DE CARGA ══ */
-.loading-state {
-  min-height: 280px;
-  border: 1px solid #E8ECE8;
-  border-radius: 18px;
-  background: #FFFFFF;
-  box-shadow: 0 8px 32px rgba(58,71,60,0.07);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 18px;
-  padding: 44px 24px;
-  text-align: left;
-}
-
-.loading-spinner {
-  width: 42px;
-  height: 42px;
-  border: 4px solid #E7EEE7;
-  border-top-color: #3A473C;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
-  flex: 0 0 auto;
-}
-
-.loading-state h3 {
-  font-size: 22px;
-  font-weight: 800;
-  color: #3A473C;
-  margin: 0 0 6px;
-}
-
-.loading-state p {
-  color: #6C756D;
-  font-size: 14px;
-  margin: 0;
-}
-
-.retry-btn {
-  margin-top: 18px;
-}
-
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
 }
 
 /* ══ GRID DE MASCOTAS ══ */
@@ -859,7 +786,6 @@ onMounted(() => {
   .page-hero h1 { font-size: 38px; }
   .page-hero p  { font-size: 15px; }
   .filters-bar  { padding: 20px; }
-  .loading-state { flex-direction: column; text-align: center; }
   .filters-grid { gap: 18px; }
   .filter-chips { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
   .pets-grid { grid-template-columns: 1fr; }
@@ -878,4 +804,60 @@ onMounted(() => {
     transition: none;
   }
 }
+
+/* ── MOBILE RESPONSIVE adicional ── */
+@media (max-width: 768px) {
+  .filters-bar {
+    padding: 18px 16px;
+    border-radius: 16px;
+  }
+
+  .search-input {
+    height: 46px;
+    font-size: 14px;
+  }
+
+  .filters-grid {
+    gap: 16px;
+  }
+
+  .chip {
+    padding: 7px 14px;
+    font-size: 12px;
+  }
+
+  .pets-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
+
+  .pet-photo {
+    height: 200px;
+  }
+
+  .pet-name {
+    font-size: 18px;
+  }
+
+  .happy-section {
+    padding: 0 16px 56px;
+  }
+
+  .happy-grid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .happy-photo {
+    height: 140px;
+  }
+}
+
+@media (max-width: 400px) {
+  .happy-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+
 </style>
