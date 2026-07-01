@@ -107,17 +107,18 @@ public class RescateService : IRescateService
             while (reader.Read())
             {
                 rescues.Add(new RescateDto
-                {
-                    RescateId = GetInt64(reader, "rescue_id"),
-                    AnimalId = GetNullableInt64(reader, "animal_id"),
-                    AnimalName = GetString(reader, "animal_name"),
-                    Fecha = GetDateOnly(reader, "rescue_date") ?? default,
-                    Ubicacion = GetString(reader, "location"),
-                    Descripcion = GetString(reader, "description"),
-                    Status = GetString(reader, "status"),
-                    FosterHomeId = GetNullableInt64(reader, "foster_home_id"),
-                    FosterHomeName = GetString(reader, "foster_home_name")
-                });
+            {
+                RescateId      = GetInt64(reader, "rescue_id"),
+                AnimalId       = GetNullableInt64(reader, "animal_id"),
+                AnimalName     = GetString(reader, "animal_name"),
+                Fecha          = GetDateOnly(reader, "rescue_date") ?? default,
+                Ubicacion      = GetString(reader, "location"),
+                Descripcion    = GetString(reader, "description"),
+                Status         = GetString(reader, "status"),
+                FosterHomeId   = GetNullableInt64(reader, "foster_home_id"),
+                FosterHomeName = GetString(reader, "foster_home_name"),
+                VolunteerName  = GetString(reader, "volunteer_name")
+            });
             }
 
             return rescues;
