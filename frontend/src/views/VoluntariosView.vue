@@ -50,6 +50,81 @@ const volunteerTypes = [
   { value: 'Rescatista', label: 'Rescatista' }
 ]
 
+/* ─── INFORMACIÓN DINÁMICA POR TIPO DE VOLUNTARIADO ──── */
+
+const volunteerInfo = {
+  'Casa cuna': {
+    title: 'Casa cuna',
+    description: 'Brinda un hogar temporal a mascotas rescatadas mientras encuentran una familia definitiva.',
+    responsibilities: [
+      'Hospedar mascotas temporalmente.',
+      'Brindar alimento y agua.',
+      'Dar cariño y socialización.',
+      'Informar cambios de salud.',
+      'Coordinar citas veterinarias.'
+    ]
+  },
+  'Eventos de adopción': {
+    title: 'Eventos de adopción',
+    description: 'Apoya en ferias y jornadas de adopción para conectar mascotas con nuevas familias.',
+    responsibilities: [
+      'Atender al público en el evento.',
+      'Mostrar y presentar a las mascotas.',
+      'Explicar el proceso de adopción.',
+      'Organizar el espacio del evento.',
+      'Apoyar en el traslado de mascotas.'
+    ]
+  },
+  'Transporte': {
+    title: 'Transporte',
+    description: 'Colabora trasladando mascotas entre hogares, veterinarias y eventos de adopción.',
+    responsibilities: [
+      'Trasladar mascotas de forma segura.',
+      'Coordinar horarios de traslado.',
+      'Mantener el vehículo en condiciones adecuadas.',
+      'Apoyar en traslados de emergencia.',
+      'Confirmar entregas con la fundación.'
+    ]
+  },
+  'Veterinaria': {
+    title: 'Veterinaria',
+    description: 'Brinda apoyo profesional en la atención médica de las mascotas rescatadas.',
+    responsibilities: [
+      'Realizar consultas y revisiones.',
+      'Apoyar en esterilizaciones.',
+      'Atender emergencias médicas.',
+      'Dar seguimiento a tratamientos.',
+      'Asesorar sobre cuidados de salud.'
+    ]
+  },
+  'Redes sociales': {
+    title: 'Redes sociales',
+    description: 'Ayuda a difundir rescates, adopciones y campañas a través de contenido digital.',
+    responsibilities: [
+      'Crear contenido para redes.',
+      'Editar fotos y videos.',
+      'Redactar publicaciones.',
+      'Gestionar comunidad y mensajes.',
+      'Apoyar campañas de difusión.'
+    ]
+  },
+  'Rescatista': {
+    title: 'Rescatista',
+    description: 'Participa directamente en el rescate de mascotas en situación de calle o riesgo.',
+    responsibilities: [
+      'Atender reportes de rescate.',
+      'Capturar mascotas de forma segura.',
+      'Brindar primeros auxilios básicos.',
+      'Coordinar traslado a veterinaria.',
+      'Dar seguimiento al caso rescatado.'
+    ]
+  }
+}
+
+const currentVolunteerInfo = computed(() =>
+  volunteerType.value ? volunteerInfo[volunteerType.value] : null
+)
+
 /* ─── CAMPOS BASE ─────────────────────────────────────── */
 
 const fullName      = ref('')
@@ -570,18 +645,32 @@ function submitVolunteer() {
         </div>
 
         <div class="types-strip">
-          <div class="types-strip-label">Tipos de voluntariado</div>
-          <div class="types-list">
-            <div
-              v-for="t in volunteerTypes"
-              :key="t.value"
-              class="type-pill"
-              :class="{ active: volunteerType === t.value }"
-            >
-              <span class="type-icon">{{ t.icon }}</span>
-              {{ t.label }}
+          <template v-if="!currentVolunteerInfo">
+            <div class="types-strip-label">Tipos de voluntariado</div>
+            <div class="types-list">
+              <div
+                v-for="t in volunteerTypes"
+                :key="t.value"
+                class="type-pill"
+                :class="{ active: volunteerType === t.value }"
+              >
+                <span class="type-icon">{{ t.icon }}</span>
+                {{ t.label }}
+              </div>
             </div>
-          </div>
+          </template>
+
+          <template v-else>
+            <div class="types-strip-label">{{ currentVolunteerInfo.title }}</div>
+            <p class="vol-info-desc">{{ currentVolunteerInfo.description }}</p>
+            <div class="vol-info-subtitle">Responsabilidades:</div>
+            <ul class="vol-info-list">
+              <li v-for="(r, idx) in currentVolunteerInfo.responsibilities" :key="idx">
+                <i class='bx bx-check'></i>
+                <span>{{ r }}</span>
+              </li>
+            </ul>
+          </template>
         </div>
       </div>
 
@@ -1281,197 +1370,134 @@ function submitVolunteer() {
 <style scoped>
 
 /* ═══════════════════════════════════════════════════════
-   HERO
+   HERO — se conserva la foto, dimensiones y overlay original.
+   Solo se refina tipografía, badge y detalles de los stats.
 ══════════════════════════════════════════════════════ */
 
 .hero {
-
   position: relative;
-
   height: 430px;
-
   overflow: hidden;
-
   background: #1e2a1f;
 }
 
 .hero-image {
-
   width: 100%;
-
   height: 100%;
-
   object-fit: cover;
-
   object-position: center 52%;
-
-  filter:
-    brightness(0.72)
-    contrast(1.05);
-
+  filter: brightness(0.72) contrast(1.05);
   transform: scale(1.04);
 }
 
 .hero-overlay {
-
   position: absolute;
-
   inset: 0;
-
-  background:
-    linear-gradient(
-      90deg,
-      rgba(0,0,0,0.72) 0%,
-      rgba(0,0,0,0.45) 35%,
-      rgba(0,0,0,0.12) 70%,
-      rgba(0,0,0,0) 100%
-    );
+  background: linear-gradient(
+    90deg,
+    rgba(0,0,0,0.74) 0%,
+    rgba(0,0,0,0.46) 35%,
+    rgba(0,0,0,0.14) 70%,
+    rgba(0,0,0,0) 100%
+  );
 }
 
 .hero-content {
-
   position: absolute;
-
   left: 7%;
-
   bottom: 55px;
-
   max-width: 560px;
-
   z-index: 2;
 }
 
 .hero-inner {
-
   max-width: 560px;
-
   color: white;
 }
 
 .hero-badge {
-
   display: inline-flex;
-
   align-items: center;
-
   gap: 8px;
-
-  background: rgba(249,193,122,0.18);
-
-  border: 1px solid rgba(249,193,122,0.35);
-
+  background: rgba(249,193,122,0.16);
+  border: 1px solid rgba(249,193,122,0.38);
   color: #F9C17A;
-
-  padding: 8px 18px;
-
+  padding: 7px 16px;
   border-radius: 999px;
-
   font-size: 11px;
-
   font-weight: 700;
-
-  letter-spacing: 1.5px;
-
+  letter-spacing: 1.4px;
   text-transform: uppercase;
-
-  margin-bottom: 24px;
+  margin-bottom: 22px;
+  backdrop-filter: blur(2px);
 }
 
-.hero-badge i {
-
-  font-size: 15px;
-}
+.hero-badge i { font-size: 14px; }
 
 .hero-inner h1 {
-
-  font-size: 62px;
-
-  line-height: 0.95;
-
+  font-size: 52px;
+  line-height: 0.98;
   font-weight: 800;
-
-  letter-spacing: -3px;
-
+  letter-spacing: -2.6px;
   color: white;
-
-  margin: 0 0 24px;
+  margin: 0 0 22px;
+  text-shadow: 0 2px 24px rgba(0,0,0,0.25);
 }
 
-.hero-accent {
-
-  color: #F9C17A;
-}
+.hero-accent { color: #F9C17A; }
 
 .hero-inner > p {
-
-  font-size: 16px;
-
-  line-height: 1.7;
-
-  color: rgba(255,255,255,0.92);
-
+  font-size: 15px;
+  line-height: 1.75;
+  color: rgba(255,255,255,0.90);
   max-width: 420px;
-
   margin-bottom: 0;
 }
 
 .hero-stats {
-
   display: flex;
-
   align-items: center;
-
-  gap: 24px;
-
-  margin-top: 28px;
+  gap: 26px;
+  margin-top: 30px;
+  padding-top: 26px;
+  border-top: 1px solid rgba(255,255,255,0.14);
 }
 
 .stat {
-
   display: flex;
-
   flex-direction: column;
-
-  gap: 2px;
+  gap: 3px;
 }
 
 .stat strong {
-
-  font-size: 28px;
-
+  font-size: 27px;
   font-weight: 800;
-
   color: #fff;
-
   line-height: 1;
+  letter-spacing: -0.5px;
 }
 
 .stat span {
-
-  font-size: 12px;
-
-  color: rgba(255,255,255,0.60);
-
+  font-size: 11.5px;
+  color: rgba(255,255,255,0.62);
   font-weight: 600;
-
   letter-spacing: 0.03em;
 }
 
 .stat-divider {
-
   width: 1px;
-
-  height: 40px;
-
-  background: rgba(255,255,255,0.18);
+  height: 34px;
+  background: rgba(255,255,255,0.16);
 }
 
 /* ═══════════════════════════════════════════════════════
    MAIN SECTION
 ══════════════════════════════════════════════════════ */
 .main-section {
-  background: #FAFAFA;
-  padding: 90px 24px 120px;
+  background:
+    radial-gradient(ellipse 900px 500px at 15% 0%, rgba(146,168,148,0.06), transparent),
+    #FAFAF8;
+  padding: 96px 24px 130px;
 }
 
 .container {
@@ -1482,7 +1508,7 @@ function submitVolunteer() {
 .vol-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 28px;
+  gap: 26px;
   align-items: start;
 }
 
@@ -1492,36 +1518,44 @@ function submitVolunteer() {
 .left-col {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: 22px;
 }
 
 /* INTRO CARD */
 .intro-card {
   background: white;
-  border-radius: 32px;
+  border-radius: 26px;
   overflow: hidden;
-  border: 1px solid rgba(146,168,148,0.12);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.04);
+  border: 1px solid rgba(146,168,148,0.14);
+  box-shadow: 0 1px 2px rgba(58,71,60,0.03), 0 14px 34px -12px rgba(58,71,60,0.10);
 }
 
 .intro-img-wrap {
-  height: 240px;
+  height: 230px;
   overflow: hidden;
+  position: relative;
+}
+
+.intro-img-wrap::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, rgba(0,0,0,0) 55%, rgba(20,26,20,0.28) 100%);
 }
 
 .intro-img-wrap img {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  transition: transform 0.5s ease;
+  transition: transform 0.6s cubic-bezier(0.16,1,0.3,1);
 }
 
 .intro-card:hover .intro-img-wrap img {
-  transform: scale(1.03);
+  transform: scale(1.045);
 }
 
 .intro-body {
-  padding: 32px 34px 34px;
+  padding: 30px 32px 32px;
 }
 
 .intro-label {
@@ -1538,15 +1572,16 @@ function submitVolunteer() {
 }
 
 .intro-body h2 {
-  font-size: 38px;
+  font-size: 32px;
   font-weight: 800;
   color: #3A473C;
-  line-height: 1.05;
-  margin: 0 0 14px;
+  line-height: 1.12;
+  letter-spacing: -0.8px;
+  margin: 0 0 12px;
 }
 
 .intro-body p {
-  font-size: 15px;
+  font-size: 14.5px;
   line-height: 1.85;
   color: #6C756D;
 }
@@ -1555,30 +1590,31 @@ function submitVolunteer() {
 .benefits-grid {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 16px;
+  gap: 14px;
 }
 
 .benefit-card {
   background: white;
-  border-radius: 24px;
-  padding: 22px;
+  border-radius: 20px;
+  padding: 20px;
   display: flex;
-  gap: 16px;
-  border: 1px solid rgba(146,168,148,0.12);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.03);
-  transition: box-shadow 0.25s, transform 0.25s;
+  gap: 14px;
+  border: 1px solid rgba(146,168,148,0.14);
+  box-shadow: 0 1px 2px rgba(58,71,60,0.02), 0 8px 20px -10px rgba(58,71,60,0.08);
+  transition: box-shadow 0.25s ease, transform 0.25s ease, border-color 0.25s ease;
 }
 
 .benefit-card:hover {
-  box-shadow: 0 8px 28px rgba(0,0,0,0.07);
-  transform: translateY(-2px);
+  box-shadow: 0 1px 2px rgba(58,71,60,0.03), 0 16px 32px -12px rgba(58,71,60,0.14);
+  transform: translateY(-3px);
+  border-color: rgba(146,168,148,0.28);
 }
 
 .benefit-icon {
-  width: 48px;
-  height: 48px;
-  min-width: 48px;
-  border-radius: 14px;
+  width: 46px;
+  height: 46px;
+  min-width: 46px;
+  border-radius: 50%;
   background: #E7F1E8;
   display: flex;
   align-items: center;
@@ -1586,19 +1622,20 @@ function submitVolunteer() {
 }
 
 .benefit-icon i {
-  font-size: 22px;
+  font-size: 20px;
   color: #3A473C;
 }
 
 .benefit-body h3 {
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 800;
   color: #3A473C;
   margin: 0 0 6px;
+  letter-spacing: -0.1px;
 }
 
 .benefit-body p {
-  font-size: 13px;
+  font-size: 12.5px;
   line-height: 1.7;
   color: #6C756D;
   margin: 0;
@@ -1607,10 +1644,10 @@ function submitVolunteer() {
 /* TYPES STRIP */
 .types-strip {
   background: white;
-  border-radius: 24px;
-  padding: 22px 24px;
-  border: 1px solid rgba(146,168,148,0.12);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.03);
+  border-radius: 22px;
+  padding: 24px 26px;
+  border: 1px solid rgba(146,168,148,0.14);
+  box-shadow: 0 1px 2px rgba(58,71,60,0.02), 0 8px 20px -10px rgba(58,71,60,0.08);
 }
 
 .types-strip-label {
@@ -1619,7 +1656,7 @@ function submitVolunteer() {
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #3A473C;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .types-list {
@@ -1632,10 +1669,10 @@ function submitVolunteer() {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 7px 14px;
+  padding: 8px 15px;
   border-radius: 999px;
   background: #F4F7F4;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 600;
   color: #6C756D;
   border: 1.5px solid transparent;
@@ -1648,8 +1685,56 @@ function submitVolunteer() {
   border-color: #3A473C;
 }
 
-.type-icon {
-  font-size: 15px;
+.type-icon { font-size: 15px; }
+
+/* TYPES STRIP — INFO DINÁMICA */
+.vol-info-desc {
+  font-size: 13px;
+  line-height: 1.75;
+  color: #6C756D;
+  margin: 0 0 18px;
+}
+
+.vol-info-subtitle {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #3A473C;
+  margin-bottom: 12px;
+}
+
+.vol-info-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.vol-info-list li {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  color: #3A473C;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.vol-info-list li i {
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border-radius: 50%;
+  background: #E7F1E8;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #5A8060;
+  font-size: 13px;
+  margin-top: 1px;
 }
 
 /* ═══════════════════════════════════════════════════════
@@ -1657,12 +1742,16 @@ function submitVolunteer() {
 ══════════════════════════════════════════════════════ */
 .form-card {
   background: white;
-  border-radius: 32px;
-  padding: 36px 34px;
-  border: 1px solid rgba(146,168,148,0.12);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.04);
+  border-radius: 28px;
+  padding: 38px 36px;
+  border: 1px solid rgba(146,168,148,0.14);
+  box-shadow: 0 1px 2px rgba(58,71,60,0.03), 0 20px 44px -16px rgba(58,71,60,0.14);
   position: sticky;
-  top: 24px;
+  /* Espacio suficiente para que la tarjeta no quede tapada por el NavBar
+     fijo al hacer scroll. Ajusta este valor a la altura real de tu NavBar
+     más el espacio de aire que quieras dejar (por defecto: navbar ~80px + 24px de aire). */
+  top: 104px;
+  z-index: 5;
 }
 
 /* ─── STATE BOXES ───────────────────────── */
@@ -1671,15 +1760,16 @@ function submitVolunteer() {
   flex-direction: column;
   align-items: center;
   text-align: center;
-  padding: 48px 20px;
+  padding: 50px 20px;
   gap: 14px;
 }
 
 .state-box h3 {
-  font-size: 26px;
+  font-size: 24px;
   font-weight: 800;
   color: #3A473C;
   margin: 0;
+  letter-spacing: -0.4px;
 }
 
 .state-box p {
@@ -1687,11 +1777,12 @@ function submitVolunteer() {
   line-height: 1.8;
   max-width: 340px;
   margin: 0;
+  font-size: 13.5px;
 }
 
 .state-icon {
-  width: 72px;
-  height: 72px;
+  width: 68px;
+  height: 68px;
   border-radius: 22px;
   background: #FFF1DD;
   display: flex;
@@ -1701,24 +1792,30 @@ function submitVolunteer() {
 }
 
 .state-icon i {
-  font-size: 34px;
+  font-size: 30px;
   color: #F9C17A;
 }
 
 .success-icon {
-  font-size: 72px;
-  color: #3A473C;
+  width: 68px;
+  height: 68px;
+  border-radius: 50%;
+  background: #E7F1E8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   margin-bottom: 4px;
 }
 
 .success-icon i {
-  display: block;
+  font-size: 32px;
+  color: #3A473C;
 }
 
 /* Status */
 .status-badge-large {
-  width: 80px;
-  height: 80px;
+  width: 76px;
+  height: 76px;
   border-radius: 50%;
   display: flex;
   align-items: center;
@@ -1726,15 +1823,13 @@ function submitVolunteer() {
   margin-bottom: 6px;
 }
 
-.status-badge-large i {
-  font-size: 38px;
-}
+.status-badge-large i { font-size: 34px; }
 
-.status-green  { background: rgba(146,168,148,0.14); }
+.status-green  { background: rgba(146,168,148,0.16); }
 .status-green i { color: #5A8060; }
-.status-red    { background: rgba(235,119,119,0.12); }
+.status-red    { background: rgba(235,119,119,0.13); }
 .status-red i  { color: #C45252; }
-.status-orange { background: rgba(249,193,122,0.16); }
+.status-orange { background: rgba(249,193,122,0.18); }
 .status-orange i { color: #D18C3A; }
 
 .status-row {
@@ -1744,7 +1839,7 @@ function submitVolunteer() {
 }
 
 .status-label {
-  font-size: 14px;
+  font-size: 13.5px;
   color: #6C756D;
 }
 
@@ -1752,36 +1847,36 @@ function submitVolunteer() {
   display: inline-block;
   padding: 5px 14px;
   border-radius: 999px;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
 }
 
-.badge-green  { background: rgba(146,168,148,0.16); color: #5A6E5C; }
-.badge-red    { background: rgba(235,119,119,0.14); color: #C45252; }
-.badge-orange { background: rgba(249,193,122,0.18); color: #D18C3A; }
+.badge-green  { background: rgba(146,168,148,0.18); color: #4E5F50; }
+.badge-red    { background: rgba(235,119,119,0.15); color: #C45252; }
+.badge-orange { background: rgba(249,193,122,0.20); color: #C67B26; }
 
 .status-msg {
-  font-size: 14px;
+  font-size: 13.5px;
   color: #6C756D;
-  line-height: 1.7;
+  line-height: 1.75;
 }
 
 /* ─── FORM BODY ───────────────────────── */
 .form-header {
-  margin-bottom: 28px;
+  margin-bottom: 30px;
 }
 
 .form-header h2 {
-  font-size: 34px;
+  font-size: 30px;
   font-weight: 800;
   color: #3A473C;
   margin: 0 0 8px;
-  letter-spacing: -0.5px;
+  letter-spacing: -0.7px;
 }
 
 .form-header p {
   color: #6C756D;
-  font-size: 14px;
+  font-size: 13.5px;
   line-height: 1.7;
 }
 
@@ -1790,24 +1885,26 @@ function submitVolunteer() {
   display: flex;
   align-items: center;
   gap: 10px;
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 800;
   letter-spacing: 0.1em;
   text-transform: uppercase;
   color: #3A473C;
-  margin: 8px 0 18px;
+  margin: 10px 0 18px;
 }
 
 .section-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: #3A473C;
   flex-shrink: 0;
+  box-shadow: 0 0 0 4px rgba(58,71,60,0.08);
 }
 
 .section-dot.accent {
   background: #F9C17A;
+  box-shadow: 0 0 0 4px rgba(249,193,122,0.18);
 }
 
 /* FORM LAYOUT */
@@ -1823,19 +1920,19 @@ function submitVolunteer() {
 .form-group {
   display: flex;
   flex-direction: column;
-  margin-bottom: 16px;
+  margin-bottom: 18px;
 }
 
 .form-group label {
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
   color: #3A473C;
-  margin-bottom: 7px;
+  margin-bottom: 8px;
 }
 
 .optional {
   font-weight: 500;
-  color: #3A473C;
+  color: #9BA99C;
 }
 
 /* INPUTS */
@@ -1846,21 +1943,23 @@ function submitVolunteer() {
 .form-group textarea {
   width: 100%;
   box-sizing: border-box;
-  height: 50px;
+  height: 48px;
   border: 1.5px solid #E5ECE6;
   border-radius: 14px;
   padding: 0 16px;
-  background: #FCFCFC;
-  font-size: 14px;
+  background: #FBFBF9;
+  font-size: 13.5px;
   color: #3A473C;
   outline: none;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
   font-family: inherit;
 }
 
 .form-group input:focus,
 .form-group textarea:focus {
-  border-color: #3A473C;
+  border-color: #6E8870;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(110,136,112,0.12);
 }
 
 .form-group input:disabled {
@@ -1871,9 +1970,10 @@ function submitVolunteer() {
 
 .form-group textarea {
   height: auto;
-  min-height: 110px;
+  min-height: 104px;
   padding: 14px 16px;
   resize: vertical;
+  line-height: 1.6;
 }
 
 /* PHONE */
@@ -1888,12 +1988,12 @@ function submitVolunteer() {
 }
 
 .code-btn {
-  height: 50px;
-  width: 96px;
+  height: 48px;
+  width: 94px;
   padding: 0 12px;
   border-radius: 14px;
   border: 1.5px solid #E5ECE6;
-  background: #FCFCFC;
+  background: #FBFBF9;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1901,11 +2001,11 @@ function submitVolunteer() {
   font-weight: 700;
   font-size: 13px;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, background 0.2s;
   font-family: inherit;
 }
 
-.code-btn:hover { border-color: #3A473C; }
+.code-btn:hover { border-color: #6E8870; background: #fff; }
 
 .phone-number-input {
   flex: 1;
@@ -1914,25 +2014,23 @@ function submitVolunteer() {
 
 .code-dropdown {
   position: absolute;
-  top: 56px;
+  top: 54px;
   left: 0;
   width: 260px;
   background: white;
   border-radius: 18px;
   border: 1.5px solid #E5ECE6;
-  box-shadow: 0 16px 40px rgba(0,0,0,0.10);
+  box-shadow: 0 20px 44px -8px rgba(58,71,60,0.22);
   overflow: hidden;
   z-index: 1000;
 }
 
-.dropdown-search-wrap {
-  padding: 12px;
-}
+.dropdown-search-wrap { padding: 12px; }
 
 .dropdown-search-wrap input {
   width: 100%;
   box-sizing: border-box;
-  height: 42px;
+  height: 40px;
   border: 1.5px solid #E5ECE6;
   border-radius: 12px;
   padding: 0 12px;
@@ -1941,8 +2039,12 @@ function submitVolunteer() {
   font-family: inherit;
 }
 
+.dropdown-search-wrap input:focus {
+  border-color: #6E8870;
+}
+
 .dropdown-list {
-  max-height: 230px;
+  max-height: 226px;
   overflow-y: auto;
 }
 
@@ -1969,28 +2071,31 @@ function submitVolunteer() {
 }
 
 /* SELECT */
-.select-wrap {
-  position: relative;
-}
+.select-wrap { position: relative; }
 
 .select-wrap select {
   width: 100%;
   box-sizing: border-box;
-  height: 50px;
+  height: 48px;
   border: 1.5px solid #E5ECE6;
   border-radius: 14px;
   padding: 0 42px 0 16px;
-  background: #FCFCFC;
-  font-size: 14px;
+  background: #FBFBF9;
+  font-size: 13.5px;
   color: #3A473C;
   outline: none;
   appearance: none;
   cursor: pointer;
-  transition: border-color 0.2s;
+  transition: border-color 0.2s, box-shadow 0.2s, background 0.2s;
   font-family: inherit;
 }
 
-.select-wrap select:focus { border-color: #3A473C; }
+.select-wrap select:focus {
+  border-color: #6E8870;
+  background: #fff;
+  box-shadow: 0 0 0 4px rgba(110,136,112,0.12);
+}
+
 .select-wrap select:disabled {
   background: #F4F6F4;
   color: #9BA99C;
@@ -2002,8 +2107,8 @@ function submitVolunteer() {
   right: 14px;
   top: 50%;
   transform: translateY(-50%);
-  font-size: 20px;
-  color: #3A473C;
+  font-size: 19px;
+  color: #6C756D;
   pointer-events: none;
 }
 
@@ -2012,7 +2117,7 @@ function submitVolunteer() {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
 }
 
 .type-btn {
@@ -2020,33 +2125,31 @@ function submitVolunteer() {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 6px;
-  padding: 14px 8px;
-  border-radius: 16px;
+  gap: 7px;
+  padding: 16px 8px;
+  border-radius: 18px;
   border: 1.5px solid #E5ECE6;
-  background: #FCFCFC;
+  background: #FBFBF9;
   cursor: pointer;
   transition: all 0.2s;
   font-family: inherit;
 }
 
 .type-btn:hover {
-  border-color: #3A473C;
+  border-color: #6E8870;
   background: #F4F7F4;
 }
 
 .type-btn.selected {
   border-color: #3A473C;
   background: #E7F1E8;
+  box-shadow: 0 4px 14px -4px rgba(58,71,60,0.22);
 }
 
-.type-btn-icon {
-  font-size: 22px;
-  line-height: 1;
-}
+.type-btn-icon { font-size: 22px; line-height: 1; }
 
 .type-btn-label {
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 700;
   color: #3A473C;
   text-align: center;
@@ -2067,8 +2170,8 @@ function submitVolunteer() {
 
 .dynamic-fields {
   border-top: 1.5px solid #E7F1E8;
-  margin-top: 8px;
-  padding-top: 4px;
+  margin-top: 10px;
+  padding-top: 6px;
 }
 
 /* RADIO & CHECK */
@@ -2076,7 +2179,7 @@ function submitVolunteer() {
 .check-group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 9px;
   margin-top: 2px;
 }
 
@@ -2099,8 +2202,8 @@ function submitVolunteer() {
 
 .radio-opt input[type="radio"],
 .check-opt input[type="checkbox"] {
-  width: 16px;
-  height: 16px;
+  width: 17px;
+  height: 17px;
   accent-color: #3A473C;
   cursor: pointer;
   flex-shrink: 0;
@@ -2109,8 +2212,8 @@ function submitVolunteer() {
 .check-group.wrap .check-opt {
   background: #F4F7F4;
   border: 1.5px solid #E5ECE6;
-  border-radius: 10px;
-  padding: 6px 12px;
+  border-radius: 11px;
+  padding: 7px 13px;
   transition: all 0.15s;
 }
 
@@ -2124,10 +2227,10 @@ function submitVolunteer() {
   width: 100%;
   height: 54px;
   border: none;
-  border-radius: 16px;
+  border-radius: 17px;
   background: linear-gradient(135deg, #3A473C 0%, #6E8870 100%);
   color: white;
-  font-size: 15px;
+  font-size: 14.5px;
   font-weight: 700;
   font-family: inherit;
   cursor: pointer;
@@ -2135,95 +2238,64 @@ function submitVolunteer() {
   align-items: center;
   justify-content: center;
   gap: 10px;
-  margin-top: 10px;
+  margin-top: 12px;
   transition: opacity 0.2s, transform 0.15s, box-shadow 0.2s;
-  box-shadow: 0 6px 20px rgba(110,136,112,0.28);
+  box-shadow: 0 10px 26px -8px rgba(58,71,60,0.42);
 }
 
 .submit-btn:hover:not(:disabled) {
   transform: translateY(-1px);
-  box-shadow: 0 10px 28px rgba(110,136,112,0.36);
+  box-shadow: 0 14px 32px -8px rgba(58,71,60,0.48);
 }
 
 .submit-btn:disabled {
-  opacity: 0.40;
+  opacity: 0.38;
   cursor: not-allowed;
   box-shadow: none;
 }
 
-.submit-btn i {
-  font-size: 18px;
-}
+.submit-btn i { font-size: 18px; }
 
 /* ═══════════════════════════════════════════════════════
    RESPONSIVE
 ══════════════════════════════════════════════════════ */
 @media (max-width: 1100px) {
-  .vol-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .form-card {
-    position: static;
-  }
+  .vol-grid { grid-template-columns: 1fr; }
+  .form-card { position: static; }
 }
 
 @media (max-width: 720px) {
-  .hero {
-    height: 520px;
-  }
+  .hero { height: 520px; }
 
   .hero-inner h1 {
     font-size: 40px;
     letter-spacing: -1.5px;
   }
 
-  .hero-stats {
-    gap: 16px;
-  }
+  .hero-stats { gap: 16px; }
+  .stat strong { font-size: 22px; }
 
-  .stat strong {
-    font-size: 22px;
-  }
+  .main-section { padding: 56px 16px 80px; }
 
-  .main-section {
-    padding: 56px 16px 80px;
-  }
-
-  .benefits-grid {
-    grid-template-columns: 1fr;
-  }
+  .benefits-grid { grid-template-columns: 1fr; }
 
   .two-col,
-  .three-col {
-    grid-template-columns: 1fr;
-  }
+  .three-col { grid-template-columns: 1fr; }
 
-  .type-selector-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+  .type-selector-grid { grid-template-columns: repeat(2, 1fr); }
 
-  .form-card {
-    padding: 26px 20px;
-  }
+  .form-card { padding: 26px 20px; }
 
-  .code-dropdown {
-    width: 100%;
-    left: 0;
-  }
+  .code-dropdown { width: 100%; left: 0; }
 }
 
 @media (max-width: 400px) {
-  .type-selector-grid {
-    grid-template-columns: 1fr 1fr;
-  }
+  .type-selector-grid { grid-template-columns: 1fr 1fr; }
 }
 
 /* ── MOBILE RESPONSIVE adicional ── */
 @media (max-width: 768px) {
-  .hero {
-    height: 400px;
-  }
+  .hero { height: 400px; }
 
   .hero-content {
     left: 16px;
@@ -2238,35 +2310,22 @@ function submitVolunteer() {
     margin: 0 0 16px;
   }
 
-  .hero-inner > p {
-    font-size: 14px;
-  }
+  .hero-inner > p { font-size: 14px; }
 
   .hero-stats {
     gap: 12px;
     margin-top: 20px;
+    padding-top: 18px;
     flex-wrap: wrap;
   }
 
-  .stat strong {
-    font-size: 22px;
-  }
+  .stat strong { font-size: 22px; }
+  .stat span { font-size: 11px; }
 
-  .stat span {
-    font-size: 11px;
-  }
+  .main-section { padding: 48px 16px 72px; }
 
-  .main-section {
-    padding: 48px 16px 72px;
-  }
-
-  .intro-body {
-    padding: 22px 18px 24px;
-  }
-
-  .intro-body h2 {
-    font-size: 26px;
-  }
+  .intro-body { padding: 24px 20px 26px; }
+  .intro-body h2 { font-size: 25px; }
 
   .benefits-grid {
     grid-template-columns: 1fr;
@@ -2274,14 +2333,12 @@ function submitVolunteer() {
   }
 
   .form-card {
-    padding: 22px 16px;
-    border-radius: 22px;
+    padding: 24px 18px;
+    border-radius: 24px;
     position: static;
   }
 
-  .form-header h2 {
-    font-size: 24px;
-  }
+  .form-header h2 { font-size: 24px; }
 
   .two-col,
   .three-col {
@@ -2294,26 +2351,16 @@ function submitVolunteer() {
     gap: 8px;
   }
 
-  .type-btn {
-    padding: 12px 6px;
-  }
-
-  .type-btn-label {
-    font-size: 11px;
-  }
+  .type-btn { padding: 13px 6px; }
+  .type-btn-label { font-size: 11px; }
 
   .submit-btn {
     height: 50px;
     font-size: 14px;
   }
 
-  .state-box {
-    padding: 36px 16px;
-  }
-
-  .state-box h3 {
-    font-size: 22px;
-  }
+  .state-box { padding: 38px 16px; }
+  .state-box h3 { font-size: 21px; }
 
   .code-dropdown {
     width: calc(100vw - 48px);
@@ -2322,14 +2369,8 @@ function submitVolunteer() {
 }
 
 @media (max-width: 400px) {
-  .hero-inner h1 {
-    font-size: 30px;
-  }
-
-  .type-selector-grid {
-    grid-template-columns: 1fr 1fr;
-  }
+  .hero-inner h1 { font-size: 30px; }
+  .type-selector-grid { grid-template-columns: 1fr 1fr; }
 }
-
 
 </style>
