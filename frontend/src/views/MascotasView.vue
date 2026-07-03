@@ -168,31 +168,6 @@ function clearFilters() {
     </div>
   </section>
 
-  <!-- ══ HISTORIAS FELICES ══ -->
-  <section v-if="adoptedPets.length > 0" class="happy-section container">
-    <div class="happy-header">
-      <span class="happy-emoji"></span>
-      <div>
-        <h2 class="happy-title">Historias felices</h2>
-        <p class="happy-sub">Estas mascotas ya encontraron un hogar para siempre.</p>
-      </div>
-    </div>
-
-    <div class="happy-grid">
-      <div v-for="pet in adoptedPets" :key="pet.id" class="happy-card">
-        <div class="happy-photo">
-          <img :src="mainImage(pet)" :alt="pet.name" />
-          <div class="happy-overlay">
-            <span class="happy-badge">Adoptada</span>
-          </div>
-        </div>
-        <div class="happy-body">
-          <p class="happy-name">{{ pet.name }}</p>
-          <p class="happy-meta">{{ pet.type }} · {{ pet.age }}</p>
-        </div>
-      </div>
-    </div>
-  </section>
 
   <FooterBar />
 </template>
