@@ -2,6 +2,7 @@ using System.Data;
 using System.Security.Cryptography;
 using AnheloPets.API.Data;
 using AnheloPets.API.DTOs;
+using AnheloPets.API.Repository;
 using Microsoft.EntityFrameworkCore;
 
 namespace AnheloPets.API.Services;
@@ -11,85 +12,52 @@ public class UserService : IUserService
     private const int HashIterations = 100_000;
     private const int SaltSize = 16;
     private const int KeySize = 32;
+    private readonly AuthRepository _authRepository;
 
     private readonly AnheloPetsDbContext _dbContext;
 
-    public UserService(AnheloPetsDbContext dbContext)
+    public UserService(AnheloPetsDbContext dbContext, AuthRepository authRepository)
     {
         _dbContext = dbContext;
+        _authRepository = authRepository;
     }
 
-    public AuthUserDto Register(RegisterUserDto request)
+    public async Task<AuthUserDto> Register(RegisterUserDto request)
     {
-        using var command = CreateCommand(
-            """
-            SELECT anhelopets.fn_create_user_account(
-                @username::varchar,
-                @passwordHash::text,
-                @firstName::varchar,
-                @middleName::varchar,
-                @lastName::varchar,
-                @secondLastName::varchar,
-                @birthDate::date,
-                @email::varchar,
-                @phonePrimary::varchar,
-                @phoneSecondary::varchar,
-                @city::varchar,
-                @town::varchar,
-                @addressLine::text,
-                @createdBy::varchar,
-                @nationalId::varchar,
-                @nationality::varchar);
-            """);
-
-        AddParameter(command, "username", request.Username);
-        AddParameter(command, "passwordHash", HashPassword(request.Password));
-        AddParameter(command, "firstName", request.FirstName);
-        AddParameter(command, "middleName", request.MiddleName);
-        AddParameter(command, "lastName", request.LastName);
-        AddParameter(command, "secondLastName", request.SecondLastName);
-        AddParameter(command, "birthDate", request.BirthDate);
-        AddParameter(command, "email", request.Email);
-        AddParameter(command, "phonePrimary", request.PhonePrimary);
-        AddParameter(command, "phoneSecondary", request.PhoneSecondary);
-        AddParameter(command, "city", request.City);
-        AddParameter(command, "town", request.Town);
-        AddParameter(command, "addressLine", request.AddressLine);
-        AddParameter(command, "createdBy", request.CreatedBy);
-        AddParameter(command, "nationalId", request.NationalId);
-        AddParameter(command, "nationality", request.Nationality);
-
-        ExecuteScalar(command);
-
-        return GetAuthUser(request.Username)
-            ?? throw new InvalidOperationException("User was created but could not be loaded.");
+        request.Username = request.Email.Split("@")[0];
+        request.LastName = request.FirstName.Split(" ")[1];
+        request.Password = HashPassword(request.Password);
+        return await _authRepository.Register(request);
     }
+    
 
-    public AuthUserDto? Login(LoginDto request)
+    public async Task<LoginDtoResponse> Login (LoginDtoRequest request)
     {
-        using var command = CreateCommand("SELECT * FROM anhelopets.fn_get_auth_user(@usernameOrEmail::text);");
-        AddParameter(command, "usernameOrEmail", request.UsernameOrEmail);
+        AuthUserDto authUser = await _authRepository.Login(request);
 
-        try
+        if (authUser == null)
         {
-            using var reader = command.ExecuteReader();
-            if (!reader.Read())
-            {
-                return null;
-            }
-
-            var passwordHash = GetString(reader, "password_hash");
-            if (!VerifyPassword(request.Password, passwordHash))
-            {
-                return null;
-            }
-
-            return ReadAuthUser(reader);
+            throw new ApplicationException($"User {request.Email} not found");
         }
-        finally
+
+        if (!VerifyPassword(request.Password, authUser.Password))
         {
-            command.Connection?.Close();
+            return new LoginDtoResponse
+            {
+                Email = authUser.Email,
+                Message = "Datos incorrectos"
+            };
         }
+
+        return new LoginDtoResponse
+        {
+            Email = authUser.Email,
+            Message = "Datos correctos"
+        };
+
+
+
+
     }
 
     public bool UpdatePassword(long userId, PasswordUpdateDto request)
@@ -157,11 +125,9 @@ public class UserService : IUserService
     {
         return new AuthUserDto
         {
-            UserId = GetInt64(reader, "user_id"),
+            UserId = GetString(reader, "user_id"),
             Username = GetString(reader, "username"),
             Email = GetString(reader, "email"),
-            FirstName = GetString(reader, "first_name"),
-            LastName = GetString(reader, "last_name"),
             IsVolunteer = GetBoolean(reader, "is_volunteer"),
             VolunteerActive = GetBoolean(reader, "volunteer_active"),
             VolunteerValidationStatus = GetString(reader, "volunteer_validation_status"),

@@ -1,16 +1,36 @@
+using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
+
 namespace AnheloPets.API.Models;
 
 public class Animal
 {
-    public long AnimalId { get; set; }
+    [Key]
+    [Column("animal_id")]
+    public string? AnimalId { get; set; }
 
-    public string Name { get; set; } = string.Empty;
-
+    [Column("species")]
     public string Species { get; set; } = string.Empty;
 
-    public string Breed { get; set; } = string.Empty;
+    [Column("breed")]
+    public string? Breed { get; set; }
 
-    public int Age { get; set; }
+    [Column("animal_name")]
+    public string? AnimalName { get; set; }
 
-    public string Status { get; set; } = "Disponible";
+    [Column("animal_status")]
+    public string AnimalStatus { get; set; } = string.Empty;
+
+    [Column("health_status")]
+    public string HealthStatus { get; set; } = string.Empty;
+
+    [Column("birth_date")]
+    public DateOnly? DateOfBirth { get; set; }
+
+    [Column("sex")]
+    public char Gender { get; set; }
+
+    [Column("description")]
+    public string? Description { get; set; }
+
 }

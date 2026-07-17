@@ -1,20 +1,23 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
 import FooterBar from '../components/FooterBar.vue'
-import { usePetsStore } from '../stores/usePetsStore'
+import { getAnimals } from '../services/petServices.js'
 
 const router = useRouter()
-const store  = usePetsStore()
 
 const filterType   = ref('Todos')
 const filterSex    = ref('Todos')
 const filterStatus = ref('Todos')
 const searchQuery  = ref('')
 
+const pets = ref([])
+const isLoading = ref(false)
+const error = ref('')
+
 const filtered = computed(() =>
-  store.publicPets.filter(pet => {
+  pets.value.filter(pet => {
     const matchType   = filterType.value   === 'Todos' || pet.type === filterType.value
     const matchSex    = filterSex.value    === 'Todos' || pet.sex  === filterSex.value
     const matchStatus = filterStatus.value === 'Todos' || pet.status === filterStatus.value
@@ -28,7 +31,38 @@ const filtered = computed(() =>
   })
 )
 
-const adoptedPets = computed(() => store.adoptedPets)
+const adoptedPets = computed(() => pets.value.filter(pet => pet.status === 'Adoptada'))
+
+function buildQueryParams() {
+  const params = {}
+
+  if (filterType.value !== 'Todos') params.type = filterType.value
+  if (filterSex.value !== 'Todos') params.sex = filterSex.value
+  if (filterStatus.value !== 'Todos') params.status = filterStatus.value
+  if (searchQuery.value.trim()) params.search = searchQuery.value.trim()
+
+  return params
+}
+
+async function loadAnimals() {
+  isLoading.value = true
+  error.value = ''
+
+  try {
+    const response = await getAnimals(buildQueryParams())
+    pets.value = response.data || []
+  } catch (err) {
+    console.error('Error cargando mascotas:', err)
+    error.value = 'No se pudieron cargar las mascotas.'
+    pets.value = []
+  } finally {
+    isLoading.value = false
+  }
+}
+
+onMounted(loadAnimals)
+
+watch([filterType, filterSex, filterStatus, searchQuery], loadAnimals)
 
 const statusColor = status => ({
   'Disponible': 'badge-green',
@@ -100,7 +134,11 @@ function clearFilters() {
       </div>
     </div>
 
-    <div class="results-top">
+    <div v-if="isLoading" class="results-top">
+      <p class="results-count">Cargando mascotas...</p>
+    </div>
+
+    <div v-else class="results-top">
       <p class="results-count">
         {{ filtered.length }} mascota{{ filtered.length !== 1 ? 's' : '' }}
         encontrada{{ filtered.length !== 1 ? 's' : '' }}
@@ -605,8 +643,7 @@ function clearFilters() {
   color: #2F352F;
 }
 
-/* ── En proceso ── */
-.en-proceso-block { }
+
 
 .en-proceso-msg {
   font-size: 12px;

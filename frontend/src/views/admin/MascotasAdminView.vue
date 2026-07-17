@@ -2,7 +2,7 @@
 import { ref, computed } from 'vue'
 import Icon from '../../components/Icon.vue'
 import { usePetsStore } from '../../stores/usePetsStore'
-
+import { createAnimals } from '../../services/petServices.js'
 const store = usePetsStore()
 
 // ─────────────────────────────────────────────
@@ -186,15 +186,15 @@ function clearErr(campo) {
 
 // ─────────────────────────────────────────────
 // Guardar mascota
-// ─────────────────────────────────────────────
-function savePet() {
+// ──────────────────────────────────────────a───
+async function savePet() {
   if (!validateForm()) return
   const petData = { ...formData.value, images: [...formData.value.images] }
   if (editMode.value && editingPetId.value !== null) {
     store.updatePet(editingPetId.value, petData)
     showToast('success', 'Mascota actualizada correctamente')
   } else {
-    store.addPet(petData)
+    await createAnimals(petData)
     showToast('success', 'Mascota registrada correctamente')
   }
   closeForm()

@@ -1,9 +1,5 @@
 <script setup>
 
-/* ─────────────────────────────
-   IMPORTS
-───────────────────────────── */
-
 import {
   ref,
   computed,
@@ -21,6 +17,9 @@ import {
   phoneCodesList
 } from '../data/paises'
 
+import { register } from '../services/userServices'
+
+console.log("Registro cargado")
 const router = useRouter()
 
 /* ─────────────────────────────
@@ -130,51 +129,33 @@ async function enviarCorreoVerificacion(codigo) {
 
 }
 
-function crearUsuarioEnStorage() {
-  const usuarios = JSON.parse(
-    localStorage.getItem('anhelo_usuarios')
-  ) || []
-
-  const nuevoUsuario = {
-    id: `U-${String(usuarios.length + 1).padStart(3, '0')}`,
-    nombre:   nombre.value,
-    correo:   correo.value,
-    cedula:   cedula.value,
-    telefono: `${selectedCountryObject.value.code} ${telefono.value}`,
-    pais:     countrySearch.value,
-    password: password.value,
-    rol:      'Usuario',
-    activo:   true
-  }
-
-  usuarios.push(nuevoUsuario)
-
-  localStorage.setItem('anhelo_usuarios',       JSON.stringify(usuarios))
-  localStorage.setItem('anhelo_usuario_actual', JSON.stringify(nuevoUsuario))
-
-  return nuevoUsuario
-}
 
 async function verificarCodigo() {
   errorVerificacion.value = ''
 
-  if (!codigoIngresado.value.trim()) {
-    errorVerificacion.value = 'Por favor ingresa el código de verificación'
-    return
+  try {
+    const user = {
+      firstName: nombre.value,
+      email: correo.value,
+      phonePrimary: `${selectedCountryObject.value.code} ${telefono.value}`,
+      nationalId: cedula.value,
+      nationality: countrySearch.value,
+      password: password.value
+    }
+    await register(user)
+    success.value = true
+  } catch (error) {
+    console.error(error)
+    success.value = false
+    error.value = 'No se pudo crear el usuario'
   }
 
-  if (codigoIngresado.value.trim() !== codigoGenerado.value) {
-    errorVerificacion.value = 'El código es incorrecto. Intenta nuevamente'
-    return
-  }
-
-  // Código correcto → crear cuenta con la lógica existente
-  crearUsuarioEnStorage()
-  success.value = true
 
   setTimeout(() => {
     router.push('/')
   }, 1000)
+
+
 }
 
 async function reenviarCodigo() {

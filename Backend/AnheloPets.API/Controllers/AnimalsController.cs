@@ -18,7 +18,7 @@ public class AnimalsController : ControllerBase
     [HttpGet]
     public IActionResult GetAll([FromQuery] string? species, [FromQuery] string? status = "Disponible", [FromQuery] string? search = null)
     {
-        return Ok(_animalService.GetAll(species, status, search));
+        return Ok();
     }
 
     [HttpGet("{id}")]
@@ -38,7 +38,7 @@ public class AnimalsController : ControllerBase
         if (animal == null) return BadRequest();
 
         var created = _animalService.Create(animal);
-        return CreatedAtAction(nameof(GetById), new { id = created.AnimalId }, created);
+        return CreatedAtAction(nameof(GetById), new { id = created.Result }, created);
     }
 
     [HttpPut("{id}")]

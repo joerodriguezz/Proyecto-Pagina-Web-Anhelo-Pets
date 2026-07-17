@@ -4,7 +4,7 @@ namespace AnheloPets.API.Services;
 
 public interface IUserService
 {
-    AuthUserDto Register(RegisterUserDto request);
-    AuthUserDto? Login(LoginDto request);
+    Task<AuthUserDto> Register(RegisterUserDto request);
+    Task<LoginDtoResponse> Login(LoginDtoRequest request);
     bool UpdatePassword(long userId, PasswordUpdateDto request);
 }

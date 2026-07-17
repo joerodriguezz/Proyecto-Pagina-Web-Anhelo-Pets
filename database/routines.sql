@@ -1108,46 +1108,78 @@ CREATE OR REPLACE FUNCTION fn_update_foster_placement(
     p_notes text DEFAULT NULL,
     p_modified_by varchar(100) DEFAULT 'api'
 )
-RETURNS void
-LANGUAGE plpgsql
-AS $$
+	RETURNS void
+	LANGUAGE plpgsql
+	AS $$
+	DECLARE
+	    v_modified_by varchar(100) := COALESCE(NULLIF(btrim(p_modified_by), ''), 'api');
+	BEGIN
+	    IF p_animal_foster_placement_id IS NULL THEN
+	        RAISE EXCEPTION 'Placement id is required';
+	    END IF;
+	
+	    IF p_animal_id IS NULL OR NOT EXISTS (SELECT 1 FROM animals WHERE animal_id = p_animal_id) THEN
+	        RAISE EXCEPTION 'Animal is required and must exist';
+	    END IF;
+	
+	    IF p_foster_home_id IS NULL OR NOT EXISTS (SELECT 1 FROM foster_homes WHERE foster_home_id = p_foster_home_id) THEN
+	        RAISE EXCEPTION 'Foster home is required and must exist';
+	    END IF;
+	
+	    IF p_start_date IS NULL THEN
+	        RAISE EXCEPTION 'Start date is required';
+	    END IF;
+	
+	    IF p_end_date IS NOT NULL AND p_end_date < p_start_date THEN
+	        RAISE EXCEPTION 'End date cannot be before start date';
+	    END IF;
+	
+	    UPDATE animal_foster_placements
+	    SET animal_id = p_animal_id,
+	        foster_home_id = p_foster_home_id,
+	        start_date = p_start_date,
+	        end_date = p_end_date,
+	        notes = NULLIF(btrim(p_notes), ''),
+	        modified_at = now(),
+	        modified_by = v_modified_by
+	    WHERE animal_foster_placement_id = p_animal_foster_placement_id;
+	
+	    IF NOT FOUND THEN
+	        RAISE EXCEPTION 'Foster placement % does not exist', p_animal_foster_placement_id;
+	    END IF;
+	END;
+	$$;
+	    
+CREATE OR REPLACE FUNCTION generate_user_id() RETURNS text AS $$
+	DECLARE
+	    next_value bigint;
+	BEGIN
+	    -- Obtén el siguiente valor de una secuencia (si no existe, crea una)
+	    CREATE SEQUENCE IF NOT EXISTS user_id_seq START WITH 1 INCREMENT BY 1;
+	    next_value := nextval('user_id_seq');
+	 
+	    -- Formatea el número como 'USR-000001'
+	    RETURN 'USR-' || LPAD(next_value::text, 3, '0');
+	END;
+	$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION generate_id(p_tipo_id TEXT) RETURNS text AS $$
 DECLARE
-    v_modified_by varchar(100) := COALESCE(NULLIF(btrim(p_modified_by), ''), 'api');
+    next_value bigint;
+    seq_name text;
 BEGIN
-    IF p_animal_foster_placement_id IS NULL THEN
-        RAISE EXCEPTION 'Placement id is required';
-    END IF;
+    -- Limpiamos y normalizamos el nombre de la secuencia en minúsculas
+    seq_name := lower(p_tipo_id) || '_id_seq';
 
-    IF p_animal_id IS NULL OR NOT EXISTS (SELECT 1 FROM animals WHERE animal_id = p_animal_id) THEN
-        RAISE EXCEPTION 'Animal is required and must exist';
-    END IF;
-
-    IF p_foster_home_id IS NULL OR NOT EXISTS (SELECT 1 FROM foster_homes WHERE foster_home_id = p_foster_home_id) THEN
-        RAISE EXCEPTION 'Foster home is required and must exist';
-    END IF;
-
-    IF p_start_date IS NULL THEN
-        RAISE EXCEPTION 'Start date is required';
-    END IF;
-
-    IF p_end_date IS NOT NULL AND p_end_date < p_start_date THEN
-        RAISE EXCEPTION 'End date cannot be before start date';
-    END IF;
-
-    UPDATE animal_foster_placements
-    SET animal_id = p_animal_id,
-        foster_home_id = p_foster_home_id,
-        start_date = p_start_date,
-        end_date = p_end_date,
-        notes = NULLIF(btrim(p_notes), ''),
-        modified_at = now(),
-        modified_by = v_modified_by
-    WHERE animal_foster_placement_id = p_animal_foster_placement_id;
-
-    IF NOT FOUND THEN
-        RAISE EXCEPTION 'Foster placement % does not exist', p_animal_foster_placement_id;
-    END IF;
+  
+    EXECUTE format('CREATE SEQUENCE IF NOT EXISTS %I START WITH 1 INCREMENT BY 1', seq_name);
+ 
+    -- Obtenemos el siguiente valor de la secuencia
+    next_value := nextval(seq_name::regclass);
+ 
+    -- Formatea el número como 'USR-000001' (guion y 6 dígitos de relleno)
+    RETURN upper(p_tipo_id) || '-' || LPAD(next_value::text, 6, '0');
 END;
-$$;
+$$ LANGUAGE plpgsql;
 
 COMMIT;

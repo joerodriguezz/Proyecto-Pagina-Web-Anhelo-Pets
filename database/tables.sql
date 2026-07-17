@@ -9,7 +9,7 @@ SET search_path TO ANHELOPETS, public;
 -- ============================================================
 
 CREATE TABLE users (
-    user_id        bigint GENERATED ALWAYS AS IDENTITY,
+    user_id 	   text DEFAULT generate_user_id() PRIMARY KEY,
     username       varchar(100) NOT NULL,
     password_hash  text NOT NULL,
 
@@ -18,19 +18,18 @@ CREATE TABLE users (
     modified_at    timestamptz,
     modified_by    varchar(100),
 
-    CONSTRAINT pk_users PRIMARY KEY (user_id),
     CONSTRAINT uq_users_username UNIQUE (username)
 );
 
 CREATE TABLE user_profiles (
     user_profile_id bigint GENERATED ALWAYS AS IDENTITY,
-    user_id         bigint NOT NULL,
+    user_id         varchar(100) NOT NULL,
     national_id     varchar(50),
     first_name      varchar(100) NOT NULL,
     middle_name     varchar(100),
     last_name       varchar(100) NOT NULL,
     second_last_name varchar(100),
-    birth_date      date NOT NULL,
+    birth_date      date,
     nationality     varchar(100),
 
     created_at      timestamptz,
@@ -53,13 +52,13 @@ CREATE UNIQUE INDEX ux_user_profiles_national_id
 
 CREATE TABLE user_contacts (
     user_contact_id bigint GENERATED ALWAYS AS IDENTITY,
-    user_id         bigint NOT NULL,
+    user_id         varchar(100) NOT NULL,
     email           varchar(255) NOT NULL,
     phone_primary   varchar(30) NOT NULL,
     phone_secondary varchar(30),
-    city            varchar(100) NOT NULL,
-    town            varchar(100) NOT NULL,
-    address_line    text NOT NULL,
+    city            varchar(100),
+    town            varchar(100),
+    address_line    text,
 
     created_at      timestamptz,
     created_by      varchar(100),
@@ -121,31 +120,25 @@ CREATE TABLE user_roles (
 -- ============================================================
 
 CREATE TABLE animals (
-    animal_id     bigint GENERATED ALWAYS AS IDENTITY,
+    animal_id     text DEFAULT generate_id('ANM') PRIMARY KEY,
     species       varchar(100) NOT NULL,
     breed         varchar(100),
     animal_name   varchar(100),
     animal_status varchar(50) NOT NULL,
     health_status varchar(50) NOT NULL,
     birth_date    date,
-    sex           varchar(20),
+    sex           char(1),
     description   text,
 
-    created_at    timestamptz,
+    created_at    timestamptz DEFAULT CURRENT_TIMESTAMP,
     created_by    varchar(100),
-    modified_at   timestamptz,
-    modified_by   varchar(100),
-
-    CONSTRAINT pk_animals PRIMARY KEY (animal_id),
-    CONSTRAINT ck_animals_sex
-        CHECK (sex IS NULL OR sex IN ('Macho', 'Hembra')),
-    CONSTRAINT ck_animals_birth_date_not_future
-        CHECK (birth_date IS NULL OR birth_date <= CURRENT_DATE)
+    modified_at   timestamptz DEFAULT CURRENT_TIMESTAMP,
+    modified_by   varchar(100)
 );
 
 CREATE TABLE animal_photos (
     animal_photo_id bigint GENERATED ALWAYS AS IDENTITY,
-    animal_id       bigint NOT NULL,
+    animal_id       text NOT NULL,
     photo_url       text NOT NULL,
     description     text,
     is_primary      boolean NOT NULL DEFAULT false,
@@ -168,10 +161,10 @@ CREATE TABLE animal_photos (
 
 CREATE TABLE animal_intakes (
     animal_intake_id bigint GENERATED ALWAYS AS IDENTITY,
-    animal_id        bigint NOT NULL,
+    animal_id        text NOT NULL,
     intake_type      varchar(50) NOT NULL,
-    reported_by_user_id bigint NOT NULL,
-    intake_address   text NOT NULL,
+    reported_by_user_id text NOT NULL,
+    intake_address   text,
     notes            text,
     intake_at        timestamptz NOT NULL,
 
@@ -195,7 +188,7 @@ CREATE TABLE animal_intakes (
 
 CREATE TABLE rescue_records (
     rescue_id      bigint GENERATED ALWAYS AS IDENTITY,
-    animal_id      bigint,
+    animal_id      text,
     rescue_date    date NOT NULL,
     location       text NOT NULL,
     description    text NOT NULL,

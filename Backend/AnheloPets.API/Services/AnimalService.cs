@@ -1,6 +1,8 @@
 using System.Data;
+using AnheloPets.API.Controllers;
 using AnheloPets.API.Data;
 using AnheloPets.API.DTOs;
+using AnheloPets.API.Repository;
 using Microsoft.EntityFrameworkCore;
 
 namespace AnheloPets.API.Services;
@@ -8,10 +10,12 @@ namespace AnheloPets.API.Services;
 public class AnimalService : IAnimalService
 {
     private readonly AnheloPetsDbContext _dbContext;
+    private readonly AnimalRepository _animalRepository;
 
-    public AnimalService(AnheloPetsDbContext dbContext)
+    public AnimalService(AnheloPetsDbContext dbContext, AnimalRepository animalRepository)
     {
         _dbContext = dbContext;
+        _animalRepository = animalRepository;
     }
 
     public IEnumerable<AnimalDto> GetAll(string? species = null, string? status = "Disponible", string? search = null)
@@ -36,28 +40,9 @@ public class AnimalService : IAnimalService
         return ExecuteAnimalReader(command).FirstOrDefault();
     }
 
-    public AnimalDto Create(AnimalDto animal)
+    public async Task<GetResponse> Create(AnimalDto animal)
     {
-        using var command = CreateCommand(
-            """
-            SELECT anhelopets.fn_create_animal(
-                @species::varchar,
-                @breed::varchar,
-                @animalName::varchar,
-                @animalStatus::varchar,
-                @healthStatus::varchar,
-                @birthDate::date,
-                @sex::varchar,
-                @description::text,
-                @photoUrl::text,
-                @photoDescription::text,
-                @createdBy::varchar);
-            """);
-
-        AddAnimalWriteParameters(command, animal, includeModifiedBy: false);
-
-        var animalId = Convert.ToInt64(ExecuteScalar(command));
-        return GetById(animalId) ?? throw new InvalidOperationException("Animal was created but could not be loaded.");
+        return await _animalRepository.Create(animal);
     }
 
     public AnimalDto? Update(long id, AnimalDto animal)
@@ -122,14 +107,14 @@ public class AnimalService : IAnimalService
             {
                 animals.Add(new AnimalDto
                 {
-                    AnimalId = GetInt64(reader, "animal_id"),
+                    AnimalId = GetString(reader, "animal_id"),
                     AnimalName = GetString(reader, "animal_name"),
                     Species = GetString(reader, "species"),
                     Breed = GetString(reader, "breed"),
                     BirthDate = GetDateOnly(reader, "birth_date"),
                     AgeYears = GetInt32(reader, "age_years"),
                     AgeMonths = GetInt32(reader, "age_months"),
-                    Sex = GetString(reader, "sex"),
+                    //Sex = GetString(reader, "sex"),
                     AnimalStatus = GetString(reader, "animal_status"),
                     HealthStatus = GetString(reader, "health_status"),
                     Description = GetString(reader, "description"),

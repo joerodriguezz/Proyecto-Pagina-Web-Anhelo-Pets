@@ -16,23 +16,21 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("register")]
-    public IActionResult Register([FromBody] RegisterUserDto request)
+    public async Task<IActionResult> Register([FromBody] RegisterUserDto request)
     {
-        if (request == null) return BadRequest();
-
-        var user = _userService.Register(request);
-        return CreatedAtAction(nameof(Register), new { id = user.UserId }, user);
+        var result = await _userService.Register(request);
+        return CreatedAtAction(nameof(Register), new { userId = result.UserId }, result);
     }
 
     [HttpPost("login")]
-    public IActionResult Login([FromBody] LoginDto request)
+    public async Task<IActionResult> Login([FromBody] LoginDtoRequest request)
     {
         if (request == null) return BadRequest();
 
-        var user = _userService.Login(request);
-        if (user == null) return Unauthorized();
+        var result = await _userService.Login(request);
+        if (result.Message == "Datos incorrectos") return Unauthorized(result);
 
-        return Ok(user);
+        return Ok(result);
     }
 
     [HttpPut("users/{userId:long}/password")]

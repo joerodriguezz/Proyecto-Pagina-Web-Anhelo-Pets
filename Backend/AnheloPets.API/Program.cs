@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using AnheloPets.API.Data;
 using AnheloPets.API.Services;
+using AnheloPets.API.Repository;
+using AnheloPets.API.Middleware;
 using Npgsql;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -13,6 +15,9 @@ if (!string.IsNullOrWhiteSpace(port))
 
 // Controllers
 builder.Services.AddControllers();
+builder.Services.AddScoped<AuthRepository>();
+builder.Services.AddScoped<AnimalRepository>();
+builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAnimalService, AnimalService>();
 builder.Services.AddScoped<IRescateService, RescateService>();
 builder.Services.AddScoped<IVolunteerService, VolunteerService>();
@@ -20,7 +25,6 @@ builder.Services.AddScoped<IFosterHomeService, FosterHomeService>();
 builder.Services.AddScoped<IFosterPlacementService, FosterPlacementService>();
 builder.Services.AddScoped<IAdoptionService, AdoptionService>();
 builder.Services.AddScoped<IDonationService, DonationService>();
-builder.Services.AddScoped<IUserService, UserService>();
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -44,10 +48,6 @@ if (string.IsNullOrWhiteSpace(connectionStringBuilder.SearchPath))
 connectionStringBuilder.Timeout = Math.Max(connectionStringBuilder.Timeout, 15);
 connectionStringBuilder.CommandTimeout = Math.Max(connectionStringBuilder.CommandTimeout, 60);
 
-if (connectionStringBuilder.Host.Contains("pooler.supabase.com", StringComparison.OrdinalIgnoreCase))
-{
-    connectionStringBuilder.Pooling = false;
-}
 
 builder.Services.AddDbContext<AnheloPetsDbContext>(options =>
     options.UseNpgsql(connectionStringBuilder.ConnectionString));
@@ -64,6 +64,8 @@ builder.Services.AddCors(options =>
 });
 
 var app = builder.Build();
+
+app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 // Swagger
 if (app.Environment.IsDevelopment())
