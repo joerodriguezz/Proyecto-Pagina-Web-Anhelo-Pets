@@ -1,5 +1,7 @@
+using System.Security.Claims;
 using AnheloPets.API.DTOs;
 using AnheloPets.API.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AnheloPets.API.Controllers;
@@ -28,9 +30,28 @@ public class AuthController : ControllerBase
         if (request == null) return BadRequest();
 
         var result = await _userService.Login(request);
-        if (result.Message == "Datos incorrectos") return Unauthorized(result);
+        return Ok(result);
+    }
+
+    [Authorize]
+    [HttpGet("me")]
+    public async Task<IActionResult> Me()
+    {
+        var username = User.FindFirstValue(ClaimTypes.Name);
+        if (string.IsNullOrWhiteSpace(username)) return Unauthorized();
+
+        var result = await _userService.GetCurrentUser(username);
+        if (result == null) return NotFound();
 
         return Ok(result);
+    }
+
+    [HttpPost("password-reset")]
+    public async Task<IActionResult> ResetPasswordByEmail([FromBody] ResetPasswordDto request)
+    {
+        if (request == null) return BadRequest();
+        await _userService.ResetPasswordByEmail(request);
+        return NoContent();
     }
 
     [HttpPut("users/{userId:long}/password")]

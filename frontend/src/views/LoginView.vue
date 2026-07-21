@@ -6,8 +6,10 @@ import {
   useRouter
 } from 'vue-router'
 
-import {login} from '../services/userServices'
+import { resetPasswordByEmail } from '../services/authServices'
+import { useAuthStore } from '../stores/useAuthStore'
 const router = useRouter()
+const authStore = useAuthStore()
 
 /* ─────────────────────────────
    LOGIN
@@ -87,10 +89,8 @@ function generarCodigoRecuperacion() {
 async function enviarCorreoRecuperacion(codigo) {
   await cargarEmailJS()
 
-  const usuario = obtenerUsuarioPorCorreo(recoverEmail.value)
-
 const templateParams = {
-  user_name: usuario ? usuario.nombre : recoverEmail.value,
+  user_name: recoverEmail.value,
   reset_code: codigo,
   to_email: recoverEmail.value
 }
@@ -106,15 +106,6 @@ const response = await window.emailjs.send(
 }
 
 /* ─────────────────────────────
-   UTIL — BUSCAR USUARIO
-───────────────────────────── */
-
-function obtenerUsuarioPorCorreo(email) {
-  const usuarios = JSON.parse(localStorage.getItem('anhelo_usuarios')) || []
-  return usuarios.find(u => u.correo.toLowerCase() === email.toLowerCase())
-}
-
-/* ─────────────────────────────
    ETAPA 1 — BUSCAR CUENTA
 ───────────────────────────── */
 
@@ -124,13 +115,6 @@ async function recuperarPassword() {
 
   if (!recoverEmail.value) {
     recoverError.value = 'Ingresa tu correo electrónico'
-    return
-  }
-
-  const usuario = obtenerUsuarioPorCorreo(recoverEmail.value)
-
-  if (!usuario) {
-    recoverError.value = 'No existe una cuenta con este correo'
     return
   }
 
@@ -202,7 +186,7 @@ async function reenviarCodigo() {
    ETAPA 3 — NUEVA CONTRASEÑA
 ───────────────────────────── */
 
-function actualizarPassword() {
+async function actualizarPassword() {
   recoverError.value = ''
 
   if (!nuevaPassword.value || !confirmarNuevaPassword.value) {
@@ -220,20 +204,15 @@ function actualizarPassword() {
     return
   }
 
-  const usuarios = JSON.parse(localStorage.getItem('anhelo_usuarios')) || []
-
-  const index = usuarios.findIndex(
-    u => u.correo.toLowerCase() === recoverEmail.value.toLowerCase()
-  )
-
-  if (index === -1) {
-    recoverError.value = 'No se encontró la cuenta. Intenta de nuevo.'
+  try {
+    await resetPasswordByEmail(recoverEmail.value, nuevaPassword.value)
+  } catch (err) {
+    console.error(err)
+    recoverError.value = err.response?.status === 404
+      ? 'No se encontró la cuenta. Intenta de nuevo.'
+      : 'No se pudo actualizar la contraseña. Intenta de nuevo.'
     return
   }
-
-  // Actualizar solo el campo password, mantener todo lo demás intacto
-  usuarios[index].password = nuevaPassword.value
-  localStorage.setItem('anhelo_usuarios', JSON.stringify(usuarios))
 
   etapaRecuperacion.value = 'exito'
 
@@ -263,26 +242,10 @@ function cerrarModal() {
 }
 
 /* ─────────────────────────────
-   ENTRAR COMO ADMIN
-───────────────────────────── */
-
-function entrarComoAdmin() {
-  const adminDemo = {
-    id:      'ADMIN-001',
-    nombre:  'Administrador',
-    correo:  'admin@anhelopets.cr',
-    rol:     'Admin',
-    activo:  true
-  }
-  localStorage.setItem('anhelo_usuario_actual', JSON.stringify(adminDemo))
-  router.push('/admin')
-}
-
-/* ─────────────────────────────
    LOGIN
 ───────────────────────────── */
 
-function iniciarSesion() {
+async function iniciarSesion() {
   error.value = ''
 
   if (!correo.value || !password.value) {
@@ -292,34 +255,21 @@ function iniciarSesion() {
 
   loading.value = true
 
-  const usuarios = JSON.parse(localStorage.getItem('anhelo_usuarios')) || []
-
-  const usuario = usuarios.find(u =>
-    u.correo.toLowerCase() === correo.value.toLowerCase() &&
-    u.password === password.value
-  )
-
-  if (!usuario) {
+  try {
+    await authStore.login({ email: correo.value, password: password.value })
+  } catch (err) {
     loading.value = false
-    error.value   = 'Correo o contraseña incorrectos'
+    error.value = err.response?.data?.message || 'Correo o contraseña incorrectos'
     return
   }
 
-  if (!usuario.activo) {
-    loading.value = false
-    error.value   = 'Tu cuenta está inactiva'
-    return
+  loading.value = false
+
+  if (authStore.isAdmin) {
+    router.push('/admin')
+  } else {
+    router.push('/')
   }
-
-  localStorage.setItem('anhelo_usuario_actual', JSON.stringify(usuario))
-
-  setTimeout(() => {
-    if (usuario.rol === 'Admin') {
-      router.push('/admin')
-    } else {
-      router.push('/')
-    }
-  }, 700)
 }
 </script>
 
@@ -362,20 +312,6 @@ function iniciarSesion() {
         <div class="form-header">
           <h2>Iniciar sesión</h2>
           <p>Ingresa tus credenciales</p>
-        </div>
-
-        <!-- DEMO ADMIN -->
-
-        <div class="demo-box">
-          <strong>Acceso rápido administrador</strong>
-          <p>Ingresa automáticamente al panel admin.</p>
-          <button
-            type="button"
-            class="demo-admin-btn"
-            @click="entrarComoAdmin"
-          >
-            Entrar como administrador
-          </button>
         </div>
 
         <!-- ERROR -->
@@ -754,46 +690,6 @@ function iniciarSesion() {
 .form-header p {
   color: #667085;
   margin-bottom: 26px;
-}
-
-.demo-box {
-  background: rgba(146,168,148,0.12);
-  border: 1px solid rgba(146,168,148,0.18);
-  padding: 18px;
-  border-radius: 18px;
-  margin-bottom: 24px;
-}
-
-.demo-box strong {
-  display: block;
-  margin-bottom: 10px;
-  color: #2F3B31;
-}
-
-.demo-box p {
-  margin: 0;
-  color: #667085;
-  font-size: 14px;
-  line-height: 1.7;
-}
-
-.demo-admin-btn {
-  width: 100%;
-  height: 48px;
-  border: none;
-  border-radius: 14px;
-  margin-top: 14px;
-  background: linear-gradient(135deg, #3A473C, #556857);
-  color: white;
-  font-size: 14px;
-  font-weight: 800;
-  cursor: pointer;
-  transition: 0.25s ease;
-}
-
-.demo-admin-btn:hover {
-  transform: translateY(-2px);
-  opacity: 0.95;
 }
 
 .input-group {
@@ -1329,10 +1225,6 @@ function iniciarSesion() {
 
   .form-header h2 {
     font-size: 26px;
-  }
-
-  .demo-box {
-    padding: 14px;
   }
 }
 

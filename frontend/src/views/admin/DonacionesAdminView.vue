@@ -1,27 +1,41 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { getDonations, updateDonationStatus } from '../../services/donationServices'
 
-// ─── Datos desde localStorage ─────────────────────────────────
+// ─── Datos desde la API ────────────────────────────────────────
 const todasDonaciones = ref([])
 
-function cargarDonaciones() {
+// Adapta el DonationDto plano de la API a los nombres en español que ya
+// usa esta plantilla, para no reescribir la tabla/modal existentes.
+function adaptarDonacion(dto) {
+  return {
+    id: dto.donationId,
+    nombre: dto.donorName,
+    correo: dto.email,
+    telefono: dto.phone,
+    metodo: dto.method,
+    moneda: dto.currency,
+    monto: dto.amount,
+    fechaDonacion: dto.donatedAt,
+    fechaRegistro: dto.createdAt,
+    mensaje: dto.message,
+    comprobante: dto.proofFile,
+    estado: dto.validationStatus,
+  }
+}
+
+async function cargarDonaciones() {
   try {
-    const raw = localStorage.getItem('anhelo_donaciones')
-    todasDonaciones.value = raw ? JSON.parse(raw) : []
-  } catch {
+    const { data } = await getDonations()
+    todasDonaciones.value = data.map(adaptarDonacion)
+  } catch (e) {
+    console.error(e)
     todasDonaciones.value = []
   }
 }
 
-function guardarDonaciones() {
-  localStorage.setItem('anhelo_donaciones', JSON.stringify(todasDonaciones.value))
-}
-
 onMounted(() => {
   cargarDonaciones()
-  window.addEventListener('storage', (e) => {
-    if (e.key === 'anhelo_donaciones') cargarDonaciones()
-  })
 })
 
 const TIPO_CAMBIO = 485
@@ -202,13 +216,20 @@ function cerrarModal() {
 }
 
 // ─── Aprobar / Rechazar ───────────────────────────────────────
-function cambiarEstado(nuevoEstado) {
+async function cambiarEstado(nuevoEstado) {
   if (!donacionActual.value) return
+  const action = nuevoEstado === 'Aprobada' ? 'Aprobar' : 'Rechazar'
+
+  try {
+    await updateDonationStatus(donacionActual.value.id, action)
+  } catch (e) {
+    console.error(e)
+    return
+  }
+
   const idx = todasDonaciones.value.findIndex(d => d.id === donacionActual.value.id)
-  if (idx === -1) return
-  todasDonaciones.value[idx].estado = nuevoEstado
+  if (idx !== -1) todasDonaciones.value[idx].estado = nuevoEstado
   donacionActual.value.estado = nuevoEstado
-  guardarDonaciones()
 }
 
 // ─── Helpers de formato ───────────────────────────────────────

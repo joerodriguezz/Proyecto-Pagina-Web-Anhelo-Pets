@@ -435,6 +435,7 @@
               </div>
 
               <!-- Acciones -->
+              <span v-if="errorEnvio" class="error-msg">{{ errorEnvio }}</span>
               <div class="modal-form-footer">
                 <button type="button" class="btn-cancelar" @click="cerrarModalForm">Cancelar</button>
                 <button type="submit" class="btn-enviar" :disabled="enviando">
@@ -497,9 +498,13 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import NavBar from '../components/NavBar.vue'
 import FooterBar from '../components/FooterBar.vue'
+import { submitDonation } from '../services/donationServices'
+import { useAuthStore } from '../stores/useAuthStore'
+
+const authStore = useAuthStore()
 
 // ─── Clipboard ──────────────────────────────────────────
 const copiedId = ref(null)
@@ -536,9 +541,10 @@ const form = reactive({
   fechaDonacion: '', mensaje: ''
 })
 
-const errores    = reactive({})
-const enviando   = ref(false)
-const exito      = ref(false)
+const errores      = reactive({})
+const enviando     = ref(false)
+const exito        = ref(false)
+const errorEnvio   = ref('')
 const fileInput  = ref(null)
 const archivoNombre = ref('')
 const archivoTamano = ref('')
@@ -712,54 +718,45 @@ function validar() {
   return ok
 }
 
-// ─── Persistencia ────────────────────────────────────────
-function getDonaciones() {
-  try { return JSON.parse(localStorage.getItem('anhelo_donaciones') || '[]') } catch { return [] }
-}
-function setDonaciones(lista) {
-  localStorage.setItem('anhelo_donaciones', JSON.stringify(lista))
-}
-function generarId(lista) {
-  return `D-${String(lista.length + 1).padStart(3, '0')}`
+// ─── Pre-llenar usuario ──────────────────────────────────
+// /api/auth/me no trae teléfono (vive en otra tabla, fuera del token) —
+// solo se puede pre-llenar nombre/correo desde la sesión.
+function prellenarDesdeSesion() {
+  const u = authStore.user
+  if (!u) return
+  const nombre = [u.firstName, u.lastName].filter(Boolean).join(' ')
+  if (nombre)   form.nombre = nombre
+  if (u.email)  form.correo = u.email
 }
 
-// ─── Pre-llenar usuario ──────────────────────────────────
-onMounted(() => {
-  try {
-    const raw = localStorage.getItem('anhelo_usuario_actual')
-    if (raw) {
-      const u = JSON.parse(raw)
-      if (u.nombre)   form.nombre   = u.nombre
-      if (u.correo)   form.correo   = u.correo
-      if (u.telefono) form.telefono = u.telefono
-    }
-  } catch {}
-})
+onMounted(prellenarDesdeSesion)
+watch(() => authStore.user, prellenarDesdeSesion)
 
 // ─── Envío ───────────────────────────────────────────────
 async function enviarDonacion() {
   if (!validar()) return
   enviando.value = true
-  await new Promise(r => setTimeout(r, 600))
+  errorEnvio.value = ''
 
-  const lista = getDonaciones()
-  const nuevaDonacion = {
-    id:            generarId(lista),
-    nombre:        form.nombre.trim(),
-    correo:        form.correo.trim(),
-    telefono:      form.telefono.trim(),
-    metodo:        form.metodo,
-    moneda:        form.moneda,
-    monto:         montoNumerico(), // ← número real, sin separadores
-    fechaDonacion: form.fechaDonacion,
-    fechaRegistro: new Date().toISOString(),
-    mensaje:       form.mensaje.trim(),
-    comprobante:   archivoBase64.value,
-    estado:        'Pendiente'
+  try {
+    await submitDonation({
+      donorName: form.nombre.trim(),
+      email: form.correo.trim(),
+      phone: form.telefono.trim(),
+      method: form.metodo,
+      currency: form.moneda,
+      amount: montoNumerico(), // ← número real, sin separadores
+      donatedAt: form.fechaDonacion,
+      message: form.mensaje.trim(),
+      proofFile: archivoBase64.value,
+    })
+  } catch (error) {
+    console.error(error)
+    errorEnvio.value = 'No se pudo registrar la donación. Intenta de nuevo.'
+    enviando.value = false
+    return
   }
 
-  lista.push(nuevaDonacion)
-  setDonaciones(lista)
   enviando.value = false
   exito.value = true
   cerrarModalForm()
@@ -769,15 +766,7 @@ async function enviarDonacion() {
   removerArchivo()
 
   // Re-llenar desde usuario
-  try {
-    const raw = localStorage.getItem('anhelo_usuario_actual')
-    if (raw) {
-      const u = JSON.parse(raw)
-      if (u.nombre)   form.nombre   = u.nombre
-      if (u.correo)   form.correo   = u.correo
-      if (u.telefono) form.telefono = u.telefono
-    }
-  } catch {}
+  prellenarDesdeSesion()
 
   setTimeout(() => { exito.value = false }, 6000)
 }

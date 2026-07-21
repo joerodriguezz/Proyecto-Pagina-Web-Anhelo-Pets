@@ -1,47 +1,22 @@
 using AnheloPets.API.DTOs;
+using AnheloPets.API.Repository;
 
 namespace AnheloPets.API.Services;
 
 public class DonationService : IDonationService
 {
-    private static readonly List<DonationDto> Donations = new();
+    private readonly DonationRepository _repository;
 
-    public IEnumerable<DonationDto> GetAll() => Donations;
-
-    public DonationDto? GetById(long id) => Donations.FirstOrDefault(x => x.DonationId == id);
-
-    public DonationDto Create(DonationDto donation)
+    public DonationService(DonationRepository repository)
     {
-        donation.DonationId = Donations.Any() ? Donations.Max(x => x.DonationId) + 1 : 1;
-        Donations.Add(donation);
-        return donation;
+        _repository = repository;
     }
 
-    public DonationDto? Update(long id, DonationDto donation)
-    {
-        var existing = Donations.FirstOrDefault(x => x.DonationId == id);
-        if (existing == null)
-        {
-            return null;
-        }
+    public Task<IEnumerable<DonationDto>> GetAllAsync() => _repository.GetAllAsync();
 
-        existing.DonorName = donation.DonorName;
-        existing.Amount = donation.Amount;
-        existing.DonatedAt = donation.DonatedAt;
-        existing.Message = donation.Message;
+    public Task<DonationDto?> GetByIdAsync(long id) => _repository.GetByIdAsync(id);
 
-        return existing;
-    }
+    public Task<DonationDto> CreateAsync(SubmitDonationDto donation) => _repository.CreateAsync(donation);
 
-    public bool Delete(long id)
-    {
-        var donation = Donations.FirstOrDefault(x => x.DonationId == id);
-        if (donation == null)
-        {
-            return false;
-        }
-
-        Donations.Remove(donation);
-        return true;
-    }
+    public Task<DonationDto> UpdateStatusAsync(long id, UpdateDonationStatusDto status) => _repository.UpdateStatusAsync(id, status);
 }

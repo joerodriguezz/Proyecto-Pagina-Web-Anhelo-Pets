@@ -18,45 +18,62 @@ public class AuthRepository
     
     public async Task<AuthUserDto> Register(RegisterUserDto dto)
     {
-        // Se guarda en la tabla de users
-        User user = new User
+        var emailExists = await _context.UserContacts.AnyAsync(c => c.Email == dto.Email);
+        if (emailExists)
         {
-            Username = dto.Username,
-            PasswordHash = dto.Password
-        };
-        
-        _context.Users.Add(user);
-        await _context.SaveChangesAsync();
-        
-        // Ahora se asignan las relaciones y se guardan junto con el usuario
-        UserProfile profile = new UserProfile
+            throw new BadRequestException("Ya existe una cuenta con este correo.", "EMAIL_ALREADY_REGISTERED");
+        }
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+        try
         {
-           UserId = user.UserId ?? string.Empty,
-           FirstName = dto.FirstName ?? string.Empty,
-           LastName = dto.LastName ?? string.Empty,
-           Nationality = dto.Nationality ?? string.Empty,
-           NationalityId = dto.NationalId ?? string.Empty
-        };
-        
-        UserContacts contacts = new UserContacts
+            // Se guarda en la tabla de users
+            User user = new User
+            {
+                Username = dto.Username,
+                PasswordHash = dto.Password
+            };
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            // Ahora se asignan las relaciones y se guardan junto con el usuario
+            UserProfile profile = new UserProfile
+            {
+               UserId = user.UserId ?? string.Empty,
+               FirstName = dto.FirstName ?? string.Empty,
+               LastName = dto.LastName ?? string.Empty,
+               Nationality = dto.Nationality ?? string.Empty,
+               NationalityId = dto.NationalId ?? string.Empty
+            };
+
+            UserContacts contacts = new UserContacts
+            {
+               UserId = user.UserId ?? string.Empty,
+               Email = dto.Email ?? string.Empty,
+               PhonePrimary = dto.PhonePrimary ?? string.Empty
+            };
+
+            _context.UserProfiles.Add(profile);
+            _context.UserContacts.Add(contacts);
+            await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+
+            return new AuthUserDto
+            {
+                UserId = user.UserId,
+                Username = user.Username,
+                Email = contacts.Email,
+                FirstName = profile.FirstName,
+                LastName = profile.LastName
+            };
+        }
+        catch
         {
-           UserId = user.UserId ?? string.Empty,
-           Email = dto.Email ?? string.Empty,
-           PhonePrimary = dto.PhonePrimary ?? string.Empty
-        };
-        
-        _context.UserProfiles.Add(profile);
-        _context.UserContacts.Add(contacts);
-        await _context.SaveChangesAsync();
-        
-        return new AuthUserDto
-        {
-            UserId = user.UserId,
-            Username = user.Username,
-            Email = contacts.Email,
-            FirstName = profile.FirstName,
-            LastName = profile.LastName
-        };
+            await transaction.RollbackAsync();
+            throw;
+        }
     }
 
 

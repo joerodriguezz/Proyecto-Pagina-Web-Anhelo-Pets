@@ -1,8 +1,11 @@
 <script setup>
 import { ref, computed, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useAuthStore } from '../stores/useAuthStore'
+import { resetPasswordByEmail } from '../services/authServices'
 
 const router = useRouter()
+const authStore = useAuthStore()
 
 /* ─── Panel state ─────────────────────────────── */
 const isOpen    = ref(false)
@@ -17,18 +20,29 @@ onMounted(()       => document.addEventListener('keydown', onKey))
 onBeforeUnmount(() => document.removeEventListener('keydown', onKey))
 
 /* ─── Usuario ─────────────────────────────────── */
-const usuario = ref(null)
+// Adapta el AuthResponseDto plano de /api/auth/me a la forma que ya espera
+// esta plantilla (nombre/correo/rol/solicitudVoluntario.estado), para no
+// reescribir todo el panel — mismo patrón que adaptarVoluntario/adaptarDonacion.
+function adaptarUsuarioSesion(apiUser) {
+  if (!apiUser) return null
+  const roles = apiUser.roles || []
+  const rolPrincipal = roles.includes('Admin')
+    ? 'Admin'
+    : roles.includes('Voluntario') ? 'Voluntario' : 'Usuario'
 
-function cargarUsuario() {
-  try {
-    const raw = localStorage.getItem('anhelo_usuario_actual')
-    usuario.value = raw ? JSON.parse(raw) : null
-  } catch {
-    usuario.value = null
+  return {
+    id: apiUser.userId,
+    nombre: [apiUser.firstName, apiUser.lastName].filter(Boolean).join(' ') || apiUser.username,
+    correo: apiUser.email,
+    telefono: apiUser.phonePrimary || '',
+    rol: rolPrincipal,
+    solicitudVoluntario: apiUser.isVolunteer
+      ? { estado: apiUser.volunteerActive ? 'Aprobada' : (apiUser.volunteerValidationStatus || 'Pendiente') }
+      : null,
   }
 }
 
-onMounted(cargarUsuario)
+const usuario = computed(() => adaptarUsuarioSesion(authStore.user))
 
 const iniciales = computed(() => {
   if (!usuario.value?.nombre) return '?'
@@ -82,7 +96,7 @@ function eliminarFoto() {
 
 /* ─── Cerrar sesión ───────────────────────────── */
 function cerrarSesion() {
-  localStorage.removeItem('anhelo_usuario_actual')
+  authStore.logout()
   close()
   router.push('/')
   location.reload()
@@ -155,22 +169,9 @@ watch(isOpen, v => { if (v) cargarFormEdit() })
 function guardarPerfil() {
   if (!usuario.value) return
 
-  const u = { ...usuario.value, ...editForm.value }
-
-  localStorage.setItem('anhelo_usuario_actual', JSON.stringify(u))
-
-  try {
-    const usuarios = JSON.parse(localStorage.getItem('anhelo_usuarios') || '[]')
-    const idx = usuarios.findIndex(item => item.id === usuario.value.id)
-    if (idx >= 0) {
-      usuarios[idx] = { ...usuarios[idx], ...editForm.value }
-      localStorage.setItem('anhelo_usuarios', JSON.stringify(usuarios))
-    }
-  } catch (err) {
-    console.error('[guardarPerfil]', err)
-  }
-
-  usuario.value = u
+  // No hay endpoint de edición de perfil todavía en el backend — esto es
+  // solo una confirmación visual optimista, no persiste (se pierde al
+  // refrescar/re-loguear). Implementar un PUT real es una feature aparte.
   editMsg.value = 'Cambios guardados correctamente.'
   setTimeout(() => { editMsg.value = '' }, 3000)
 }
@@ -211,19 +212,11 @@ function generarCodigo() {
 }
 
 /* Idéntico al LoginView */
-function obtenerUsuarioPorCorreo(email) {
-  const usuarios = JSON.parse(localStorage.getItem('anhelo_usuarios') || '[]')
-  return usuarios.find(u => u.correo.toLowerCase() === email.trim().toLowerCase())
-}
-
-/* Idéntico al LoginView */
 async function enviarCorreoRecuperacion(codigo) {
   await cargarEmailJS()
 
-  const usuarioEncontrado = obtenerUsuarioPorCorreo(pwCorreo.value)
-
   const templateParams = {
-    user_name:  usuarioEncontrado ? usuarioEncontrado.nombre : pwCorreo.value,
+    user_name:  usuario.value?.nombre || pwCorreo.value,
     reset_code: codigo,
     to_email:   pwCorreo.value.trim()
   }
@@ -252,14 +245,6 @@ async function enviarCodigo() {
 
   if (!pwCorreo.value.trim()) {
     pwMsg.value = 'Ingresa tu correo.'
-    return
-  }
-
-  const existe = obtenerUsuarioPorCorreo(pwCorreo.value)
-  console.log('[HamburgerMenu] Usuario encontrado:', existe)
-
-  if (!existe) {
-    pwMsg.value = 'No existe una cuenta con ese correo.'
     return
   }
 
@@ -321,7 +306,7 @@ function verificarCodigo() {
   pwMsg.value  = ''
 }
 
-function guardarNuevaPass() {
+async function guardarNuevaPass() {
   pwMsg.value = ''
 
   if (!pwNueva.value || !pwConfirm.value) {
@@ -340,27 +325,11 @@ function guardarNuevaPass() {
   }
 
   try {
-    const usuarios = JSON.parse(localStorage.getItem('anhelo_usuarios') || '[]')
-    const idx = usuarios.findIndex(
-      u => u.correo.toLowerCase() === pwCorreo.value.trim().toLowerCase()
-    )
-    console.log('[HamburgerMenu] Guardando nueva pass. idx:', idx)
-    if (idx >= 0) {
-      usuarios[idx].password = pwNueva.value
-      localStorage.setItem('anhelo_usuarios', JSON.stringify(usuarios))
-      console.log('[HamburgerMenu] anhelo_usuarios actualizado para:', usuarios[idx].correo)
-    } else {
-      console.warn('[HamburgerMenu] Usuario no encontrado en anhelo_usuarios.')
-    }
+    await resetPasswordByEmail(pwCorreo.value.trim(), pwNueva.value)
   } catch (err) {
-    console.error('[HamburgerMenu] Error actualizando anhelo_usuarios:', err)
-  }
-
-  if (usuario.value?.correo?.toLowerCase() === pwCorreo.value.trim().toLowerCase()) {
-    const u = { ...usuario.value, password: pwNueva.value }
-    localStorage.setItem('anhelo_usuario_actual', JSON.stringify(u))
-    usuario.value = u
-    console.log('[HamburgerMenu] anhelo_usuario_actual actualizado.')
+    console.error('[HamburgerMenu] Error actualizando password:', err)
+    pwMsg.value = 'No se pudo actualizar la contraseña. Intenta de nuevo.'
+    return
   }
 
   pwStep.value = 4

@@ -4,6 +4,9 @@ using AnheloPets.API.Services;
 using AnheloPets.API.Repository;
 using AnheloPets.API.Middleware;
 using Npgsql;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -24,6 +27,7 @@ builder.Services.AddScoped<VeterinarianRepository>();
 builder.Services.AddScoped<RoleRepository>();
 builder.Services.AddScoped<UserAdminRepository>();
 builder.Services.AddScoped<VolunteerRepository>();
+builder.Services.AddScoped<DonationRepository>();
 builder.Services.AddScoped<IAnimalMedicalRecordService, AnimalMedicalRecordService>();
 builder.Services.AddScoped<IVeterinarianService, VeterinarianService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
@@ -36,10 +40,36 @@ builder.Services.AddScoped<IFosterHomeService, FosterHomeService>();
 builder.Services.AddScoped<IFosterPlacementService, FosterPlacementService>();
 builder.Services.AddScoped<IAdoptionService, AdoptionService>();
 builder.Services.AddScoped<IDonationService, DonationService>();
+builder.Services.AddScoped<IJwtService, JwtService>();
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
+
+// JWT Authentication
+var jwtSigningKey = builder.Configuration["Jwt:SigningKey"];
+if (string.IsNullOrWhiteSpace(jwtSigningKey))
+{
+    throw new InvalidOperationException(
+        "Jwt:SigningKey is not configured. Set Jwt__SigningKey in the deployment environment.");
+}
+
+builder.Services
+    .AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(options =>
+    {
+        options.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = builder.Configuration["Jwt:Issuer"],
+            ValidateAudience = true,
+            ValidAudience = builder.Configuration["Jwt:Audience"],
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtSigningKey)),
+            ValidateLifetime = true,
+            ClockSkew = TimeSpan.FromMinutes(1)
+        };
+    });
 
 // Base de datos PostgreSQL
 var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection");
@@ -76,29 +106,6 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-// ── Bootstrap temporal: aplica a la BD ya provisionada el esquema de
-// voluntariado corregido (ver database/tables.sql). Idempotente. Se retira
-// tras confirmarse.
-using (var scope = app.Services.CreateScope())
-{
-    var db = scope.ServiceProvider.GetRequiredService<AnheloPetsDbContext>();
-    db.Database.ExecuteSqlRaw("""
-        ALTER TABLE anhelopets.volunteers ADD COLUMN IF NOT EXISTS application_details text;
-        ALTER TABLE anhelopets.user_contacts ADD COLUMN IF NOT EXISTS district varchar(100);
-
-        DO $$
-        BEGIN
-            IF EXISTS (
-                SELECT 1 FROM information_schema.columns
-                WHERE table_schema = 'anhelopets' AND table_name = 'volunteers'
-                  AND column_name = 'validated_by_user_id' AND data_type <> 'text'
-            ) THEN
-                ALTER TABLE anhelopets.volunteers ALTER COLUMN validated_by_user_id TYPE text USING validated_by_user_id::text;
-            END IF;
-        END $$;
-        """);
-}
-
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
 
@@ -114,6 +121,7 @@ app.UseHttpsRedirection();
 
 app.UseCors("VuePolicy");
 
+app.UseAuthentication();
 app.UseAuthorization();
 
 app.MapControllers();

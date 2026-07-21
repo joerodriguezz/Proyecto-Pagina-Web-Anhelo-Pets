@@ -2,6 +2,7 @@ using System.Data;
 using System.Security.Cryptography;
 using AnheloPets.API.Data;
 using AnheloPets.API.DTOs;
+using AnheloPets.API.Exceptions;
 using AnheloPets.API.Repository;
 using Microsoft.EntityFrameworkCore;
 
@@ -13,51 +14,93 @@ public class UserService : IUserService
     private const int SaltSize = 16;
     private const int KeySize = 32;
     private readonly AuthRepository _authRepository;
+    private readonly IJwtService _jwtService;
 
     private readonly AnheloPetsDbContext _dbContext;
 
-    public UserService(AnheloPetsDbContext dbContext, AuthRepository authRepository)
+    public UserService(AnheloPetsDbContext dbContext, AuthRepository authRepository, IJwtService jwtService)
     {
         _dbContext = dbContext;
         _authRepository = authRepository;
+        _jwtService = jwtService;
     }
 
-    public async Task<AuthUserDto> Register(RegisterUserDto request)
+    public async Task<AuthResponseDto> Register(RegisterUserDto request)
     {
         request.Username = request.Email.Split("@")[0];
-        request.LastName = request.FirstName.Split(" ")[1];
+        var nameParts = request.FirstName.Trim().Split(' ', 2, StringSplitOptions.RemoveEmptyEntries);
+        request.FirstName = nameParts.Length > 0 ? nameParts[0] : request.FirstName;
+        request.LastName = nameParts.Length > 1 ? nameParts[1] : string.Empty;
         request.Password = HashPassword(request.Password);
-        return await _authRepository.Register(request);
+
+        var created = await _authRepository.Register(request);
+        var enriched = GetAuthUser(created.Username) ?? created;
+
+        return BuildAuthResponse(enriched);
     }
-    
 
-    public async Task<LoginDtoResponse> Login (LoginDtoRequest request)
+
+    public async Task<AuthResponseDto> Login(LoginDtoRequest request)
     {
-        AuthUserDto authUser = await _authRepository.Login(request);
-
-        if (authUser == null)
+        AuthUserDto authUser;
+        try
         {
-            throw new ApplicationException($"User {request.Email} not found");
+            authUser = await _authRepository.Login(request);
+        }
+        catch (NotFoundException)
+        {
+            throw new UnauthorizedException("Correo o contraseña incorrectos");
         }
 
         if (!VerifyPassword(request.Password, authUser.Password))
         {
-            return new LoginDtoResponse
-            {
-                Email = authUser.Email,
-                Message = "Datos incorrectos"
-            };
+            throw new UnauthorizedException("Correo o contraseña incorrectos");
         }
 
-        return new LoginDtoResponse
+        var enriched = GetAuthUser(authUser.Email) ?? authUser;
+
+        return BuildAuthResponse(enriched);
+    }
+
+    public Task<AuthResponseDto?> GetCurrentUser(string username)
+    {
+        var enriched = GetAuthUser(username);
+        return Task.FromResult(enriched == null ? null : BuildAuthResponse(enriched));
+    }
+
+    public async Task ResetPasswordByEmail(ResetPasswordDto request)
+    {
+        // fn_update_password_hash espera user_id como bigint, pero user_id es
+        // text ("USR-001") desde generate_user_id() — la función SQL quedó
+        // escrita para un esquema de IDs viejo. Se actualiza vía EF Core
+        // directamente en vez de propagar ese mismatch a código nuevo.
+        var contact = await _dbContext.UserContacts.FirstOrDefaultAsync(c => c.Email == request.Email)
+            ?? throw new NotFoundException("No existe una cuenta con este correo.");
+
+        var user = await _dbContext.Users.FindAsync(contact.UserId)
+            ?? throw new NotFoundException("No existe una cuenta con este correo.");
+
+        user.PasswordHash = HashPassword(request.NewPassword);
+        user.ModifiedAt = DateTime.UtcNow;
+        user.ModifiedBy = "password-reset";
+        await _dbContext.SaveChangesAsync();
+    }
+
+    private AuthResponseDto BuildAuthResponse(AuthUserDto user)
+    {
+        return new AuthResponseDto
         {
-            Email = authUser.Email,
-            Message = "Datos correctos"
+            Token = _jwtService.GenerateToken(user),
+            UserId = user.UserId ?? string.Empty,
+            Username = user.Username,
+            Email = user.Email,
+            FirstName = user.FirstName,
+            LastName = user.LastName,
+            Roles = user.Roles,
+            IsVolunteer = user.IsVolunteer ?? false,
+            VolunteerActive = user.VolunteerActive ?? false,
+            VolunteerValidationStatus = user.VolunteerValidationStatus
         };
-
-
-
-
     }
 
     public bool UpdatePassword(long userId, PasswordUpdateDto request)
@@ -128,6 +171,8 @@ public class UserService : IUserService
             UserId = GetString(reader, "user_id"),
             Username = GetString(reader, "username"),
             Email = GetString(reader, "email"),
+            FirstName = GetString(reader, "first_name"),
+            LastName = GetString(reader, "last_name"),
             IsVolunteer = GetBoolean(reader, "is_volunteer"),
             VolunteerActive = GetBoolean(reader, "volunteer_active"),
             VolunteerValidationStatus = GetString(reader, "volunteer_validation_status"),

@@ -4,6 +4,8 @@ import {
 } from 'vue-router'
 
 import HomeView from '../views/HomeView.vue'
+import { isLoggedIn, clearToken } from '../utils/tokenStorage'
+import { getCurrentUser } from '../services/authServices'
 
 const routes = [
 
@@ -212,63 +214,30 @@ router.afterEach(() => {
    PROTEGER RUTAS
 ───────────────────────────── */
 
-router.beforeEach((to, from, next) => {
+const rutasProtegidas = ['/perfil']
 
-  const usuario = JSON.parse(
+router.beforeEach(async (to, from, next) => {
+  const requiresAuth = to.path.startsWith('/adoptar') || rutasProtegidas.includes(to.path)
+  const requiresAdmin = to.path.startsWith('/admin')
 
-    localStorage.getItem(
-      'anhelo_usuario_actual'
-    )
-
-  )
-
-  /* RUTAS QUE NECESITAN LOGIN */
-
-  const rutasProtegidas = [
-
-    '/perfil',
-    '/mis-adopciones'
-
-  ]
-
-  /* PROTEGER ADOPTAR */
-
-  if (
-
-    to.path.startsWith('/adoptar')
-
-  ) {
-
-    if (!usuario) {
-
-      return next('/login')
-
-    }
-
+  if (!requiresAuth && !requiresAdmin) {
+    return next()
   }
 
-  
-
-  /* PROTEGER PERFIL */
-
-  if (
-
-    rutasProtegidas.includes(
-      to.path
-    )
-
-  ) {
-
-    if (!usuario) {
-
-      return next('/login')
-
-    }
-
+  if (!isLoggedIn()) {
+    return next('/login')
   }
 
-  next()
-
+  try {
+    const user = await getCurrentUser()
+    if (requiresAdmin && !user.roles?.includes('Admin')) {
+      return next('/')
+    }
+    next()
+  } catch {
+    clearToken()
+    next('/login')
+  }
 })
 
 export default router

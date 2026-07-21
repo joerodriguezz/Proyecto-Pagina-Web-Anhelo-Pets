@@ -33,6 +33,8 @@ public class AnheloPetsDbContext : DbContext
 
     public DbSet<UserRole> UserRoles { get; set; }
 
+    public DbSet<Donation> Donations { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -193,6 +195,17 @@ public class AnheloPetsDbContext : DbContext
             entity.Property(r => r.CreatedBy).HasColumnName("created_by").HasMaxLength(100);
             entity.Property(r => r.ModifiedAt).HasColumnName("modified_at");
             entity.Property(r => r.ModifiedBy).HasColumnName("modified_by").HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<Donation>(entity =>
+        {
+            entity.ToTable("donations");
+            entity.Property(d => d.DonationId).HasColumnName("donation_id").ValueGeneratedOnAdd();
+            entity.Property(d => d.Currency).HasColumnName("currency").HasMaxLength(3);
+            entity.Property(d => d.Method).HasColumnName("method").HasMaxLength(50);
+            entity.Property(d => d.ValidationStatus).HasColumnName("validation_status").HasMaxLength(20);
+            entity.Property(d => d.CreatedBy).HasColumnName("created_by").HasMaxLength(100);
+            entity.Property(d => d.ModifiedBy).HasColumnName("modified_by").HasMaxLength(100);
         });
     }
 }

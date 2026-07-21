@@ -1,12 +1,14 @@
 using AnheloPets.API.DTOs;
 using AnheloPets.API.Exceptions;
 using AnheloPets.API.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AnheloPets.API.Controllers;
 
 [ApiController]
 [Route("api/roles")]
+[Authorize(Roles = "Admin")]
 public class RolesController : ControllerBase
 {
     private readonly IRoleService _roleService;

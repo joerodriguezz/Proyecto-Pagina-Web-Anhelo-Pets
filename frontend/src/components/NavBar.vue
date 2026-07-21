@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import {
   RouterLink,
   useRoute,
@@ -7,13 +7,13 @@ import {
 } from 'vue-router'
 
 import HamburgerMenu from './Hamburgermenu.vue'
+import { useAuthStore } from '../stores/useAuthStore'
 
 const route = useRoute()
 const router = useRouter()
+const authStore = useAuthStore()
 
 const menuOpen = ref(false)
-
-const usuarioActual = ref(null)
 
 const navLinks = [
   { name: 'Inicio', to: '/' },
@@ -25,23 +25,11 @@ const navLinks = [
 ]
 
 /* ─────────────────────────────
-   CARGAR SESION
-───────────────────────────── */
-
-onMounted(() => {
-  const usuarioGuardado = localStorage.getItem('anhelo_usuario_actual')
-  if (usuarioGuardado) {
-    usuarioActual.value = JSON.parse(usuarioGuardado)
-  }
-})
-
-/* ─────────────────────────────
    CERRAR SESION
 ───────────────────────────── */
 
 function cerrarSesion() {
-  localStorage.removeItem('anhelo_usuario_actual')
-  usuarioActual.value = null
+  authStore.logout()
   router.push('/')
   location.reload()
 }
@@ -76,7 +64,7 @@ function cerrarSesion() {
 
       <!-- AUTH (solo visible en escritorio) -->
       <div class="nav-auth">
-        <template v-if="!usuarioActual">
+        <template v-if="!authStore.user">
           <RouterLink to="/login" class="btn-login">
             Iniciar sesión
           </RouterLink>
@@ -90,7 +78,7 @@ function cerrarSesion() {
       <div class="nav-user-slot">
 
         <!-- CON SESION: HamburgerMenu -->
-        <template v-if="usuarioActual">
+        <template v-if="authStore.user">
           <HamburgerMenu />
         </template>
 
@@ -125,7 +113,7 @@ function cerrarSesion() {
 
       <!-- MOBILE AUTH -->
       <div class="mobile-auth">
-        <template v-if="!usuarioActual">
+        <template v-if="!authStore.user">
           <RouterLink
             to="/login"
             class="btn-login"

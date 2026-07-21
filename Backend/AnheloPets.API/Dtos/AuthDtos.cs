@@ -12,10 +12,24 @@ public class RegisterUserDto
     public string? LastName { get; set; } = string.Empty;
 }
 
-public class LoginDtoResponse
+public class AuthResponseDto
+{
+    public string Token { get; set; } = string.Empty;
+    public string UserId { get; set; } = string.Empty;
+    public string Username { get; set; } = string.Empty;
+    public string Email { get; set; } = string.Empty;
+    public string FirstName { get; set; } = string.Empty;
+    public string LastName { get; set; } = string.Empty;
+    public string?[] Roles { get; set; } = [];
+    public bool IsVolunteer { get; set; }
+    public bool VolunteerActive { get; set; }
+    public string? VolunteerValidationStatus { get; set; }
+}
+
+public class ResetPasswordDto
 {
     public string Email { get; set; } = string.Empty;
-    public string Message { get; set; } = string.Empty;
+    public string NewPassword { get; set; } = string.Empty;
 }
 
 public class LoginDtoRequest

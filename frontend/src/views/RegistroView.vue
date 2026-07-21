@@ -17,7 +17,7 @@ import {
   phoneCodesList
 } from '../data/paises'
 
-import { register } from '../services/userServices'
+import { register } from '../services/authServices'
 
 console.log("Registro cargado")
 const router = useRouter()

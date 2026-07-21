@@ -10,12 +10,21 @@ import NavBar from '../components/NavBar.vue'
 import FooterBar from '../components/FooterBar.vue'
 import { ubicacionesCR } from '../data/ubicaciones'
 import { submitVolunteerApplication, getMyVolunteerApplication, parseApplicationDetails } from '../services/volunteerServices'
+import { useAuthStore } from '../stores/useAuthStore'
 
 /* ─── USUARIO ─────────────────────────────────────────── */
 
-const usuarioActivo = ref(
-  JSON.parse(localStorage.getItem('anhelo_usuario_actual'))
-)
+const authStore = useAuthStore()
+
+// /api/auth/me no trae cedula/direccion/telefono (viven en otras tablas,
+// fuera del token) — solo se puede pre-llenar nombre/correo desde la sesión.
+const usuarioActivo = computed(() => {
+  if (!authStore.user) return null
+  return {
+    nombre: [authStore.user.firstName, authStore.user.lastName].filter(Boolean).join(' '),
+    correo: authStore.user.email
+  }
+})
 
 /* ─── BENEFICIOS ──────────────────────────────────────── */
 
@@ -466,6 +475,13 @@ const formValid = computed(() => baseValid.value && specificValid.value)
 
 /* ─── AUTOCOMPLETAR ───────────────────────────────────── */
 
+// authStore.user llega async (fetch a /api/auth/me) — si todavía no resolvió
+// al montar el componente, esto reintenta cargar la solicitud en cuanto
+// aparezca la sesión.
+watch(usuarioActivo, (nuevo) => {
+  if (nuevo) cargarSolicitudActual()
+})
+
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
   cargarSolicitudActual()
@@ -566,11 +582,6 @@ async function submitVolunteer() {
   enviandoSolicitud.value = true
 
   const telefonoCompleto = `${selectedCountry.value.code} ${phone.value}`
-  const direccionObj = {
-    provincia: provincia.value,
-    canton:    canton.value,
-    distrito:  distrito.value
-  }
 
   try {
     await submitVolunteerApplication({
@@ -583,18 +594,6 @@ async function submitVolunteer() {
       town:              canton.value,
       district:          distrito.value
     })
-
-    // Mantiene sincronizada la caché local de sesión (usada en otras vistas)
-    const usuarios = JSON.parse(localStorage.getItem('anhelo_usuarios')) || []
-    const idx = usuarios.findIndex(u => u.correo === usuarioActivo.value.correo)
-    if (idx !== -1) {
-      usuarios[idx].cedula    = idCard.value
-      usuarios[idx].direccion = direccionObj
-      usuarios[idx].telefono  = telefonoCompleto
-      localStorage.setItem('anhelo_usuarios', JSON.stringify(usuarios))
-      localStorage.setItem('anhelo_usuario_actual', JSON.stringify(usuarios[idx]))
-      usuarioActivo.value = usuarios[idx]
-    }
 
     submitted.value = true
     await cargarSolicitudActual()

@@ -1,6 +1,7 @@
 using AnheloPets.API.DTOs;
 using AnheloPets.API.Exceptions;
 using AnheloPets.API.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AnheloPets.API.Controllers;
@@ -16,6 +17,7 @@ public class VolunteersController : ControllerBase
         _volunteerService = volunteerService;
     }
 
+    [Authorize(Roles = "Admin")]
     [HttpGet]
     public async Task<IActionResult> GetAll() => Ok(await _volunteerService.GetAll());
 
@@ -54,6 +56,7 @@ public class VolunteersController : ControllerBase
     }
 
     /// <summary>Acciones administrativas: Aprobar | Rechazar | Inactivar | Reactivar.</summary>
+    [Authorize(Roles = "Admin")]
     [HttpPatch("{id}/status")]
     public async Task<IActionResult> UpdateStatus(string id, [FromBody] UpdateVolunteerStatusDto status)
     {

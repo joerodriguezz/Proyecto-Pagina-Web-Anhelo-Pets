@@ -169,6 +169,58 @@ CREATE TABLE animal_photos (
         ON DELETE CASCADE
 );
 
+CREATE TABLE animal_intakes (
+    animal_intake_id bigint GENERATED ALWAYS AS IDENTITY,
+    animal_id        text NOT NULL,
+    intake_type      varchar(50) NOT NULL,
+    reported_by_user_id text NOT NULL,
+    intake_address   text,
+    notes            text,
+    intake_at        timestamptz NOT NULL,
+
+    created_at       timestamptz,
+    created_by       varchar(100),
+    modified_at      timestamptz,
+    modified_by      varchar(100),
+
+    CONSTRAINT pk_animal_intakes PRIMARY KEY (animal_intake_id),
+    CONSTRAINT fk_animal_intakes_animal_id
+        FOREIGN KEY (animal_id)
+        REFERENCES animals (animal_id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT,
+    CONSTRAINT fk_animal_intakes_reported_by_user_id
+        FOREIGN KEY (reported_by_user_id)
+        REFERENCES users (user_id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT
+);
+
+CREATE TABLE rescue_records (
+    rescue_id      bigint GENERATED ALWAYS AS IDENTITY,
+    animal_id      text,
+    rescue_date    date NOT NULL,
+    location       text NOT NULL,
+    description    text NOT NULL,
+    status         varchar(30) NOT NULL DEFAULT 'Activo',
+    foster_home_id text,
+    volunteer_id   text,
+
+    created_at     timestamptz,
+    created_by     varchar(100),
+    modified_at    timestamptz,
+    modified_by    varchar(100),
+
+    CONSTRAINT pk_rescue_records PRIMARY KEY (rescue_id),
+    CONSTRAINT ck_rescue_records_date_not_future CHECK (rescue_date <= CURRENT_DATE),
+    CONSTRAINT ck_rescue_records_status CHECK (status IN ('Activo', 'Cerrado')),
+    CONSTRAINT fk_rescue_records_animal_id
+        FOREIGN KEY (animal_id)
+        REFERENCES animals (animal_id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
+);
+
 CREATE TABLE volunteers (
     volunteer_id text DEFAULT generate_id('VOL') PRIMARY KEY,
     user_id      text NOT NULL,
@@ -241,6 +293,35 @@ CREATE TABLE animal_medical_records (
         ON DELETE RESTRICT
 );
 
+CREATE TABLE animal_care_schedules (
+    animal_care_schedule_id  bigint GENERATED ALWAYS AS IDENTITY,
+    animal_id                bigint NOT NULL,
+    animal_medical_record_id bigint,
+    care_type                varchar(100) NOT NULL,
+    care_condition           varchar(100) NOT NULL,
+    frequency                varchar(100) NOT NULL,
+    last_care_at             timestamptz NOT NULL,
+    next_due_date            date NOT NULL,
+    notes                    text,
+
+    created_at               timestamptz,
+    created_by               varchar(100),
+    modified_at              timestamptz,
+    modified_by              varchar(100),
+
+    CONSTRAINT pk_animal_care_schedules PRIMARY KEY (animal_care_schedule_id),
+    CONSTRAINT fk_animal_care_schedules_animal_id
+        FOREIGN KEY (animal_id)
+        REFERENCES animals (animal_id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT,
+    CONSTRAINT fk_animal_care_schedules_medical_record_id
+        FOREIGN KEY (animal_medical_record_id)
+        REFERENCES animal_medical_records (animal_medical_record_id)
+        ON UPDATE CASCADE
+        ON DELETE SET NULL
+);
+
 CREATE TABLE foster_homes (
     foster_home_id text DEFAULT generate_id('FHM') PRIMARY KEY,
     volunteer_id   TEXT,
@@ -264,42 +345,9 @@ CREATE TABLE foster_homes (
         ON DELETE RESTRICT
 );
 
-CREATE TABLE rescue_records (
-    rescue_id      bigint GENERATED ALWAYS AS IDENTITY,
-    animal_id      text,
-    rescue_date    date NOT NULL,
-    location       text NOT NULL,
-    description    text NOT NULL,
-    status         varchar(30) NOT NULL DEFAULT 'Activo',
-    foster_home_id text,
-    volunteer_id   text,
-
-    created_at     timestamptz,
-    created_by     varchar(100),
-    modified_at    timestamptz,
-    modified_by    varchar(100),
-
-    CONSTRAINT pk_rescue_records PRIMARY KEY (rescue_id),
-    CONSTRAINT ck_rescue_records_date_not_future CHECK (rescue_date <= CURRENT_DATE),
-    CONSTRAINT ck_rescue_records_status CHECK (status IN ('Activo', 'Cerrado')),
-    CONSTRAINT fk_rescue_records_animal_id
-        FOREIGN KEY (animal_id)
-        REFERENCES animals (animal_id)
-        ON UPDATE CASCADE
-        ON DELETE SET NULL,
-    CONSTRAINT fk_rescue_records_foster_home_id
-        FOREIGN KEY (foster_home_id)
-        REFERENCES foster_homes (foster_home_id)
-        ON UPDATE CASCADE
-        ON DELETE SET NULL
-
-    -- FK omitida a propósito: volunteer_id almacena el user_id que guarda el
-    -- localStorage del frontend, no un volunteers.volunteer_id real.
-);
-
 CREATE TABLE animal_foster_placements (
     animal_foster_placement_id bigint GENERATED ALWAYS AS IDENTITY,
-    animal_id                  text NOT NULL,
+    animal_id                  bigint NOT NULL,
     foster_home_id             text NOT NULL,
     start_date                 date NOT NULL,
     end_date                   date,
@@ -325,32 +373,22 @@ CREATE TABLE animal_foster_placements (
         ON DELETE RESTRICT
 );
 
-CREATE TABLE donations (
-    donation_id      bigint GENERATED ALWAYS AS IDENTITY,
-    donor_name       varchar(150) NOT NULL,
-    email            varchar(255) NOT NULL,
-    phone            varchar(30) NOT NULL,
-    method           varchar(50) NOT NULL,
-    currency         varchar(3) NOT NULL,
-    amount           numeric(14,2) NOT NULL,
-    donated_at       date NOT NULL,
-    message          text,
-    proof_file       text NOT NULL,
-    validation_status varchar(20) NOT NULL DEFAULT 'Pendiente',
-    validation_notes text,
-    validated_at     timestamptz,
-    validated_by_user_id text,
+ALTER TABLE rescue_records
+    ADD CONSTRAINT fk_rescue_records_foster_home_id
+    FOREIGN KEY (foster_home_id)
+    REFERENCES foster_homes (foster_home_id)
+    ON UPDATE CASCADE
+    ON DELETE SET NULL;
 
-    created_at       timestamptz,
-    created_by       varchar(100),
-    modified_at      timestamptz,
-    modified_by      varchar(100),
+-- FK comentada: volunteer_id almacena user_id del localStorage
+-- ALTER TABLE rescue_records
+--     ADD CONSTRAINT fk_rescue_records_volunteer_id
+--     FOREIGN KEY (volunteer_id)
+--     REFERENCES volunteers (volunteer_id)
+--     ON UPDATE CASCADE
+--     ON DELETE SET NULL;
 
-    CONSTRAINT pk_donations PRIMARY KEY (donation_id),
-    CONSTRAINT ck_donations_currency CHECK (currency IN ('CRC', 'USD')),
-    CONSTRAINT ck_donations_amount_positive CHECK (amount > 0),
-    CONSTRAINT ck_donations_validation_status CHECK (validation_status IN ('Pendiente', 'Aprobada', 'Rechazada'))
-);
+
 
 -- ============================================================
 -- Indexes for foreign keys and common access patterns
@@ -367,6 +405,15 @@ CREATE INDEX ix_user_roles_user_id
 
 CREATE INDEX ix_user_roles_role_id
     ON user_roles (role_id);
+
+CREATE INDEX ix_animal_intakes_animal_id
+    ON animal_intakes (animal_id);
+
+CREATE INDEX ix_animal_intakes_reported_by_user_id
+    ON animal_intakes (reported_by_user_id);
+
+CREATE INDEX ix_animal_intakes_intake_at
+    ON animal_intakes (intake_at);
 
 CREATE INDEX ix_animal_photos_animal_id
     ON animal_photos (animal_id);
@@ -400,6 +447,15 @@ CREATE INDEX ix_animal_medical_records_veterinarian_id
 CREATE INDEX ix_animal_medical_records_visit_date
     ON animal_medical_records (visit_date);
 
+CREATE INDEX ix_animal_care_schedules_animal_id
+    ON animal_care_schedules (animal_id);
+
+CREATE INDEX ix_animal_care_schedules_medical_record_id
+    ON animal_care_schedules (animal_medical_record_id);
+
+CREATE INDEX ix_animal_care_schedules_next_due_date
+    ON animal_care_schedules (next_due_date);
+
 CREATE INDEX ix_foster_homes_volunteer_id
     ON foster_homes (volunteer_id);
 
@@ -414,12 +470,6 @@ CREATE INDEX ix_animal_foster_placements_foster_home_id
 
 CREATE INDEX ix_animal_foster_placements_dates
     ON animal_foster_placements (start_date, end_date);
-
-CREATE INDEX ix_donations_validation_status
-    ON donations (validation_status);
-
-CREATE INDEX ix_donations_donated_at
-    ON donations (donated_at);
 
 -- Optional case-insensitive uniqueness without requiring the citext extension.
 -- Use these if your business rules require case-insensitive usernames/emails.

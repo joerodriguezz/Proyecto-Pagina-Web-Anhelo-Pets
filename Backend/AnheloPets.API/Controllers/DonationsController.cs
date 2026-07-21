@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using AnheloPets.API.DTOs;
 using AnheloPets.API.Services;
@@ -6,6 +7,7 @@ namespace AnheloPets.API.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
+[Authorize(Roles = "Admin")]
 public class DonationsController : ControllerBase
 {
     private readonly IDonationService _donationService;
@@ -16,37 +18,28 @@ public class DonationsController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult GetAll() => Ok(_donationService.GetAll());
+    public async Task<IActionResult> GetAll() => Ok(await _donationService.GetAllAsync());
 
-    [HttpGet("{id}")]
-    public IActionResult GetById(long id)
+    [HttpGet("{id:long}")]
+    public async Task<IActionResult> GetById(long id)
     {
-        var donation = _donationService.GetById(id);
+        var donation = await _donationService.GetByIdAsync(id);
         if (donation == null) return NotFound();
         return Ok(donation);
     }
 
+    [AllowAnonymous]
     [HttpPost]
-    public IActionResult Create([FromBody] DonationDto donation)
+    public async Task<IActionResult> Create([FromBody] SubmitDonationDto donation)
     {
-        if (donation == null) return BadRequest();
-        var created = _donationService.Create(donation);
+        var created = await _donationService.CreateAsync(donation);
         return CreatedAtAction(nameof(GetById), new { id = created.DonationId }, created);
     }
 
-    [HttpPut("{id}")]
-    public IActionResult Update(long id, [FromBody] DonationDto donation)
+    [HttpPatch("{id:long}/status")]
+    public async Task<IActionResult> UpdateStatus(long id, [FromBody] UpdateDonationStatusDto status)
     {
-        if (donation == null) return BadRequest();
-        var updated = _donationService.Update(id, donation);
-        if (updated == null) return NotFound();
+        var updated = await _donationService.UpdateStatusAsync(id, status);
         return Ok(updated);
-    }
-
-    [HttpDelete("{id}")]
-    public IActionResult Delete(long id)
-    {
-        if (!_donationService.Delete(id)) return NotFound();
-        return NoContent();
     }
 }

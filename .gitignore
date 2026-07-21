@@ -4,6 +4,7 @@
 .idea/
 .vscode/*
 !.vscode/extensions.json
+.claude/
 
 # Node
 node_modules/
@@ -54,5 +55,9 @@ project.nuget.cache
 !.env.example
 !frontend/.env.example
 *.local
+
+# Contiene credenciales reales de BD (Supabase) - no versionar
+Backend/AnheloPets.API/appsettings.Development.json
+graphify-out/
 
 .vercel

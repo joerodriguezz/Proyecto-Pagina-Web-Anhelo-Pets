@@ -1,9 +1,10 @@
 <script setup>
-import { ref, onMounted, computed, onBeforeUnmount } from 'vue'
+import { ref, onMounted, computed, onBeforeUnmount, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
 import FooterBar from '../components/FooterBar.vue'
 import { usePetsStore } from '../stores/usePetsStore'
+import { useAuthStore } from '../stores/useAuthStore'
 
 import {
   countryList,
@@ -11,6 +12,7 @@ import {
 } from '../data/paises'
 
 const store = usePetsStore()
+const authStore = useAuthStore()
 
 const route = useRoute()
 const router = useRouter()
@@ -183,37 +185,27 @@ function filterPhoneNumber() {
 
 /* ---------------- MOUNTED ---------------- */
 
+// /api/auth/me no trae cedula/edad/direccion (viven en otras tablas, fuera
+// del token) — solo se puede pre-llenar id/nombre/correo desde la sesión.
+function cargarUsuarioDesdeSesion() {
+  const u = authStore.user
+  if (!u) return
+
+  usuarioActual.value = {
+    id: u.userId,
+    nombre: [u.firstName, u.lastName].filter(Boolean).join(' '),
+    correo: u.email
+  }
+
+  fullName.value = usuarioActual.value.nombre || ''
+  email.value = usuarioActual.value.correo || ''
+}
+
+watch(() => authStore.user, cargarUsuarioDesdeSesion)
+
 onMounted(() => {
 
-  const usuarioGuardado = JSON.parse(
-
-    localStorage.getItem(
-      'anhelo_usuario_actual'
-    )
-
-  )
-
-  if (usuarioGuardado) {
-
-    usuarioActual.value =
-      usuarioGuardado
-
-    fullName.value =
-      usuarioGuardado.nombre || ''
-
-    email.value =
-      usuarioGuardado.correo || ''
-
-    idCard.value =
-      usuarioGuardado.cedula || ''
-
-    age.value =
-      usuarioGuardado.edad || ''
-
-    fullAddress.value =
-      usuarioGuardado.direccion || ''
-
-  }
+  cargarUsuarioDesdeSesion()
 
   if (route.query.name) {
 
