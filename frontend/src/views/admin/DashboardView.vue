@@ -2,29 +2,29 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { usePetsStore } from '../../stores/usePetsStore'
+import { useRescuesStore } from '../../stores/useRescuesStore'
 
-// ─── Store ────────────────────────────────────────────────────
-const petsStore = usePetsStore()
+// ─── Stores ───────────────────────────────────────────────────
+const petsStore   = usePetsStore()
+const rescuesStore = useRescuesStore()
 
-// ─── localStorage ─────────────────────────────────────────────
+// ─── localStorage (solicitudes, usuarios, donaciones aún en LS) ─
 const solicitudes = ref([])
-const rescates    = ref([])
 const usuarios    = ref([])
 const donaciones  = ref([])
 
 function cargar() {
   try { solicitudes.value = JSON.parse(localStorage.getItem('anhelo_solicitudes') || '[]') } catch { solicitudes.value = [] }
-  try { rescates.value    = JSON.parse(localStorage.getItem('anhelo_rescates')    || '[]') } catch { rescates.value    = [] }
   try { usuarios.value    = JSON.parse(localStorage.getItem('anhelo_usuarios')    || '[]') } catch { usuarios.value    = [] }
   try { donaciones.value  = JSON.parse(localStorage.getItem('anhelo_donaciones')  || '[]') } catch { donaciones.value  = [] }
 }
 
 function onStorage(e) {
-  const claves = ['anhelo_solicitudes', 'anhelo_rescates', 'anhelo_usuarios', 'anhelo_donaciones']
+  const claves = ['anhelo_solicitudes', 'anhelo_usuarios', 'anhelo_donaciones']
   if (claves.includes(e.key)) cargar()
 }
 
-onMounted(() => { cargar(); window.addEventListener('storage', onStorage) })
+onMounted(() => { cargar(); rescuesStore.fetchRescues(); window.addEventListener('storage', onStorage) })
 onUnmounted(() => window.removeEventListener('storage', onStorage))
 
 // ─── KPI 1 · Mascotas registradas ────────────────────────────
@@ -40,7 +40,7 @@ const totalAdopciones = computed(() =>
 
 // ─── KPI 3 · Rescates activos ─────────────────────────────────
 const totalRescates = computed(() =>
-  rescates.value.filter(r => r.estado === 'Activo').length
+  rescuesStore.rescatesActivos.value.length
 )
 
 // ─── KPI 4 · Usuarios registrados ────────────────────────────
@@ -95,9 +95,7 @@ const estadoMascotas = computed(() => [
 ])
 
 // ─── Rescates activos (lista) ─────────────────────────────────
-const rescatesActivos = computed(() =>
-  rescates.value.filter(r => r.estado === 'Activo')
-)
+const rescatesActivos = rescuesStore.rescatesActivos
 
 // ─── Helpers ──────────────────────────────────────────────────
 function formatMonto(n) {
@@ -366,7 +364,7 @@ const donutSegments = computed(() => {
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
               </div>
               <div class="rescue-info">
-                <span class="rescue-name">{{ r.nombre || r.nombreMascota || r.pet || '—' }}</span>
+                <span class="rescue-name">{{ r.mascota || r.nombre || r.nombreMascota || r.pet || '—' }}</span>
                 <span class="rescue-loc">
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="margin-right:3px;vertical-align:-1px"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
                   {{ r.ubicacion || r.lugar || r.location || '—' }}

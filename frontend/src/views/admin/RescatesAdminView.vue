@@ -1,23 +1,47 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { ubicacionesCR } from '../../data/ubicaciones'
-import { usePetsStore } from '../../stores/usePetsStore'
+import { useRescuesStore } from '../../stores/useRescuesStore'
+import { getAnimals, createAnimals } from '../../services/petServices'
+import { getFosterHomes, createFosterHome } from '../../services/fosterHomeServices'
 
-/* ─── Store de mascotas ─────────────────────────────────── */
-const petsStore = usePetsStore()
+/* ─── Store de rescates ──────────────────────────────────── */
+const store = useRescuesStore()
 
-/* ─── Estado principal ──────────────────────────────────── */
-const rescates = ref([])
+/* ─── Lista de animales registrados ─────────────────────── */
+const animalesList = ref([])
+const animalesLoading = ref(false)
+
+async function loadAnimales() {
+  animalesLoading.value = true
+  try {
+    const { data } = await getAnimals()
+    animalesList.value = (data || []).map(a => ({
+      id:   a.animalId,
+      name: a.animalName,
+      type: a.species || '',
+      sex:  a.sex === 'H' ? 'Hembra' : a.sex === 'M' ? 'Macho' : '',
+      age:  [a.ageYears, a.ageMonths].filter(Boolean).join(' '),
+    }))
+  } catch {
+    animalesList.value = []
+  } finally {
+    animalesLoading.value = false
+  }
+}
+
+/* ─── Main state from store ──────────────────────────────── */
+const rescates = store.rescates
 
 /* ─── UI ─────────────────────────────────────────────────── */
 const showForm        = ref(false)
 const editMode        = ref(false)
 const showEditModal   = ref(false)
-const rescueIndex     = ref(null)
+const editingId       = ref(null)
 const showDetailModal = ref(false)
 const rescueSelected  = ref(null)
 const modalConfirm    = ref(false)
-const confirmIndex    = ref(null)
+const confirmId       = ref(null)
 
 /* ─── Toast ──────────────────────────────────────────────── */
 const toast = ref({ visible: false, tipo: 'exito', texto: '' })
@@ -37,6 +61,13 @@ const voluntarios = ref(
 
 /* ─── Provincias para filtro ─────────────────────────────── */
 const provinciasDisponibles = computed(() => Object.keys(ubicacionesCR))
+
+/* ─── Helper: obtener nombre del rescatista desde localStorage ── */
+function getVolunteerName(id) {
+  if (!id) return 'Anónimo'
+  const v = voluntarios.value.find(u => u.id === id)
+  return v?.nombre || v?.correo || id
+}
 
 /* ─── Casas cuna y rescatistas ───────────────────────────── */
 const casasCunaDisponibles = computed(() =>
@@ -78,13 +109,13 @@ const rescatesFiltrados = computed(() => {
   return rescates.value.filter(r => {
     const coincideSearch =
       !q ||
-      (r.id || '').toLowerCase().includes(q) ||
+      String(r.id || '').toLowerCase().includes(q) ||
       (r.mascota || '').toLowerCase().includes(q) ||
-      (r.rescatista || '').toLowerCase().includes(q)
+      (r.descripcion || '').toLowerCase().includes(q)
 
     const coincideProv =
       filtroProv.value === 'Todos' ||
-      (r.provincia || '') === filtroProv.value
+      (r.ubicacion || '').toLowerCase().startsWith(filtroProv.value.toLowerCase())
 
     const coincideEstado =
       filtroEstado.value === 'Todos' ||
@@ -95,13 +126,100 @@ const rescatesFiltrados = computed(() => {
 })
 
 /* ─── Carga ──────────────────────────────────────────────── */
-function cargarRescates() {
-  rescates.value = JSON.parse(localStorage.getItem('anhelo_rescates')) || []
-}
-cargarRescates()
+onMounted(() => {
+  if (!store.loaded) store.fetchRescues()
+  loadAnimales()
+  loadFosterHomes()
+})
 
-function guardarRescatesLS() {
-  localStorage.setItem('anhelo_rescates', JSON.stringify(rescates.value))
+/* ─── Lista de casas cuna desde API ────────────────────── */
+const fosterHomesList = ref([])
+const fhLoading = ref(false)
+
+async function loadFosterHomes() {
+  fhLoading.value = true
+  try {
+    const { data } = await getFosterHomes()
+    fosterHomesList.value = (data || []).filter(f => f.active)
+  } catch {
+    fosterHomesList.value = []
+  } finally {
+    fhLoading.value = false
+  }
+}
+
+/* ─── Quick-create foster home modal ──────────────────── */
+const showQuickFoster = ref(false)
+const quickFoster     = ref({ name: '', address: '', phone: '', responsible: '', capacity: 1 })
+const quickFosterLoading = ref(false)
+const quickFosterErrors  = ref([])
+
+function abrirQuickFoster() {
+  quickFoster.value = { name: '', address: '', phone: '', responsible: '', capacity: 1 }
+  quickFosterErrors.value = []
+  showQuickFoster.value = true
+}
+
+async function guardarQuickFoster() {
+  const e = []
+  if (!quickFoster.value.name.trim())        e.push('Nombre')
+  if (!quickFoster.value.address.trim())     e.push('Dirección')
+  if (!quickFoster.value.phone.trim())       e.push('Teléfono')
+  if (!quickFoster.value.responsible.trim()) e.push('Responsable')
+  quickFosterErrors.value = e
+  if (e.length) return
+
+  quickFosterLoading.value = true
+  try {
+    await createFosterHome(quickFoster.value)
+    await loadFosterHomes()
+    showQuickFoster.value = false
+    mostrarToast('Casa cuna creada correctamente.')
+  } catch {
+    mostrarToast('Error al crear la casa cuna.', 'error')
+  } finally {
+    quickFosterLoading.value = false
+  }
+}
+
+/* ─── Quick-create animal modal ─────────────────────────── */
+const showQuickAnimal = ref(false)
+const quickAnimal     = ref({ name: '', species: '', sex: '', ageYears: 0 })
+const quickAnimalLoading = ref(false)
+const quickAnimalErrors  = ref([])
+
+function abrirQuickAnimal() {
+  quickAnimal.value = { name: '', species: '', sex: '', ageYears: 0 }
+  quickAnimalErrors.value = []
+  showQuickAnimal.value = true
+}
+
+async function guardarQuickAnimal() {
+  const e = []
+  if (!quickAnimal.value.name.trim())   e.push('Nombre')
+  if (!quickAnimal.value.species)       e.push('Tipo')
+  if (!quickAnimal.value.sex)           e.push('Sexo')
+  quickAnimalErrors.value = e
+  if (e.length) return
+
+  quickAnimalLoading.value = true
+  try {
+    const payload = {
+      name:  quickAnimal.value.name,
+      type:  quickAnimal.value.species,
+      age:   quickAnimal.value.ageYears ? `${quickAnimal.value.ageYears} año${quickAnimal.value.ageYears !== 1 ? 's' : ''}` : '',
+      sex:   quickAnimal.value.sex === 'H' ? 'Hembra' : 'Macho',
+    }
+    const { data } = await createAnimals(payload)
+    await loadAnimales()
+    animalId.value = data.animalId
+    showQuickAnimal.value = false
+    mostrarToast(`Mascota "${data.animalName}" creada correctamente.`)
+  } catch {
+    mostrarToast('Error al crear la mascota.', 'error')
+  } finally {
+    quickAnimalLoading.value = false
+  }
 }
 
 /* ─── Ubicación en formulario ────────────────────────────── */
@@ -122,196 +240,99 @@ watch(provincia, () => { canton.value = ''; distrito.value = '' })
 watch(canton,    () => { distrito.value = '' })
 
 /* ─── Formulario ─────────────────────────────────────────── */
-const mascota     = ref('')
-const tipoMascota = ref('')
-
-const fotoPreview = ref('')
-const fotoFile    = ref(null)
-
-const edad        = ref('')
-const sexo        = ref('')
-const tieneRaza   = ref('No')
-const raza        = ref('')
-const fechaRescate = ref('')
-const descripcion  = ref('')
-const casaCuna     = ref('')
-const rescatista   = ref('')
-const estado       = ref('Activo')
-const formErrors   = ref([])
-
-/* ─── Manejo de foto ─────────────────────────────────────── */
-function onFotoChange(e) {
-  const file = e.target.files?.[0]
-  if (!file) return
-  fotoFile.value = file
-  const reader = new FileReader()
-  reader.onload = ev => { fotoPreview.value = ev.target.result }
-  reader.readAsDataURL(file)
-}
+const currentStep   = ref(1)
+const animalId      = ref('')
+const fechaRescate  = ref('')
+const descripcion   = ref('')
+const casaCuna      = ref('')
+const rescatista    = ref('')
+const estado        = ref('Activo')
+const formErrors    = ref([])
 
 /* ─── Validación ─────────────────────────────────────────── */
 function validar() {
   const errores = []
-  if (!mascota.value.trim())  errores.push('Nombre de la mascota')
-  if (!tipoMascota.value)     errores.push('Tipo de mascota')
-  if (!fotoPreview.value)     errores.push('Fotografía principal')
-  if (!edad.value.trim())     errores.push('Edad')
-  if (!sexo.value)            errores.push('Sexo')
+  if (!animalId.value)        errores.push('Animal')
   if (!fechaRescate.value)    errores.push('Fecha de rescate')
   if (!provincia.value)       errores.push('Provincia')
   if (!canton.value)          errores.push('Cantón')
   if (!distrito.value)        errores.push('Distrito')
   if (!descripcion.value.trim()) errores.push('Descripción del rescate')
-  if (!rescatista.value)      errores.push('Rescatista')
   formErrors.value = errores
   return errores.length === 0
 }
 
-/* ─── Obtener fecha actual ───────────────────────────────── */
-function obtenerFechaActual() {
-  return new Date().toLocaleString('es-CR', {
-    year:'numeric', month:'2-digit', day:'2-digit',
-    hour:'2-digit', minute:'2-digit'
-  })
-}
-
-/* ─── Guardar rescate + crear mascota automáticamente ────── */
-function guardarRescate() {
+/* ─── Guardar rescate ────────────────────────────────────── */
+async function guardarRescate() {
   if (!validar()) {
     mostrarToast('Completa todos los campos obligatorios.', 'error')
     return
   }
 
-  const razaFinal = tieneRaza.value === 'Si' ? raza.value : 'Sin raza'
-
-  if (editMode.value) {
-    const orig = rescates.value[rescueIndex.value]
-    rescates.value[rescueIndex.value] = {
-      ...orig,
-      mascota:     mascota.value,
-      tipoMascota: tipoMascota.value,
-      foto:        fotoPreview.value,
-      edad:        edad.value,
-      sexo:        sexo.value,
-      raza:        razaFinal,
-      fechaRescate: fechaRescate.value,
-      provincia:   provincia.value,
-      canton:      canton.value,
-      distrito:    distrito.value,
-      ubicacion:   `${provincia.value} · ${canton.value} · ${distrito.value}`,
-      descripcion: descripcion.value,
-      casaCuna:    casaCuna.value || 'Sin asignar',
-      rescatista:  rescatista.value,
-      estado:      estado.value
-    }
-
-    if (orig.mascotaId) {
-      const petIndex = petsStore.pets.findIndex(p => p.id === orig.mascotaId)
-      if (petIndex !== -1) {
-        petsStore.pets[petIndex] = {
-          ...petsStore.pets[petIndex],
-          name:   mascota.value,
-          type:   tipoMascota.value,
-          image:  fotoPreview.value,
-          age:    edad.value,
-          gender: sexo.value,
-          breed:  razaFinal !== 'Sin raza' ? razaFinal : '',
-        }
-        petsStore.savePets?.()
-      }
-    }
-
-    editMode.value    = false
-    rescueIndex.value = null
-    showEditModal.value = false
-
-  } else {
-    const nuevaMascota = {
-      id: `pet-${Date.now()}`,
-      name: mascota.value,
-      type: tipoMascota.value,
-      images: [{ preview: fotoPreview.value }],
-      image: fotoPreview.value,
-      age: edad.value,
-      gender: sexo.value,
-      breed: razaFinal !== 'Sin raza' ? razaFinal : '',
-      status: 'En rescate',
-      description: descripcion.value,
-      location: `${provincia.value}, ${canton.value}`,
-      createdAt: obtenerFechaActual()
-    }
-
-    if (typeof petsStore.addPet === 'function') {
-      petsStore.addPet(nuevaMascota)
-    } else if (Array.isArray(petsStore.pets)) {
-      petsStore.pets.unshift(nuevaMascota)
-      if (typeof petsStore.savePets === 'function') petsStore.savePets()
-    }
-
-    const id = `R-${String(rescates.value.length + 1).padStart(3, '0')}`
-    rescates.value.unshift({
-      id,
-      mascotaId:    nuevaMascota.id,
-      mascota:      mascota.value,
-      tipoMascota:  tipoMascota.value,
-      foto:         fotoPreview.value,
-      edad:         edad.value,
-      sexo:         sexo.value,
-      raza:         razaFinal,
-      fechaRescate: fechaRescate.value,
-      fechaCreacion: obtenerFechaActual(),
-      creadoPor:    usuarioActual.value.nombre,
-      provincia:    provincia.value,
-      canton:       canton.value,
-      distrito:     distrito.value,
-      ubicacion:    `${provincia.value} · ${canton.value} · ${distrito.value}`,
-      descripcion:  descripcion.value,
-      casaCuna:     casaCuna.value || 'Sin asignar',
-      rescatista:   rescatista.value,
-      estado:       estado.value
-    })
+  const formData = {
+    animalId:     animalId.value,
+    fechaRescate: fechaRescate.value,
+    ubicacion:    `${provincia.value} · ${canton.value} · ${distrito.value}`,
+    descripcion:  descripcion.value,
+    estado:       estado.value,
+    fosterHomeId: casaCuna.value || null,
+    volunteerId: rescatista.value || null,
   }
 
-  guardarRescatesLS()
-  limpiarFormulario()
-  showForm.value = false
-  mostrarToast(editMode.value ? 'Rescate actualizado.' : 'Rescate registrado y mascota creada correctamente.')
+  try {
+    if (editMode.value && editingId.value) {
+      await store.editRescue(editingId.value, formData)
+      mostrarToast('Rescate actualizado correctamente.')
+    } else {
+      await store.addRescue(formData)
+      mostrarToast('Rescate registrado correctamente.')
+    }
+
+    limpiarFormulario()
+    showForm.value     = false
+    showEditModal.value = false
+    editMode.value     = false
+    editingId.value    = null
+  } catch {
+    mostrarToast('Error al guardar el rescate.', 'error')
+  }
 }
 
 /* ─── Editar ─────────────────────────────────────────────── */
 function editarRescate(index) {
   const r = rescates.value[index]
-  mascota.value      = r.mascota
-  tipoMascota.value  = r.tipoMascota || ''
-  fotoPreview.value  = r.foto || ''
-  edad.value         = r.edad
-  sexo.value         = r.sexo
+  animalId.value     = r.animalId || ''
   fechaRescate.value = r.fechaRescate
   descripcion.value  = r.descripcion
-  casaCuna.value     = r.casaCuna
-  rescatista.value   = r.rescatista
+  casaCuna.value     = r.fosterHomeId || ''
+  rescatista.value   = r.volunteerId || ''
   estado.value       = r.estado
-  tieneRaza.value    = (r.raza && r.raza !== 'Sin raza') ? 'Si' : 'No'
-  raza.value         = (r.raza && r.raza !== 'Sin raza') ? r.raza : ''
-  provincia.value    = r.provincia || ''
-  canton.value       = r.canton    || ''
-  distrito.value     = r.distrito  || ''
-  rescueIndex.value  = index
+  // parse ubicacion back to provincia/canton/distrito
+  const parts = (r.ubicacion || '').split(' · ')
+  provincia.value    = parts[0] || ''
+  canton.value       = parts[1] || ''
+  distrito.value     = parts[2] || ''
+  editingId.value    = r.id
   editMode.value     = true
   showEditModal.value = true
 }
 
 /* ─── Cerrar rescate (con confirmación) ──────────────────── */
 function pedirCerrar(index) {
-  confirmIndex.value = index
+  confirmId.value = rescates.value[index]?.id
   modalConfirm.value = true
 }
-function confirmarCerrar() {
-  rescates.value[confirmIndex.value].estado = 'Cerrado'
-  guardarRescatesLS()
+async function confirmarCerrar() {
+  if (confirmId.value != null) {
+    try {
+      await store.removeRescue(confirmId.value)
+      mostrarToast('Rescate cerrado correctamente.')
+    } catch {
+      mostrarToast('Error al cerrar el rescate.', 'error')
+    }
+  }
   modalConfirm.value = false
-  confirmIndex.value = null
-  mostrarToast('Rescate cerrado correctamente.')
+  confirmId.value = null
 }
 
 /* ─── Ver detalle ────────────────────────────────────────── */
@@ -322,14 +343,8 @@ function verDetalle(rescate) {
 
 /* ─── Limpiar formulario ─────────────────────────────────── */
 function limpiarFormulario() {
-  mascota.value      = ''
-  tipoMascota.value  = ''
-  fotoPreview.value  = ''
-  fotoFile.value     = null
-  edad.value         = ''
-  sexo.value         = ''
-  tieneRaza.value    = 'No'
-  raza.value         = ''
+  currentStep.value  = 1
+  animalId.value     = ''
   fechaRescate.value = ''
   descripcion.value  = ''
   casaCuna.value     = ''
@@ -353,6 +368,25 @@ function cancelarFormulario() {
   showForm.value  = false
 }
 
+function pasoValido(paso) {
+  if (paso === 1) {
+    return animalId.value && fechaRescate.value
+  }
+  return true
+}
+
+function siguientePaso() {
+  if (!pasoValido(currentStep.value)) {
+    mostrarToast('Completa los campos obligatorios del paso actual.', 'error')
+    return
+  }
+  currentStep.value++
+}
+
+function pasoAnterior() {
+  currentStep.value--
+}
+
 /* ─── KPIs ───────────────────────────────────────────────── */
 const ahora     = new Date()
 const mesActual = ahora.getMonth()
@@ -363,8 +397,8 @@ const totalActivos  = computed(() => rescates.value.filter(r => r.estado === 'Ac
 const totalCerrados = computed(() => rescates.value.filter(r => r.estado === 'Cerrado').length)
 const totalEsteMes  = computed(() =>
   rescates.value.filter(r => {
-    const f = new Date(r.fechaCreacion || r.fechaRescate)
-    return f.getMonth() === mesActual && f.getFullYear() === añoActual
+    const f = new Date(r.fechaRescate || r.fechaCreacion)
+    return !isNaN(f) && f.getMonth() === mesActual && f.getFullYear() === añoActual
   }).length
 )
 
@@ -411,9 +445,13 @@ function iniciales(nombre) {
           <h1 class="admin-page-title">Rescates</h1>
           <p class="admin-page-sub">Registro y seguimiento de animales rescatados</p>
         </div>
-        <button class="btn-nuevo" @click="abrirNuevo">
+          <button class="btn-nuevo" @click="abrirNuevo">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
           Nuevo rescate
+        </button>
+        <button class="btn-nuevo btn-nuevo--secondary" @click="store.fetchRescues()" style="margin-left:8px">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Recargar
         </button>
       </header>
 
@@ -523,19 +561,18 @@ function iniciales(nombre) {
                 <td>
                   <div class="pet-cell">
                     <div class="pet-avatar">
-                      <img v-if="r.foto" :src="r.foto" class="pet-avatar-img" alt="foto">
-                      <span v-else class="pet-avatar-ini">{{ iniciales(r.mascota) }}</span>
+                      <span class="pet-avatar-ini">{{ iniciales(r.mascota) }}</span>
                     </div>
                     <div>
                       <span class="donor-name">{{ r.mascota }}</span>
-                      <span class="donor-mail">{{ r.edad }} · {{ r.sexo }}</span>
+                      <span class="donor-mail" v-if="r.animalId">{{ r.animalId }}</span>
                     </div>
                   </div>
                 </td>
 
-                <td><span class="metodo-text">{{ r.rescatista || '—' }}</span></td>
-                <td><span class="fecha-text">{{ r.provincia || '—' }}</span></td>
-                <td><span class="fecha-text">{{ r.casaCuna || 'Sin asignar' }}</span></td>
+                <td><span class="fecha-text">{{ getVolunteerName(r.volunteerId) }}</span></td>
+                <td><span class="fecha-text">{{ (r.ubicacion || '—').split(' · ')[0] || '—' }}</span></td>
+                <td><span class="fecha-text">{{ r.fosterHomeName || r.fosterHomeId || '—' }}</span></td>
 
                 <td>
                   <span class="estado-badge" :class="estadoBadgeClass(r.estado)">{{ r.estado }}</span>
@@ -592,183 +629,164 @@ function iniciales(nombre) {
 
       <div class="form-panel">
 
-        <!-- Sección 1 -->
-        <div class="form-section-title">
-          <span class="form-section-num">1</span>
-          Datos de la mascota
+        <!-- ══ Step indicator ══ -->
+        <div class="steps-indicator">
+          <div class="step" :class="{ 'step--active': currentStep === 1, 'step--done': currentStep > 1 }" @click="currentStep = 1">
+            <div class="step-circle">{{ currentStep > 1 ? '✓' : '1' }}</div>
+            <span class="step-label">Animal</span>
+          </div>
+          <div class="steps-line"></div>
+          <div class="step" :class="{ 'step--active': currentStep === 2, 'step--done': currentStep > 2 }">
+            <div class="step-circle">{{ currentStep > 2 ? '✓' : '2' }}</div>
+            <span class="step-label">Casa cuna</span>
+          </div>
         </div>
 
-        <div class="form-grid form-grid--4" style="margin-bottom:20px">
-          <div class="fg fg--full">
-            <label class="fg-label">Fotografía principal <span class="req">*</span></label>
-            <div class="foto-wrap">
-              <div class="foto-preview" :class="{ 'has-img': fotoPreview }">
-                <img v-if="fotoPreview" :src="fotoPreview" class="foto-img" alt="preview">
-                <div v-else class="foto-placeholder">
-                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                  <span>Sin fotografía</span>
+        <!-- ══ Paso 1: Animal ══ -->
+        <template v-if="currentStep === 1">
+          <div class="form-section-title">
+            <span class="form-section-num">1</span>
+            Registrar o asociar el animal
+          </div>
+
+          <div class="form-grid form-grid--4">
+            <div class="fg fg--span2">
+              <label class="fg-label">Animal rescatado <span class="req">*</span></label>
+              <div style="display:flex;gap:6px;align-items:start">
+                <div class="sel-wrap" style="flex:1">
+                  <select class="form-input" v-model="animalId" :disabled="animalesLoading">
+                    <option value="">Seleccione un animal</option>
+                    <option v-for="a in animalesList" :key="a.id" :value="a.id">
+                      {{ a.id }} — {{ a.name }} ({{ a.type }})
+                    </option>
+                  </select>
+                  <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
                 </div>
-              </div>
-              <div class="foto-actions">
-                <label class="btn-foto">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                  Subir foto
-                  <input type="file" accept="image/*" style="display:none" @change="onFotoChange">
-                </label>
-                <p class="foto-hint">JPG, PNG o WEBP. Se usará en Animales también.</p>
+                <button type="button" class="btn-agregar-animal" @click="abrirQuickAnimal" title="Crear nueva mascota">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Agregar
+                </button>
               </div>
             </div>
+            <div class="fg">
+              <label class="fg-label">Fecha de rescate <span class="req">*</span></label>
+              <input type="date" class="form-input" v-model="fechaRescate">
+            </div>
+            <div class="fg">
+              <label class="fg-label">Estado</label>
+              <div class="sel-wrap">
+                <select class="form-input" v-model="estado">
+                  <option>Activo</option>
+                  <option>Cerrado</option>
+                </select>
+                <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+              </div>
+            </div>
           </div>
-        </div>
+          <div class="form-grid form-grid--4" style="margin-top:16px">
+            <div class="fg fg--span2">
+              <label class="fg-label">Rescatista</label>
+              <div class="sel-wrap">
+                <select class="form-input" v-model="rescatista">
+                  <option value="">Anónimo / Sin asignar</option>
+                  <option v-for="v in rescatistasDisponibles" :key="v.id" :value="v.id">
+                    {{ v.nombre || v.correo || v.id }}
+                  </option>
+                </select>
+                <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+              </div>
+            </div>
+          </div>
+        </template>
 
-        <div class="form-grid form-grid--4">
-          <div class="fg fg--span2">
-            <label class="fg-label">Nombre de la mascota <span class="req">*</span></label>
-            <input class="form-input" v-model="mascota" placeholder="Ej. Luna">
+        <!-- ══ Paso 2: Casa cuna + ubicación + descripción ══ -->
+        <template v-if="currentStep === 2">
+          <div class="form-section-title">
+            <span class="form-section-num">2</span>
+            Registrar o asociar a una casa cuna
           </div>
-          <div class="fg">
-            <label class="fg-label">Tipo de mascota <span class="req">*</span></label>
-            <div class="sel-wrap">
-              <select class="form-input" v-model="tipoMascota">
-                <option value="">Seleccione</option>
-                <option value="Perro">Perro</option>
-                <option value="Gato">Gato</option>
-              </select>
-              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-            </div>
-          </div>
-          <div class="fg">
-            <label class="fg-label">Edad <span class="req">*</span></label>
-            <input class="form-input" v-model="edad" placeholder="Ej. 2 años">
-          </div>
-          <div class="fg">
-            <label class="fg-label">Sexo <span class="req">*</span></label>
-            <div class="sel-wrap">
-              <select class="form-input" v-model="sexo">
-                <option value="">Seleccione</option>
-                <option>Macho</option>
-                <option>Hembra</option>
-              </select>
-              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-            </div>
-          </div>
-          <div class="fg">
-            <label class="fg-label">¿Tiene raza?</label>
-            <div class="radio-row">
-              <label class="r-opt"><input type="radio" v-model="tieneRaza" value="No"><span>No</span></label>
-              <label class="r-opt"><input type="radio" v-model="tieneRaza" value="Si"><span>Sí</span></label>
-            </div>
-          </div>
-          <div v-if="tieneRaza === 'Si'" class="fg fg--span2">
-            <label class="fg-label">Raza</label>
-            <input class="form-input" v-model="raza" placeholder="Ej. Labrador">
-          </div>
-          <div class="fg">
-            <label class="fg-label">Fecha de rescate <span class="req">*</span></label>
-            <input type="date" class="form-input" v-model="fechaRescate">
-          </div>
-        </div>
 
-        <!-- Sección 2 -->
-        <div class="form-section-title" style="margin-top:28px">
-          <span class="form-section-num">2</span>
-          Ubicación del rescate
-        </div>
-        <div class="form-grid form-grid--4">
-          <div class="fg">
-            <label class="fg-label">Provincia <span class="req">*</span></label>
-            <div class="sel-wrap">
-              <select class="form-input" v-model="provincia">
-                <option value="">Seleccione</option>
-                <option v-for="p in provinciasDisponibles" :key="p" :value="p">{{ p }}</option>
-              </select>
-              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+          <div class="form-grid form-grid--4">
+            <div class="fg fg--span2">
+              <label class="fg-label">Casa cuna</label>
+              <div style="display:flex;gap:6px;align-items:start">
+                <div class="sel-wrap" style="flex:1">
+                  <select class="form-input" v-model="casaCuna" :disabled="fhLoading">
+                    <option value="">Sin asignar</option>
+                    <option v-for="c in fosterHomesList" :key="c.fosterHomeId" :value="c.fosterHomeId">
+                      {{ c.name }} — {{ c.responsible }}
+                    </option>
+                  </select>
+                  <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                </div>
+                <button type="button" class="btn-agregar-animal" @click="abrirQuickFoster" title="Crear nueva casa cuna">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                  Agregar
+                </button>
+              </div>
             </div>
           </div>
-          <div class="fg">
-            <label class="fg-label">Cantón <span class="req">*</span></label>
-            <div class="sel-wrap">
-              <select class="form-input" v-model="canton" :disabled="!provincia">
-                <option value="">Seleccione</option>
-                <option v-for="c in cantonesDisponibles" :key="c" :value="c">{{ c }}</option>
-              </select>
-              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-            </div>
-          </div>
-          <div class="fg">
-            <label class="fg-label">Distrito <span class="req">*</span></label>
-            <div class="sel-wrap">
-              <select class="form-input" v-model="distrito" :disabled="!canton">
-                <option value="">Seleccione</option>
-                <option v-for="d in distritosDisponibles" :key="d" :value="d">{{ d }}</option>
-              </select>
-              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-            </div>
-          </div>
-        </div>
 
-        <!-- Sección 3 -->
-        <div class="form-section-title" style="margin-top:28px">
-          <span class="form-section-num">3</span>
-          Asignaciones
-        </div>
-        <div class="form-grid form-grid--4">
-          <div class="fg fg--span2">
-            <label class="fg-label">Rescatista <span class="req">*</span></label>
-            <div class="sel-wrap">
-              <select class="form-input" v-model="rescatista">
-                <option value="">Seleccione un rescatista</option>
-                <option
-                  v-for="r in rescatistasDisponibles"
-                  :key="r.id"
-                  :value="r.solicitudVoluntario?.nombre || r.nombre"
-                >{{ r.solicitudVoluntario?.nombre || r.nombre }}</option>
-              </select>
-              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+          <div class="form-section-title" style="margin-top:28px">
+            <span class="form-section-num">—</span>
+            Ubicación del rescate
+          </div>
+          <div class="form-grid form-grid--4">
+            <div class="fg">
+              <label class="fg-label">Provincia <span class="req">*</span></label>
+              <div class="sel-wrap">
+                <select class="form-input" v-model="provincia">
+                  <option value="">Seleccione</option>
+                  <option v-for="p in provinciasDisponibles" :key="p" :value="p">{{ p }}</option>
+                </select>
+                <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+              </div>
+            </div>
+            <div class="fg">
+              <label class="fg-label">Cantón <span class="req">*</span></label>
+              <div class="sel-wrap">
+                <select class="form-input" v-model="canton" :disabled="!provincia">
+                  <option value="">Seleccione</option>
+                  <option v-for="c in cantonesDisponibles" :key="c" :value="c">{{ c }}</option>
+                </select>
+                <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+              </div>
+            </div>
+            <div class="fg">
+              <label class="fg-label">Distrito <span class="req">*</span></label>
+              <div class="sel-wrap">
+                <select class="form-input" v-model="distrito" :disabled="!canton">
+                  <option value="">Seleccione</option>
+                  <option v-for="d in distritosDisponibles" :key="d" :value="d">{{ d }}</option>
+                </select>
+                <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+              </div>
             </div>
           </div>
-          <div class="fg fg--span2">
-            <label class="fg-label">Casa cuna</label>
-            <div class="sel-wrap">
-              <select class="form-input" v-model="casaCuna">
-                <option value="">Sin asignar</option>
-                <option
-                  v-for="c in casasCunaDisponibles"
-                  :key="c.id"
-                  :value="c.solicitudVoluntario?.nombre || c.nombre"
-                >{{ c.solicitudVoluntario?.nombre || c.nombre }}</option>
-              </select>
-              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-            </div>
+
+          <div class="form-section-title" style="margin-top:28px">
+            <span class="form-section-num">—</span>
+            Descripción del rescate
           </div>
           <div class="fg">
-            <label class="fg-label">Estado</label>
-            <div class="sel-wrap">
-              <select class="form-input" v-model="estado">
-                <option>Activo</option>
-                <option>Cerrado</option>
-              </select>
-              <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-            </div>
+            <label class="fg-label">Descripción <span class="req">*</span></label>
+            <textarea class="form-textarea" v-model="descripcion" placeholder="Describe las circunstancias del rescate, condición del animal, observaciones importantes..."></textarea>
           </div>
-        </div>
-
-        <!-- Sección 4 -->
-        <div class="form-section-title" style="margin-top:28px">
-          <span class="form-section-num">4</span>
-          Descripción del rescate
-        </div>
-        <div class="fg">
-          <label class="fg-label">Descripción <span class="req">*</span></label>
-          <textarea class="form-textarea" v-model="descripcion" placeholder="Describe las circunstancias del rescate, condición del animal, observaciones importantes..."></textarea>
-        </div>
+        </template>
 
         <div class="form-footer">
           <button class="btn-cancelar" @click="cancelarFormulario">Cancelar</button>
-          <button class="btn-guardar" @click="guardarRescate">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-            {{ editMode ? 'Guardar cambios' : 'Registrar rescate' }}
+          <button v-if="currentStep === 1" class="btn-guardar" @click="siguientePaso">
+            Siguiente
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
           </button>
+          <template v-if="currentStep === 2">
+            <button class="btn-cancelar" @click="pasoAnterior">Anterior</button>
+            <button class="btn-guardar" @click="guardarRescate">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              {{ editMode ? 'Guardar cambios' : 'Registrar rescate' }}
+            </button>
+          </template>
         </div>
 
       </div>
@@ -795,66 +813,25 @@ function iniciales(nombre) {
             <div class="modal-body">
 
               <div class="modal-section">
-                <h4 class="modal-section-title">Fotografía</h4>
-                <div class="foto-wrap">
-                  <div class="foto-preview" :class="{ 'has-img': fotoPreview }">
-                    <img v-if="fotoPreview" :src="fotoPreview" class="foto-img" alt="preview">
-                    <div v-else class="foto-placeholder">
-                      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                      <span>Sin foto</span>
-                    </div>
-                  </div>
-                  <div class="foto-actions">
-                    <label class="btn-foto">
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-                      Cambiar foto
-                      <input type="file" accept="image/*" style="display:none" @change="onFotoChange">
-                    </label>
-                  </div>
-                </div>
-              </div>
-
-              <div class="modal-section">
-                <h4 class="modal-section-title">Datos de la mascota</h4>
+                <h4 class="modal-section-title">Información del rescate</h4>
                 <div class="modal-grid">
                   <div class="modal-field">
-                    <label class="fg-label">Nombre</label>
-                    <input class="form-input" v-model="mascota">
-                  </div>
-                  <div class="modal-field">
-                    <label class="fg-label">Tipo de mascota</label>
-                    <div class="sel-wrap">
-                      <select class="form-input" v-model="tipoMascota">
-                        <option value="Perro">Perro</option>
-                        <option value="Gato">Gato</option>
-                      </select>
-                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                    <label class="fg-label">Animal rescatado</label>
+                    <div style="display:flex;gap:6px;align-items:start">
+                      <div class="sel-wrap" style="flex:1">
+                        <select class="form-input" v-model="animalId" :disabled="animalesLoading">
+                          <option value="">Seleccione un animal</option>
+                          <option v-for="a in animalesList" :key="a.id" :value="a.id">
+                            {{ a.id }} — {{ a.name }} ({{ a.type }})
+                          </option>
+                        </select>
+                        <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                      </div>
+                      <button type="button" class="btn-agregar-animal" @click="abrirQuickAnimal" title="Crear nueva mascota">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+                        Agregar
+                      </button>
                     </div>
-                  </div>
-                  <div class="modal-field">
-                    <label class="fg-label">Edad</label>
-                    <input class="form-input" v-model="edad">
-                  </div>
-                  <div class="modal-field">
-                    <label class="fg-label">Sexo</label>
-                    <div class="sel-wrap">
-                      <select class="form-input" v-model="sexo">
-                        <option>Macho</option>
-                        <option>Hembra</option>
-                      </select>
-                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-                    </div>
-                  </div>
-                  <div class="modal-field">
-                    <label class="fg-label">¿Tiene raza?</label>
-                    <div class="radio-row">
-                      <label class="r-opt"><input type="radio" v-model="tieneRaza" value="No"><span>No</span></label>
-                      <label class="r-opt"><input type="radio" v-model="tieneRaza" value="Si"><span>Sí</span></label>
-                    </div>
-                  </div>
-                  <div v-if="tieneRaza === 'Si'" class="modal-field">
-                    <label class="fg-label">Raza</label>
-                    <input class="form-input" v-model="raza">
                   </div>
                   <div class="modal-field">
                     <label class="fg-label">Fecha de rescate</label>
@@ -866,6 +843,18 @@ function iniciales(nombre) {
                       <select class="form-input" v-model="estado">
                         <option>Activo</option>
                         <option>Cerrado</option>
+                      </select>
+                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                    </div>
+                  </div>
+                  <div class="modal-field">
+                    <label class="fg-label">Rescatista</label>
+                    <div class="sel-wrap">
+                      <select class="form-input" v-model="rescatista">
+                        <option value="">Anónimo / Sin asignar</option>
+                        <option v-for="v in rescatistasDisponibles" :key="v.id" :value="v.id">
+                          {{ v.nombre || v.correo || v.id }}
+                        </option>
                       </select>
                       <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
                     </div>
@@ -910,32 +899,6 @@ function iniciales(nombre) {
               </div>
 
               <div class="modal-section">
-                <h4 class="modal-section-title">Asignaciones</h4>
-                <div class="modal-grid">
-                  <div class="modal-field">
-                    <label class="fg-label">Rescatista</label>
-                    <div class="sel-wrap">
-                      <select class="form-input" v-model="rescatista">
-                        <option value="">Seleccione</option>
-                        <option v-for="r in rescatistasDisponibles" :key="r.id" :value="r.solicitudVoluntario?.nombre || r.nombre">{{ r.solicitudVoluntario?.nombre || r.nombre }}</option>
-                      </select>
-                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-                    </div>
-                  </div>
-                  <div class="modal-field">
-                    <label class="fg-label">Casa cuna</label>
-                    <div class="sel-wrap">
-                      <select class="form-input" v-model="casaCuna">
-                        <option value="">Sin asignar</option>
-                        <option v-for="c in casasCunaDisponibles" :key="c.id" :value="c.solicitudVoluntario?.nombre || c.nombre">{{ c.solicitudVoluntario?.nombre || c.nombre }}</option>
-                      </select>
-                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="modal-section">
                 <h4 class="modal-section-title">Descripción del rescate</h4>
                 <textarea class="form-textarea" v-model="descripcion"></textarea>
               </div>
@@ -967,16 +930,15 @@ function iniciales(nombre) {
 
             <div class="modal-header">
               <div class="modal-header-avatar-lg">
-                <img v-if="rescueSelected?.foto" :src="rescueSelected.foto" class="modal-avatar-img" alt="foto">
-                <span v-else>{{ iniciales(rescueSelected?.mascota) }}</span>
+                <span>{{ iniciales(rescueSelected?.mascota) }}</span>
               </div>
               <div>
                 <p class="modal-eyebrow">Expediente de rescate</p>
                 <h2 class="modal-title">{{ rescueSelected?.mascota }}</h2>
                 <div class="modal-badges-row">
-                  <span class="estado-badge badge-cerrado">{{ rescueSelected?.edad }} · {{ rescueSelected?.sexo }}</span>
+                  <span class="id-pill">{{ rescueSelected?.animalId }}</span>
                   <span class="estado-badge" :class="estadoBadgeClass(rescueSelected?.estado)">{{ rescueSelected?.estado }}</span>
-                  <span class="id-pill">{{ rescueSelected?.id }}</span>
+                  <span class="id-pill">#{{ rescueSelected?.id }}</span>
                 </div>
               </div>
             </div>
@@ -984,75 +946,21 @@ function iniciales(nombre) {
             <div class="modal-body" v-if="rescueSelected">
 
               <div class="modal-section">
-                <h4 class="modal-section-title">Información de la mascota</h4>
-                <div class="modal-grid">
-                  <div class="modal-field">
-                    <span class="modal-field-label">Nombre</span>
-                    <strong class="modal-field-value">{{ rescueSelected.mascota }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Tipo</span>
-                    <strong class="modal-field-value">{{ rescueSelected.tipoMascota || '—' }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Edad</span>
-                    <strong class="modal-field-value">{{ rescueSelected.edad }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Sexo</span>
-                    <strong class="modal-field-value">{{ rescueSelected.sexo }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Raza</span>
-                    <strong class="modal-field-value">{{ rescueSelected.raza || 'Sin raza' }}</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div class="modal-section">
                 <h4 class="modal-section-title">Ubicación</h4>
-                <div class="modal-grid modal-grid--3">
+                <div class="modal-grid">
                   <div class="modal-field">
-                    <span class="modal-field-label">Provincia</span>
-                    <strong class="modal-field-value">{{ rescueSelected.provincia || '—' }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Cantón</span>
-                    <strong class="modal-field-value">{{ rescueSelected.canton || '—' }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Distrito</span>
-                    <strong class="modal-field-value">{{ rescueSelected.distrito || '—' }}</strong>
+                    <span class="modal-field-label">Lugar</span>
+                    <strong class="modal-field-value">{{ rescueSelected.ubicacion || '—' }}</strong>
                   </div>
                 </div>
               </div>
 
               <div class="modal-section">
-                <h4 class="modal-section-title">Asignaciones y fechas</h4>
+                <h4 class="modal-section-title">Fechas</h4>
                 <div class="modal-grid">
-                  <div class="modal-field">
-                    <span class="modal-field-label">Rescatista</span>
-                    <strong class="modal-field-value">{{ rescueSelected.rescatista || '—' }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Casa cuna</span>
-                    <strong class="modal-field-value">{{ rescueSelected.casaCuna || 'Sin asignar' }}</strong>
-                  </div>
                   <div class="modal-field">
                     <span class="modal-field-label">Fecha de rescate</span>
                     <strong class="modal-field-value">{{ rescueSelected.fechaRescate || '—' }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Fecha de creación</span>
-                    <strong class="modal-field-value">{{ rescueSelected.fechaCreacion || '—' }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Registrado por</span>
-                    <strong class="modal-field-value">{{ rescueSelected.creadoPor || '—' }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Estado</span>
-                    <span class="estado-badge" :class="estadoBadgeClass(rescueSelected.estado)" style="margin-top:4px;display:inline-block">{{ rescueSelected.estado }}</span>
                   </div>
                 </div>
               </div>
@@ -1107,6 +1015,137 @@ function iniciales(nombre) {
     </Teleport>
 
   </div>
+
+  <!-- ══════════════════════════════════════════
+       MODAL CREAR MASCOTA RÁPIDO
+  ═══════════════════════════════════════════ -->
+  <Teleport to="body">
+    <Transition name="modal-fade">
+      <div v-if="showQuickAnimal" class="modal-overlay" @click.self="showQuickAnimal = false">
+        <div class="modal-box modal-box--sm">
+          <button class="modal-close" @click="showQuickAnimal = false">✕</button>
+          <div class="modal-header">
+            <div class="modal-header-avatar">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            </div>
+            <div>
+              <p class="modal-eyebrow">Nueva mascota</p>
+              <h2 class="modal-title">Crear mascota</h2>
+            </div>
+          </div>
+
+          <div class="modal-body">
+            <div v-if="quickAnimalErrors.length" class="form-errors-banner" style="margin-bottom:16px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>Campos obligatorios: {{ quickAnimalErrors.join(', ') }}.</span>
+            </div>
+
+            <div class="modal-grid">
+              <div class="modal-field">
+                <label class="fg-label">Nombre <span class="req">*</span></label>
+                <input class="form-input" v-model="quickAnimal.name" placeholder="Ej. Luna">
+              </div>
+              <div class="modal-field">
+                <label class="fg-label">Tipo <span class="req">*</span></label>
+                <div class="sel-wrap">
+                  <select class="form-input" v-model="quickAnimal.species">
+                    <option value="">Seleccione</option>
+                    <option value="Perro">Perro</option>
+                    <option value="Gato">Gato</option>
+                  </select>
+                  <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                </div>
+              </div>
+              <div class="modal-field">
+                <label class="fg-label">Sexo <span class="req">*</span></label>
+                <div class="sel-wrap">
+                  <select class="form-input" v-model="quickAnimal.sex">
+                    <option value="">Seleccione</option>
+                    <option value="M">Macho</option>
+                    <option value="H">Hembra</option>
+                  </select>
+                  <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+                </div>
+              </div>
+              <div class="modal-field">
+                <label class="fg-label">Edad (años)</label>
+                <input type="number" min="0" class="form-input" v-model="quickAnimal.ageYears" placeholder="0">
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn-cancelar" @click="showQuickAnimal = false">Cancelar</button>
+            <button class="btn-guardar" :disabled="quickAnimalLoading" @click="guardarQuickAnimal">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              {{ quickAnimalLoading ? 'Creando...' : 'Crear mascota' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
+  <!-- ══════════════════════════════════════════
+       MODAL CREAR CASA CUNA RÁPIDO
+  ═══════════════════════════════════════════ -->
+  <Teleport to="body">
+    <Transition name="modal-fade">
+      <div v-if="showQuickFoster" class="modal-overlay" @click.self="showQuickFoster = false">
+        <div class="modal-box modal-box--sm">
+          <button class="modal-close" @click="showQuickFoster = false">✕</button>
+          <div class="modal-header">
+            <div class="modal-header-avatar">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            </div>
+            <div>
+              <p class="modal-eyebrow">Nueva casa cuna</p>
+              <h2 class="modal-title">Crear casa cuna</h2>
+            </div>
+          </div>
+
+          <div class="modal-body">
+            <div v-if="quickFosterErrors.length" class="form-errors-banner" style="margin-bottom:16px">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <span>Campos obligatorios: {{ quickFosterErrors.join(', ') }}.</span>
+            </div>
+
+            <div class="modal-grid">
+              <div class="modal-field">
+                <label class="fg-label">Nombre <span class="req">*</span></label>
+                <input class="form-input" v-model="quickFoster.name" placeholder="Ej. Hogar temporal San José">
+              </div>
+              <div class="modal-field">
+                <label class="fg-label">Dirección <span class="req">*</span></label>
+                <input class="form-input" v-model="quickFoster.address" placeholder="Ej. Av. Central, #123">
+              </div>
+              <div class="modal-field">
+                <label class="fg-label">Teléfono <span class="req">*</span></label>
+                <input class="form-input" v-model="quickFoster.phone" placeholder="Ej. 8888-7777">
+              </div>
+              <div class="modal-field">
+                <label class="fg-label">Responsable <span class="req">*</span></label>
+                <input class="form-input" v-model="quickFoster.responsible" placeholder="Ej. María Rojas">
+              </div>
+              <div class="modal-field">
+                <label class="fg-label">Capacidad</label>
+                <input type="number" min="1" max="50" class="form-input" v-model.number="quickFoster.capacity" placeholder="1">
+              </div>
+            </div>
+          </div>
+
+          <div class="modal-footer">
+            <button class="btn-cancelar" @click="showQuickFoster = false">Cancelar</button>
+            <button class="btn-guardar" :disabled="quickFosterLoading" @click="guardarQuickFoster">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+              {{ quickFosterLoading ? 'Creando...' : 'Crear casa cuna' }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
+
 </template>
 
 <style scoped>
@@ -1432,8 +1471,50 @@ function iniciales(nombre) {
 }
 
 /* ══════════════════════════════════════════════
+   STEP INDICATOR
+══════════════════════════════════════════════ */
+.steps-indicator {
+  display: flex; align-items: center; justify-content: center; gap: 0;
+  margin-bottom: 28px; padding: 0 20px;
+}
+.step {
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  cursor: pointer; user-select: none;
+}
+.step-circle {
+  width: 34px; height: 34px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 14px; font-weight: 800;
+  background: var(--fondo); color: var(--verde-sec);
+  border: 2px solid var(--borde); transition: all 0.2s;
+}
+.step--active .step-circle {
+  background: var(--verde); color: #fff; border-color: var(--verde);
+}
+.step--done .step-circle {
+  background: var(--verde); color: #fff; border-color: var(--verde);
+}
+.step-label {
+  font-size: 11px; font-weight: 700; color: var(--texto-sec);
+  text-transform: uppercase; letter-spacing: 0.3px;
+}
+.step--active .step-label { color: var(--verde); }
+.steps-line {
+  flex: 1; max-width: 80px; height: 2px;
+  background: var(--borde); margin: 0 12px; margin-bottom: 22px;
+}
+
+/* ══════════════════════════════════════════════
    BOTONES COMUNES
 ══════════════════════════════════════════════ */
+.btn-agregar-animal {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 7px 12px; background: var(--verde); border: none; border-radius: 8px;
+  font-size: 12px; font-weight: 700; color: #fff; cursor: pointer;
+  white-space: nowrap; font-family: inherit; transition: background 0.15s; height: 38px;
+}
+.btn-agregar-animal:hover { background: #2d3730; }
+
 .btn-cancelar {
   padding: 10px 18px; background: var(--fondo); border: none; border-radius: 8px;
   font-size: 13px; font-weight: 700; color: var(--texto-sec);

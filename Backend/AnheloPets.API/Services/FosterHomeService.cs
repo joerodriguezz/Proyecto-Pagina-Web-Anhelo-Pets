@@ -1,214 +1,79 @@
-using System.Data;
-using AnheloPets.API.Data;
 using AnheloPets.API.DTOs;
-using Microsoft.EntityFrameworkCore;
+using AnheloPets.API.Exceptions;
+using AnheloPets.API.Repository;
 
 namespace AnheloPets.API.Services;
 
 public class FosterHomeService : IFosterHomeService
 {
-    private readonly AnheloPetsDbContext _dbContext;
+    private readonly FosterHomeRepository _repository;
 
-    public FosterHomeService(AnheloPetsDbContext dbContext)
+    public FosterHomeService(FosterHomeRepository repository)
     {
-        _dbContext = dbContext;
+        _repository = repository;
     }
 
-    public IEnumerable<FosterHomeDto> GetAll()
+    public async Task<List<FosterHomeDto>> GetAll()
     {
-        using var command = CreateCommand("SELECT * FROM anhelopets.fn_get_foster_homes_admin();");
-        return ExecuteReader(command);
+        return await _repository.GetAll();
     }
 
-    public FosterHomeDto? GetById(long id)
+    public async Task<FosterHomeDto?> GetById(string id)
     {
-        using var command = CreateCommand("SELECT * FROM anhelopets.fn_get_foster_homes_admin() WHERE foster_home_id = @id;");
-        AddParameter(command, "id", id);
-        return ExecuteReader(command).FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(id))
+            throw new ApiException("El ID de casa cuna no es válido.");
+
+        var result = await _repository.GetById(id);
+        if (result == null)
+            throw new ApiException($"No se encontró la casa cuna con ID {id}.", 404);
+
+        return result;
     }
 
-    public FosterHomeDto Create(FosterHomeDto fosterHome)
+    public async Task<FosterHomeDto> Create(FosterHomeDto dto)
     {
-        using var command = CreateCommand(
-            """
-            SELECT anhelopets.fn_create_foster_home(
-                @volunteerId::bigint,
-                @name::varchar,
-                @address::text,
-                @phone::varchar,
-                @responsible::varchar,
-                @capacity::integer,
-                @createdBy::varchar);
-            """);
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            throw new ApiException("El nombre de la casa cuna es obligatorio.");
 
-        AddWriteParameters(command, fosterHome, includeModifiedBy: false);
-        var fosterHomeId = Convert.ToInt64(ExecuteScalar(command));
-        return GetById(fosterHomeId) ?? throw new InvalidOperationException("Foster home was created but could not be loaded.");
+        if (string.IsNullOrWhiteSpace(dto.Address))
+            throw new ApiException("La dirección de la casa cuna es obligatoria.");
+
+        if (string.IsNullOrWhiteSpace(dto.Phone))
+            throw new ApiException("El teléfono de la casa cuna es obligatorio.");
+
+        if (string.IsNullOrWhiteSpace(dto.Responsible))
+            throw new ApiException("El responsable de la casa cuna es obligatorio.");
+
+        if (dto.Capacity < 1)
+            throw new ApiException("La capacidad debe ser al menos 1.");
+
+        return await _repository.Create(dto);
     }
 
-    public FosterHomeDto? Update(long id, FosterHomeDto fosterHome)
+    public async Task<FosterHomeDto?> Update(string id, FosterHomeDto dto)
     {
-        if (GetById(id) == null)
-        {
-            return null;
-        }
+        if (string.IsNullOrWhiteSpace(id))
+            throw new ApiException("El ID de casa cuna no es válido.");
 
-        using var command = CreateCommand(
-            """
-            SELECT anhelopets.fn_update_foster_home(
-                @fosterHomeId::bigint,
-                @volunteerId::bigint,
-                @name::varchar,
-                @address::text,
-                @phone::varchar,
-                @responsible::varchar,
-                @capacity::integer,
-                @active::boolean,
-                @modifiedBy::varchar);
-            """);
+        if (string.IsNullOrWhiteSpace(dto.Name))
+            throw new ApiException("El nombre de la casa cuna es obligatorio.");
 
-        AddParameter(command, "fosterHomeId", id);
-        AddWriteParameters(command, fosterHome, includeModifiedBy: true);
-        ExecuteNonQuery(command);
-        return GetById(id);
+        var result = await _repository.Update(id, dto);
+        if (result == null)
+            throw new ApiException($"No se encontró la casa cuna con ID {id}.", 404);
+
+        return result;
     }
 
-    public bool Delete(long id)
+    public async Task<bool> Deactivate(string id)
     {
-        var existing = GetById(id);
-        if (existing == null)
-        {
-            return false;
-        }
+        if (string.IsNullOrWhiteSpace(id))
+            throw new ApiException("El ID de casa cuna no es válido.");
 
-        existing.Active = false;
-        existing.ModifiedBy = "api";
-        Update(id, existing);
+        var result = await _repository.Deactivate(id);
+        if (!result)
+            throw new ApiException($"No se encontró la casa cuna con ID {id}.", 404);
+
         return true;
-    }
-
-    private static void AddWriteParameters(IDbCommand command, FosterHomeDto fosterHome, bool includeModifiedBy)
-    {
-        AddParameter(command, "volunteerId", fosterHome.VolunteerId);
-        AddParameter(command, "name", fosterHome.Name);
-        AddParameter(command, "address", fosterHome.Address);
-        AddParameter(command, "phone", fosterHome.Phone);
-        AddParameter(command, "responsible", fosterHome.Responsible);
-        AddParameter(command, "capacity", fosterHome.Capacity);
-
-        if (includeModifiedBy)
-        {
-            AddParameter(command, "active", fosterHome.Active);
-            AddParameter(command, "modifiedBy", fosterHome.ModifiedBy);
-            return;
-        }
-
-        AddParameter(command, "createdBy", fosterHome.CreatedBy);
-    }
-
-    private List<FosterHomeDto> ExecuteReader(IDbCommand command)
-    {
-        try
-        {
-            using var reader = command.ExecuteReader();
-            var fosterHomes = new List<FosterHomeDto>();
-
-            while (reader.Read())
-            {
-                fosterHomes.Add(new FosterHomeDto
-                {
-                    FosterHomeId = GetInt64(reader, "foster_home_id"),
-                    VolunteerId = GetNullableInt64(reader, "volunteer_id"),
-                    Name = GetString(reader, "name"),
-                    Address = GetString(reader, "address"),
-                    Phone = GetString(reader, "phone"),
-                    Responsible = GetString(reader, "responsible"),
-                    Capacity = GetInt32(reader, "capacity"),
-                    Active = GetBoolean(reader, "active")
-                });
-            }
-
-            return fosterHomes;
-        }
-        finally
-        {
-            command.Connection?.Close();
-        }
-    }
-
-    private IDbCommand CreateCommand(string commandText)
-    {
-        var connection = _dbContext.Database.GetDbConnection();
-        if (connection.State != ConnectionState.Open)
-        {
-            connection.Open();
-        }
-
-        var command = connection.CreateCommand();
-        command.CommandText = commandText;
-        command.CommandTimeout = 60;
-        return command;
-    }
-
-    private static object? ExecuteScalar(IDbCommand command)
-    {
-        try
-        {
-            return command.ExecuteScalar();
-        }
-        finally
-        {
-            command.Connection?.Close();
-        }
-    }
-
-    private static void ExecuteNonQuery(IDbCommand command)
-    {
-        try
-        {
-            command.ExecuteNonQuery();
-        }
-        finally
-        {
-            command.Connection?.Close();
-        }
-    }
-
-    private static void AddParameter(IDbCommand command, string name, object? value)
-    {
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = name;
-        parameter.Value = value ?? DBNull.Value;
-        command.Parameters.Add(parameter);
-    }
-
-    private static string GetString(IDataRecord reader, string name)
-    {
-        var ordinal = reader.GetOrdinal(name);
-        return reader.IsDBNull(ordinal) ? string.Empty : reader.GetString(ordinal);
-    }
-
-    private static long GetInt64(IDataRecord reader, string name)
-    {
-        var ordinal = reader.GetOrdinal(name);
-        return reader.GetInt64(ordinal);
-    }
-
-    private static long? GetNullableInt64(IDataRecord reader, string name)
-    {
-        var ordinal = reader.GetOrdinal(name);
-        return reader.IsDBNull(ordinal) ? null : reader.GetInt64(ordinal);
-    }
-
-    private static int GetInt32(IDataRecord reader, string name)
-    {
-        var ordinal = reader.GetOrdinal(name);
-        return reader.IsDBNull(ordinal) ? 0 : reader.GetInt32(ordinal);
-    }
-
-    private static bool GetBoolean(IDataRecord reader, string name)
-    {
-        var ordinal = reader.GetOrdinal(name);
-        return !reader.IsDBNull(ordinal) && reader.GetBoolean(ordinal);
     }
 }

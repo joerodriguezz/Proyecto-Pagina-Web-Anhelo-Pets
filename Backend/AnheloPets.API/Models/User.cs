@@ -16,6 +16,9 @@ public class User
     [Column("password_hash")]
     public required string PasswordHash { get; set; } = string.Empty;
 
+    [Column("active")]
+    public bool Active { get; set; } = true;
+
     [Column("created_at")]
     public DateTime? CreatedAt { get; set; } = DateTime.UtcNow;
     

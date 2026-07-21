@@ -9,6 +9,7 @@ import {
 import NavBar from '../components/NavBar.vue'
 import FooterBar from '../components/FooterBar.vue'
 import { ubicacionesCR } from '../data/ubicaciones'
+import { submitVolunteerApplication, getMyVolunteerApplication, parseApplicationDetails } from '../services/volunteerServices'
 
 /* ─── USUARIO ─────────────────────────────────────────── */
 
@@ -383,9 +384,40 @@ function toggleCheck(arr, val) {
 
 const loggedIn = computed(() => usuarioActivo.value !== null)
 
-const solicitudActual = computed(
-  () => usuarioActivo.value?.solicitudVoluntario || null
-)
+/* La solicitud real vive en la base de datos, no en el usuario local */
+const solicitudActual = ref(null)
+const cargandoSolicitud = ref(false)
+
+// El estado real usa 'Aprobado'/'Rechazado' (concuerda con "voluntario");
+// esta vista ya usa las formas femeninas ('Aprobada'/'Rechazada') en toda
+// la plantilla, así que se traduce una sola vez aquí.
+const ESTADO_DB_A_VISTA = {
+  Aprobado: 'Aprobada',
+  Rechazado: 'Rechazada',
+  Pendiente: 'Pendiente'
+}
+
+async function cargarSolicitudActual() {
+  if (!usuarioActivo.value?.correo) {
+    solicitudActual.value = null
+    return
+  }
+
+  cargandoSolicitud.value = true
+  try {
+    const { data } = await getMyVolunteerApplication(usuarioActivo.value.correo)
+    solicitudActual.value = data
+      ? {
+          tipo: data.volunteerType,
+          estado: ESTADO_DB_A_VISTA[data.validationStatus] || data.validationStatus
+        }
+      : null
+  } catch {
+    solicitudActual.value = null
+  } finally {
+    cargandoSolicitud.value = false
+  }
+}
 
 /* ─── VALIDACIÓN ──────────────────────────────────────── */
 
@@ -436,6 +468,7 @@ const formValid = computed(() => baseValid.value && specificValid.value)
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
+  cargarSolicitudActual()
 
   if (usuarioActivo.value) {
     fullName.value = usuarioActivo.value.nombre  || ''
@@ -523,44 +556,53 @@ function buildDatosEspecificos() {
   }
 }
 
-function submitVolunteer() {
-  const usuarios = JSON.parse(
-    localStorage.getItem('anhelo_usuarios')
-  ) || []
+const enviandoSolicitud = ref(false)
+const errorEnvio = ref('')
 
-  const idx = usuarios.findIndex(
-    u => u.correo === usuarioActivo.value.correo
-  )
+async function submitVolunteer() {
+  if (!formValid.value || !usuarioActivo.value) return
 
-  if (idx !== -1) {
-    const telefonoCompleto = `${selectedCountry.value.code} ${phone.value}`
-    const direccionObj = {
-      provincia: provincia.value,
-      canton:    canton.value,
-      distrito:  distrito.value
-    }
+  errorEnvio.value = ''
+  enviandoSolicitud.value = true
 
-    usuarios[idx].solicitudVoluntario = {
-      nombre:           fullName.value,
-      cedula:           idCard.value,
-      correo:           email.value,
-      telefono:         telefonoCompleto,
-      direccion:        direccionObj,
-      tipo:             volunteerType.value,
-      datosEspecificos: buildDatosEspecificos(),
-      estado:           'Pendiente'
-    }
-
-    usuarios[idx].cedula    = idCard.value
-    usuarios[idx].direccion = direccionObj
-    usuarios[idx].telefono  = telefonoCompleto
-
-    localStorage.setItem('anhelo_usuarios', JSON.stringify(usuarios))
-    localStorage.setItem('anhelo_usuario_actual', JSON.stringify(usuarios[idx]))
-    usuarioActivo.value = usuarios[idx]
+  const telefonoCompleto = `${selectedCountry.value.code} ${phone.value}`
+  const direccionObj = {
+    provincia: provincia.value,
+    canton:    canton.value,
+    distrito:  distrito.value
   }
 
-  submitted.value = true
+  try {
+    await submitVolunteerApplication({
+      email:             usuarioActivo.value.correo,
+      nationalId:        idCard.value,
+      volunteerType:     volunteerType.value,
+      applicationDetails: buildDatosEspecificos(),
+      phonePrimary:      telefonoCompleto,
+      city:              provincia.value,
+      town:              canton.value,
+      district:          distrito.value
+    })
+
+    // Mantiene sincronizada la caché local de sesión (usada en otras vistas)
+    const usuarios = JSON.parse(localStorage.getItem('anhelo_usuarios')) || []
+    const idx = usuarios.findIndex(u => u.correo === usuarioActivo.value.correo)
+    if (idx !== -1) {
+      usuarios[idx].cedula    = idCard.value
+      usuarios[idx].direccion = direccionObj
+      usuarios[idx].telefono  = telefonoCompleto
+      localStorage.setItem('anhelo_usuarios', JSON.stringify(usuarios))
+      localStorage.setItem('anhelo_usuario_actual', JSON.stringify(usuarios[idx]))
+      usuarioActivo.value = usuarios[idx]
+    }
+
+    submitted.value = true
+    await cargarSolicitudActual()
+  } catch (e) {
+    errorEnvio.value = e?.response?.data?.message || 'No se pudo enviar la solicitud. Intenta de nuevo.'
+  } finally {
+    enviandoSolicitud.value = false
+  }
 }
 </script>
 
@@ -1350,13 +1392,15 @@ function submitVolunteer() {
           </Transition>
 
           <!-- SUBMIT -->
+          <p v-if="errorEnvio" class="submit-error">{{ errorEnvio }}</p>
+
           <button
             class="submit-btn"
-            :disabled="!formValid"
+            :disabled="!formValid || enviandoSolicitud"
             @click="submitVolunteer"
           >
             <i class='bx bxs-heart'></i>
-            Registrarme como voluntario
+            {{ enviandoSolicitud ? 'Enviando...' : 'Registrarme como voluntario' }}
           </button>
 
         </div><!-- /form-body -->
@@ -2223,6 +2267,17 @@ function submitVolunteer() {
 }
 
 /* SUBMIT */
+.submit-error {
+  color: #C45252;
+  background: rgba(235,119,119,0.13);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  text-align: center;
+}
+
 .submit-btn {
   width: 100%;
   height: 54px;

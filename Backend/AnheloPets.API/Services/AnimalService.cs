@@ -18,8 +18,22 @@ public class AnimalService : IAnimalService
         _animalRepository = animalRepository;
     }
 
-    public IEnumerable<AnimalDto> GetAll(string? species = null, string? status = "Disponible", string? search = null)
+    private static readonly HashSet<string> AllowedFilterColumns = ["species", "animal_status", "breed", "sex", "animal_name", "health_status"];
+
+    public IEnumerable<AnimalDto> GetAll(string? species = null, string? status = "Disponible", string? search = null, string? column = null, string? value = null)
     {
+        if (!string.IsNullOrWhiteSpace(column) && !string.IsNullOrWhiteSpace(value))
+        {
+            if (!AllowedFilterColumns.Contains(column))
+                throw new ArgumentException($"Column '{column}' is not allowed for filtering");
+
+            using var dbCommand = CreateCommand(
+                $"SELECT * FROM anhelopets.fn_get_pet_catalog(NULL, 'Todos', NULL) WHERE {column} = @filterValue");
+
+            AddParameter(dbCommand, "filterValue", value);
+            return ExecuteAnimalReader(dbCommand);
+        }
+
         using var command = CreateCommand(
             "SELECT * FROM anhelopets.fn_get_pet_catalog(@species::text, @status::text, @search::text);");
 
@@ -30,7 +44,7 @@ public class AnimalService : IAnimalService
         return ExecuteAnimalReader(command);
     }
 
-    public AnimalDto? GetById(long id)
+    public AnimalDto? GetById(string id)
     {
         using var command = CreateCommand(
             "SELECT * FROM anhelopets.fn_get_pet_catalog(NULL, 'Todos', NULL) WHERE animal_id = @id;");
@@ -45,33 +59,21 @@ public class AnimalService : IAnimalService
         return await _animalRepository.Create(animal);
     }
 
-    public AnimalDto? Update(long id, AnimalDto animal)
+    public async Task<AnimalDto?> ChangeStatus(string id, string status)
     {
-        if (GetById(id) == null)
-        {
-            return null;
-        }
-
         using var command = CreateCommand(
-            """
-            SELECT anhelopets.fn_update_animal(
-                @animalId::bigint,
-                @species::varchar,
-                @breed::varchar,
-                @animalName::varchar,
-                @animalStatus::varchar,
-                @healthStatus::varchar,
-                @birthDate::date,
-                @sex::varchar,
-                @description::text,
-                @modifiedBy::varchar);
-            """);
+            "UPDATE anhelopets.animals SET animal_status = @status, modified_at = NOW(), modified_by = 'api' WHERE animal_id = @id");
 
-        AddParameter(command, "animalId", id);
-        AddAnimalWriteParameters(command, animal, includeModifiedBy: true);
+        AddParameter(command, "id", id);
+        AddParameter(command, "status", status);
         ExecuteNonQuery(command);
 
         return GetById(id);
+    }
+
+    public async Task<AnimalDto?> Update(string id, AnimalDto animal)
+    {
+        return await _animalRepository.Update(id, animal);
     }
 
     private void AddAnimalWriteParameters(IDbCommand command, AnimalDto animal, bool includeModifiedBy)
@@ -87,13 +89,13 @@ public class AnimalService : IAnimalService
 
         if (includeModifiedBy)
         {
-            AddParameter(command, "modifiedBy", animal.ModifiedBy);
+            AddParameter(command, "modifiedBy", "api");
             return;
         }
 
-        AddParameter(command, "photoUrl", animal.PhotoUrl);
-        AddParameter(command, "photoDescription", animal.PhotoDescription);
-        AddParameter(command, "createdBy", animal.CreatedBy);
+        AddParameter(command, "photoUrl", string.Empty);
+        AddParameter(command, "photoDescription", string.Empty);
+        AddParameter(command, "createdBy", "api");
     }
 
     private List<AnimalDto> ExecuteAnimalReader(IDbCommand command)
@@ -107,14 +109,13 @@ public class AnimalService : IAnimalService
             {
                 animals.Add(new AnimalDto
                 {
-                    AnimalId = GetString(reader, "animal_id"),
+                    AnimalId = GetIdString(reader, "animal_id"),
                     AnimalName = GetString(reader, "animal_name"),
                     Species = GetString(reader, "species"),
                     Breed = GetString(reader, "breed"),
                     BirthDate = GetDateOnly(reader, "birth_date"),
                     AgeYears = GetInt32(reader, "age_years"),
-                    AgeMonths = GetInt32(reader, "age_months"),
-                    //Sex = GetString(reader, "sex"),
+                        Sex = GetString(reader, "sex"),
                     AnimalStatus = GetString(reader, "animal_status"),
                     HealthStatus = GetString(reader, "health_status"),
                     Description = GetString(reader, "description"),
@@ -185,6 +186,14 @@ public class AnimalService : IAnimalService
     {
         var ordinal = reader.GetOrdinal(name);
         return reader.IsDBNull(ordinal) ? string.Empty : reader.GetString(ordinal);
+    }
+
+    private static string GetIdString(IDataRecord reader, string name)
+    {
+        var ordinal = reader.GetOrdinal(name);
+        if (reader.IsDBNull(ordinal)) return string.Empty;
+        var value = reader.GetValue(ordinal);
+        return value?.ToString() ?? string.Empty;
     }
 
     private static long GetInt64(IDataRecord reader, string name)

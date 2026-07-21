@@ -1,9 +1,16 @@
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, onMounted } from 'vue'
 import { ubicacionesCR } from '../../data/ubicaciones'
+import {
+  getVolunteers,
+  updateVolunteer,
+  updateVolunteerStatus,
+  parseApplicationDetails
+} from '../../services/volunteerServices'
 
 // ── Estado principal ──────────────────────────────────────────
 const voluntarios  = ref([])
+const cargando     = ref(false)
 const filtroEstado = ref('Todos')
 const filtroTipo   = ref('Todos')
 const filtroProv   = ref('Todos')
@@ -59,11 +66,62 @@ watch(() => formEditar.value.datosEspecificos?.zonaProvincia, () => {
 })
 
 // ── Carga ─────────────────────────────────────────────────────
-function cargarVoluntarios() {
-  const usuarios = JSON.parse(localStorage.getItem('anhelo_usuarios')) || []
-  voluntarios.value = usuarios.filter(u => u.solicitudVoluntario)
+// El estado real usa 'Aprobado'/'Rechazado' (concuerda con "voluntario");
+// esta vista ya usa las formas femeninas ('Aprobada'/'Rechazada') en toda
+// la plantilla, así que se traduce una sola vez al adaptar cada fila.
+const ESTADO_DB_A_VISTA = {
+  Aprobado: 'Aprobada',
+  Rechazado: 'Rechazada',
+  Pendiente: 'Pendiente'
 }
-cargarVoluntarios()
+
+// Adapta el VolunteerDto plano de la API a la forma anidada que ya espera
+// esta plantilla (solicitudVoluntario.*), para no tener que reescribir las
+// ~1300 líneas de tabla/modales que ya funcionan bien visualmente.
+function adaptarVoluntario(dto) {
+  const estadoBase = ESTADO_DB_A_VISTA[dto.validationStatus] || dto.validationStatus
+  // "Inactivar" en la BD real no borra el historial de aprobación (mantiene
+  // validationStatus='Aprobado' y solo apaga active); aquí se deriva el mismo
+  // 4to estado visual ('Inactivo') que usaba el mock para no tocar la plantilla.
+  const estado = (!dto.active && dto.validationStatus === 'Aprobado') ? 'Inactivo' : estadoBase
+
+  const direccion = { provincia: dto.city || '', canton: dto.town || '', distrito: dto.district || '' }
+
+  return {
+    id: dto.volunteerId,
+    codigoVoluntario: dto.volunteerId,
+    nombre: dto.fullName,
+    correo: dto.email,
+    cedula: dto.nationalId,
+    telefono: dto.phonePrimary,
+    direccion,
+    solicitudVoluntario: {
+      nombre: dto.fullName,
+      cedula: dto.nationalId,
+      correo: dto.email,
+      telefono: dto.phonePrimary,
+      direccion,
+      tipo: dto.volunteerType,
+      datosEspecificos: parseApplicationDetails(dto.applicationDetails),
+      estado
+    }
+  }
+}
+
+async function cargarVoluntarios() {
+  cargando.value = true
+  try {
+    const { data } = await getVolunteers()
+    voluntarios.value = (data || []).map(adaptarVoluntario)
+  } catch {
+    voluntarios.value = []
+    mostrarToast('No se pudieron cargar los voluntarios', 'error')
+  } finally {
+    cargando.value = false
+  }
+}
+
+onMounted(cargarVoluntarios)
 
 // ── Provincias disponibles en los datos ──────────────────────
 const provinciasDisponibles = computed(() =>
@@ -113,14 +171,6 @@ function limpiarFiltros() {
   filtroProv.value   = 'Todos'
 }
 
-// ── Helpers localStorage ──────────────────────────────────────
-function getUsuarios() {
-  return JSON.parse(localStorage.getItem('anhelo_usuarios')) || []
-}
-function saveUsuarios(arr) {
-  localStorage.setItem('anhelo_usuarios', JSON.stringify(arr))
-}
-
 // ── Toast ─────────────────────────────────────────────────────
 function mostrarToast(texto, tipo = 'exito') {
   toast.value = { visible: true, tipo, texto }
@@ -160,62 +210,27 @@ function cancelarConfirmacion() {
 }
 
 // ── Acciones de estado ────────────────────────────────────────
-function ejecutarAprobar(usuario) {
+async function ejecutarAccion(usuario, accion, mensajeExito, mensajeError) {
   try {
-    const usuarios = getUsuarios()
-    const i = usuarios.findIndex(u => u.id === usuario.id)
-    if (i === -1) throw new Error()
-    const totalVoluntarios = usuarios.filter(u => u.codigoVoluntario).length
-    if (!usuarios[i].codigoVoluntario) {
-      usuarios[i].codigoVoluntario = 'VOL-' + String(totalVoluntarios + 1).padStart(3, '0')
-    }
-    usuarios[i].solicitudVoluntario.estado = 'Aprobada'
-    usuarios[i].rol = 'Voluntario'
-    usuarios[i].tipoVoluntario = usuarios[i].solicitudVoluntario.tipo
-    saveUsuarios(usuarios)
-    cargarVoluntarios()
-    mostrarToast('Solicitud aprobada correctamente.')
+    await updateVolunteerStatus(usuario.id, accion)
+    await cargarVoluntarios()
+    mostrarToast(mensajeExito)
   } catch {
-    mostrarToast('Error al aprobar la solicitud.', 'error')
+    mostrarToast(mensajeError, 'error')
   }
 }
 
+function ejecutarAprobar(usuario) {
+  return ejecutarAccion(usuario, 'Aprobar', 'Solicitud aprobada correctamente.', 'Error al aprobar la solicitud.')
+}
 function ejecutarRechazar(usuario) {
-  try {
-    const usuarios = getUsuarios()
-    const i = usuarios.findIndex(u => u.id === usuario.id)
-    if (i === -1) throw new Error()
-    usuarios[i].solicitudVoluntario.estado = 'Rechazada'
-    usuarios[i].rol = 'Usuario'
-    saveUsuarios(usuarios)
-    cargarVoluntarios()
-    mostrarToast('Solicitud rechazada.')
-  } catch { mostrarToast('Error al rechazar la solicitud.', 'error') }
+  return ejecutarAccion(usuario, 'Rechazar', 'Solicitud rechazada.', 'Error al rechazar la solicitud.')
 }
-
 function ejecutarInactivar(usuario) {
-  try {
-    const usuarios = getUsuarios()
-    const i = usuarios.findIndex(u => u.id === usuario.id)
-    if (i === -1) throw new Error()
-    usuarios[i].solicitudVoluntario.estado = 'Inactivo'
-    saveUsuarios(usuarios)
-    cargarVoluntarios()
-    mostrarToast('Voluntario inactivado.')
-  } catch { mostrarToast('Error al inactivar el voluntario.', 'error') }
+  return ejecutarAccion(usuario, 'Inactivar', 'Voluntario inactivado.', 'Error al inactivar el voluntario.')
 }
-
 function ejecutarReactivar(usuario) {
-  try {
-    const usuarios = getUsuarios()
-    const i = usuarios.findIndex(u => u.id === usuario.id)
-    if (i === -1) throw new Error()
-    usuarios[i].solicitudVoluntario.estado = 'Aprobada'
-    usuarios[i].rol = 'Voluntario'
-    saveUsuarios(usuarios)
-    cargarVoluntarios()
-    mostrarToast('Voluntario reactivado correctamente.')
-  } catch { mostrarToast('Error al reactivar el voluntario.', 'error') }
+  return ejecutarAccion(usuario, 'Reactivar', 'Voluntario reactivado correctamente.', 'Error al reactivar el voluntario.')
 }
 
 // ── Modales ───────────────────────────────────────────────────
@@ -244,37 +259,36 @@ function abrirEditar(v) {
   modalEditar.value = true
 }
 
-function guardarEdicion() {
+async function guardarEdicion() {
+  const f = voluntarioActivo.value ? formEditar.value : null
+  if (!f) return
+
+  const deOriginal = voluntarioActivo.value.solicitudVoluntario?.datosEspecificos || {}
+  const deEditado  = { ...f.datosEspecificos }
+  if (f.tipo === 'Rescatista') {
+    deEditado.anosExp      = deOriginal.anosExp
+    deEditado.cantRescates = deOriginal.cantRescates
+  }
+
   try {
-    const usuarios = getUsuarios()
-    const i = usuarios.findIndex(u => u.id === voluntarioActivo.value.id)
-    if (i === -1) throw new Error()
-    const f = formEditar.value
-    const deOriginal = usuarios[i].solicitudVoluntario?.datosEspecificos || {}
-    const deEditado  = { ...f.datosEspecificos }
-    if (f.tipo === 'Rescatista') {
-      deEditado.anosExp      = deOriginal.anosExp
-      deEditado.cantRescates = deOriginal.cantRescates
-    }
-    Object.assign(usuarios[i].solicitudVoluntario, {
-      nombre:    f.nombre,
-      cedula:    f.cedula,
-      correo:    f.correo,
-      telefono:  f.telefono,
-      direccion: { provincia: f.provincia, canton: f.canton, distrito: f.distrito },
-      tipo:      f.tipo,
-      datosEspecificos: deEditado
+    // Nombre y correo viven en la cuenta de usuario (users/user_profiles), no en
+    // la solicitud de voluntariado: la edición administrativa solo toca los
+    // campos que realmente pertenecen a volunteers/user_contacts.
+    await updateVolunteer(voluntarioActivo.value.id, {
+      nationalId: f.cedula,
+      volunteerType: f.tipo,
+      applicationDetails: deEditado,
+      phonePrimary: f.telefono,
+      city: f.provincia,
+      town: f.canton,
+      district: f.distrito
     })
-    usuarios[i].nombre    = f.nombre
-    usuarios[i].correo    = f.correo
-    usuarios[i].cedula    = f.cedula
-    usuarios[i].telefono  = f.telefono
-    usuarios[i].direccion = { provincia: f.provincia, canton: f.canton, distrito: f.distrito }
-    saveUsuarios(usuarios)
-    cargarVoluntarios()
+    await cargarVoluntarios()
     modalEditar.value = false
     mostrarToast('Información actualizada correctamente.')
-  } catch { mostrarToast('Error al guardar los cambios.', 'error') }
+  } catch {
+    mostrarToast('Error al guardar los cambios.', 'error')
+  }
 }
 
 function toggleDE(key, val) {
@@ -751,9 +765,9 @@ const totalRechazados  = computed(() => voluntarios.value.filter(v => v.solicitu
                 Datos personales
               </div>
               <div class="edit-grid edit-grid--4">
-                <div class="edit-fg"><label class="edit-label">Nombre completo</label><input class="filtro-input" style="height:40px;padding:0 13px" v-model="formEditar.nombre" placeholder="Nombre completo"></div>
+                <div class="edit-fg"><label class="edit-label">Nombre completo</label><input class="filtro-input" style="height:40px;padding:0 13px" v-model="formEditar.nombre" placeholder="Nombre completo" disabled title="El nombre pertenece a la cuenta del usuario; se edita desde Usuarios"></div>
                 <div class="edit-fg"><label class="edit-label">Cédula</label><input class="filtro-input" style="height:40px;padding:0 13px" v-model="formEditar.cedula" placeholder="1-2345-6789"></div>
-                <div class="edit-fg"><label class="edit-label">Correo electrónico</label><input class="filtro-input" style="height:40px;padding:0 13px" type="email" v-model="formEditar.correo" placeholder="correo@ejemplo.com"></div>
+                <div class="edit-fg"><label class="edit-label">Correo electrónico</label><input class="filtro-input" style="height:40px;padding:0 13px" type="email" v-model="formEditar.correo" placeholder="correo@ejemplo.com" disabled title="El correo pertenece a la cuenta del usuario; se edita desde Usuarios"></div>
                 <div class="edit-fg"><label class="edit-label">Teléfono</label><input class="filtro-input" style="height:40px;padding:0 13px" v-model="formEditar.telefono" placeholder="+506 88888888"></div>
               </div>
 
@@ -971,8 +985,9 @@ const totalRechazados  = computed(() => voluntarios.value.filter(v => v.solicitu
 </template>
 
 <style scoped>
-/* ── Variables (idénticas a Donaciones) ─────────────────────── */
-.view-container {
+/* ── Variables — en :global(:root) para que los modales
+   Teleported a <body> también las hereden ─────────────────── */
+:global(:root) {
   --verde:     #3A473C;
   --verde-sec: #92A894;
   --fondo:     #F7F8F7;
@@ -982,8 +997,9 @@ const totalRechazados  = computed(() => voluntarios.value.filter(v => v.solicitu
   --borde:     #E8ECE8;
   --amarillo:  #F5B942;
   --verde-ok:  #4CAF6A;
-  background: transparent;
 }
+
+.view-container { background: transparent; }
 
 /* ── Encabezado ─────────────────────────────────────────────── */
 .page-header       { margin-bottom: 28px; }

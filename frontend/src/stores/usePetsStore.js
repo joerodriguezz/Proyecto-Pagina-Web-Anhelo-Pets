@@ -1,51 +1,53 @@
 import { defineStore } from 'pinia'
-import { ref, watch } from 'vue'
-
-const STORAGE_KEY = 'anhelo_pets'
-
-function loadPets() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY)) || []
-  } catch {
-    return []
-  }
-}
+import { ref } from 'vue'
+import { getAnimals, updateAnimal, changeAnimalStatus, mapDtoToPet } from '../services/petServices.js'
 
 export const usePetsStore = defineStore('pets', () => {
-  const pets = ref(loadPets())
+  const pets = ref([])
+  const isLoading = ref(false)
 
-  watch(pets, (val) => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(val))
-  }, { deep: true })
+  async function fetchPets(params = {}) {
+    isLoading.value = true
+    try {
+      const response = await getAnimals(params)
+      pets.value = (response.data || []).map(mapDtoToPet)
+    } catch {
+      pets.value = []
+    } finally {
+      isLoading.value = false
+    }
+  }
 
   function addPet(pet) {
-    const id = pets.value.length ? Math.max(...pets.value.map(p => p.id)) + 1 : 1
-    pets.value.push({ ...pet, id })
+    pets.value.push(pet)
   }
 
-  function updatePet(id, data) {
-    const idx = pets.value.findIndex(p => p.id === id)
-    if (idx !== -1) {
-      pets.value[idx] = { ...pets.value[idx], ...data }
+  async function updatePet(id, data) {
+    try {
+      await updateAnimal(id, data)
+      await fetchPets({ status: "Todos" })
+    } catch {
+      throw new Error("Error al actualizar la mascota")
     }
   }
 
-  function changeStatus(id, status) {
-    const pet = pets.value.find(p => p.id === id)
-    if (pet) pet.status = status
+  async function changeStatus(id, status) {
+    try {
+      await changeAnimalStatus(id, status)
+      await fetchPets({ status: 'Todos' })
+    } catch {
+      throw new Error('Error al cambiar el estado')
+    }
   }
 
-  function deactivatePet(id) {
-    const pet = pets.value.find(p => p.id === id)
-    if (pet) {
-      pet.status = 'Inactiva'
-      pet.active = false
-    }
+  async function deactivatePet(id) {
+    await changeStatus(id, 'Inactiva')
   }
 
   function removePet(id) {
     pets.value = pets.value.filter(p => p.id !== id)
   }
 
-  return { pets, addPet, updatePet, changeStatus, deactivatePet, removePet }
+  return { pets, isLoading, fetchPets, addPet, updatePet, changeStatus, deactivatePet, removePet }
 })
+

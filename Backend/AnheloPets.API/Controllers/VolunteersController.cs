@@ -1,11 +1,12 @@
-using Microsoft.AspNetCore.Mvc;
 using AnheloPets.API.DTOs;
+using AnheloPets.API.Exceptions;
 using AnheloPets.API.Services;
+using Microsoft.AspNetCore.Mvc;
 
 namespace AnheloPets.API.Controllers;
 
 [ApiController]
-[Route("api/[controller]")]
+[Route("api/volunteers")]
 public class VolunteersController : ControllerBase
 {
     private readonly IVolunteerService _volunteerService;
@@ -16,37 +17,46 @@ public class VolunteersController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult GetAll() => Ok(_volunteerService.GetAll());
+    public async Task<IActionResult> GetAll() => Ok(await _volunteerService.GetAll());
 
     [HttpGet("{id}")]
-    public IActionResult GetById(long id)
+    public async Task<IActionResult> GetById(string id)
     {
-        var volunteer = _volunteerService.GetById(id);
-        if (volunteer == null) return NotFound();
-        return Ok(volunteer);
+        try
+        {
+            return Ok(await _volunteerService.GetById(id));
+        }
+        catch (ApiException ex) when (ex.StatusCode == 404)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
-    [HttpPost]
-    public IActionResult Create([FromBody] VolunteerDto volunteer)
+    /// <summary>Consulta pública: ¿este correo ya tiene una solicitud? Null si no.</summary>
+    [HttpGet("by-email/{email}")]
+    public async Task<IActionResult> GetByEmail(string email)
     {
-        if (volunteer == null) return BadRequest();
-        var created = _volunteerService.Create(volunteer);
+        return Ok(await _volunteerService.GetByEmail(email));
+    }
+
+    /// <summary>Envío público del formulario. El usuario debe existir (registrado previamente).</summary>
+    [HttpPost]
+    public async Task<IActionResult> Submit([FromBody] SubmitVolunteerApplicationDto application)
+    {
+        var created = await _volunteerService.Submit(application);
         return CreatedAtAction(nameof(GetById), new { id = created.VolunteerId }, created);
     }
 
     [HttpPut("{id}")]
-    public IActionResult Update(long id, [FromBody] VolunteerDto volunteer)
+    public async Task<IActionResult> Update(string id, [FromBody] UpdateVolunteerDto volunteer)
     {
-        if (volunteer == null) return BadRequest();
-        var updated = _volunteerService.Update(id, volunteer);
-        if (updated == null) return NotFound();
-        return Ok(updated);
+        return Ok(await _volunteerService.Update(id, volunteer));
     }
 
-    [HttpDelete("{id}")]
-    public IActionResult Delete(long id)
+    /// <summary>Acciones administrativas: Aprobar | Rechazar | Inactivar | Reactivar.</summary>
+    [HttpPatch("{id}/status")]
+    public async Task<IActionResult> UpdateStatus(string id, [FromBody] UpdateVolunteerStatusDto status)
     {
-        if (!_volunteerService.Delete(id)) return NotFound();
-        return NoContent();
+        return Ok(await _volunteerService.UpdateStatus(id, status));
     }
 }

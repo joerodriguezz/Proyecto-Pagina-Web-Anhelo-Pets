@@ -1,4 +1,5 @@
 using AnheloPets.API.DTOs;
+using AnheloPets.API.Exceptions;
 using AnheloPets.API.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -18,48 +19,55 @@ public class FosterHomesController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult GetAll() => Ok(_fosterHomeService.GetAll());
+    public async Task<IActionResult> GetAll() => Ok(await _fosterHomeService.GetAll());
 
-    [HttpGet("{id:long}")]
-    public IActionResult GetById(long id)
+    [HttpGet("{id}")]
+    public async Task<IActionResult> GetById(string id)
     {
-        var fosterHome = _fosterHomeService.GetById(id);
-        if (fosterHome == null)
-            return NotFound(new { message = $"No se encontró la casa cuna con ID {id}." });
-        return Ok(fosterHome);
+        try
+        {
+            var fosterHome = await _fosterHomeService.GetById(id);
+            return Ok(fosterHome);
+        }
+        catch (ApiException ex) when (ex.StatusCode == 404)
+        {
+            return NotFound(new { message = ex.Message });
+        }
     }
 
     [HttpPost]
-    public IActionResult Create([FromBody] FosterHomeDto fosterHome)
+    public async Task<IActionResult> Create([FromBody] FosterHomeDto fosterHome)
     {
-        var created = _fosterHomeService.Create(fosterHome);
+        var created = await _fosterHomeService.Create(fosterHome);
         return CreatedAtAction(nameof(GetById), new { id = created.FosterHomeId }, created);
     }
 
-    [HttpPut("{id:long}")]
-    public IActionResult Update(long id, [FromBody] FosterHomeDto fosterHome)
+    [HttpPut("{id}")]
+    public async Task<IActionResult> Update(string id, [FromBody] FosterHomeDto fosterHome)
     {
-        var updated = _fosterHomeService.Update(id, fosterHome);
-        if (updated == null)
-            return NotFound(new { message = $"No se encontró la casa cuna con ID {id}." });
+        var updated = await _fosterHomeService.Update(id, fosterHome);
         return Ok(updated);
     }
 
-    [HttpDelete("{id:long}")]
-    public IActionResult Delete(long id)
+    [HttpDelete("{id}")]
+    public async Task<IActionResult> Deactivate(string id)
     {
-        if (!_fosterHomeService.Delete(id))
-            return NotFound(new { message = $"No se encontró la casa cuna con ID {id}." });
+        await _fosterHomeService.Deactivate(id);
         return NoContent();
     }
 
-    [HttpPost("{id:long}/photo")]
-    public async Task<IActionResult> UploadPhoto(long id, IFormFile file)
+    [HttpPost("{id}/photo")]
+    public async Task<IActionResult> UploadPhoto(string id, IFormFile file)
     {
         // Verificar que la casa cuna existe
-        var fosterHome = _fosterHomeService.GetById(id);
-        if (fosterHome == null)
-            return NotFound(new { message = $"No se encontró la casa cuna con ID {id}." });
+        try
+        {
+            await _fosterHomeService.GetById(id);
+        }
+        catch (ApiException ex) when (ex.StatusCode == 404)
+        {
+            return NotFound(new { message = ex.Message });
+        }
 
         // Validar archivo
         if (file == null || file.Length == 0)

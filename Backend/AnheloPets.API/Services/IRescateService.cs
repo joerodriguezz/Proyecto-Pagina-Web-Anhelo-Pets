@@ -4,9 +4,9 @@ namespace AnheloPets.API.Services;
 
 public interface IRescateService
 {
-    IEnumerable<RescateDto> GetAll();
-    RescateDto? GetById(long id);
-    RescateDto Create(RescateDto rescate);
-    RescateDto? Update(long id, RescateDto rescate);
-    bool Delete(long id);
+    Task<List<RescateDto>> GetAll();
+    Task<RescateDto?> GetById(long id);
+    Task<RescateDto> Create(RescateDto rescate);
+    Task<RescateDto?> Update(long id, RescateDto rescate);
+    Task<bool> Close(long id);
 }

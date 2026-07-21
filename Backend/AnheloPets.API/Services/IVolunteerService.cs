@@ -4,9 +4,10 @@ namespace AnheloPets.API.Services;
 
 public interface IVolunteerService
 {
-    IEnumerable<VolunteerDto> GetAll();
-    VolunteerDto? GetById(long id);
-    VolunteerDto Create(VolunteerDto volunteer);
-    VolunteerDto? Update(long id, VolunteerDto volunteer);
-    bool Delete(long id);
+    Task<List<VolunteerDto>> GetAll();
+    Task<VolunteerDto> GetById(string id);
+    Task<VolunteerDto?> GetByEmail(string email);
+    Task<VolunteerDto> Submit(SubmitVolunteerApplicationDto application);
+    Task<VolunteerDto> Update(string id, UpdateVolunteerDto volunteer);
+    Task<VolunteerDto> UpdateStatus(string id, UpdateVolunteerStatusDto status);
 }

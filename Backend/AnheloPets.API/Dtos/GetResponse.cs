@@ -2,5 +2,6 @@
 
 public class GetResponse
 {
-    public String message { get; set; }
-}
+    public string message { get; set; } = string.Empty;
+    public string? id { get; set; }
+}   

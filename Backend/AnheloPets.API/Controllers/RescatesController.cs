@@ -16,37 +16,37 @@ public class RescatesController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult GetAll() => Ok(_rescateService.GetAll());
+    public async Task<IActionResult> GetAll() => Ok(await _rescateService.GetAll());
 
     [HttpGet("{id}")]
-    public IActionResult GetById(long id)
+    public async Task<IActionResult> GetById(long id)
     {
-        var rescate = _rescateService.GetById(id);
+        var rescate = await _rescateService.GetById(id);
         if (rescate == null)
             return NotFound(new { message = $"No se encontró el rescate con ID {id}." });
         return Ok(rescate);
     }
 
     [HttpPost]
-    public IActionResult Create([FromBody] RescateDto rescate)
+    public async Task<IActionResult> Create([FromBody] RescateDto rescate)
     {
-        var created = _rescateService.Create(rescate);
+        var created = await _rescateService.Create(rescate);
         return CreatedAtAction(nameof(GetById), new { id = created.RescateId }, created);
     }
 
     [HttpPut("{id}")]
-    public IActionResult Update(long id, [FromBody] RescateDto rescate)
+    public async Task<IActionResult> Update(long id, [FromBody] RescateDto rescate)
     {
-        var updated = _rescateService.Update(id, rescate);
+        var updated = await _rescateService.Update(id, rescate);
         if (updated == null)
             return NotFound(new { message = $"No se encontró el rescate con ID {id}." });
         return Ok(updated);
     }
 
     [HttpDelete("{id}")]
-    public IActionResult Delete(long id)
+    public async Task<IActionResult> Close(long id)
     {
-        if (!_rescateService.Delete(id))
+        if (!await _rescateService.Close(id))
             return NotFound(new { message = $"No se encontró el rescate con ID {id}." });
         return NoContent();
     }

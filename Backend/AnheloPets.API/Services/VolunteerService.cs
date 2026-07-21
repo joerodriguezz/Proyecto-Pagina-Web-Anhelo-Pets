@@ -1,225 +1,84 @@
-using System.Data;
-using AnheloPets.API.Data;
 using AnheloPets.API.DTOs;
-using Microsoft.EntityFrameworkCore;
+using AnheloPets.API.Exceptions;
+using AnheloPets.API.Repository;
 
 namespace AnheloPets.API.Services;
 
 public class VolunteerService : IVolunteerService
 {
-    private readonly AnheloPetsDbContext _dbContext;
+    private readonly VolunteerRepository _repository;
 
-    public VolunteerService(AnheloPetsDbContext dbContext)
+    public VolunteerService(VolunteerRepository repository)
     {
-        _dbContext = dbContext;
+        _repository = repository;
     }
 
-    public IEnumerable<VolunteerDto> GetAll()
+    public async Task<List<VolunteerDto>> GetAll()
     {
-        using var command = CreateCommand("SELECT * FROM anhelopets.fn_get_volunteers_admin();");
-        return ExecuteVolunteerReader(command);
+        return await _repository.GetAll();
     }
 
-    public VolunteerDto? GetById(long id)
+    public async Task<VolunteerDto> GetById(string id)
     {
-        using var command = CreateCommand(
-            "SELECT * FROM anhelopets.fn_get_volunteers_admin() WHERE volunteer_id = @id;");
+        if (string.IsNullOrWhiteSpace(id))
+            throw new ApiException("El ID de voluntario no es válido.", 400);
 
-        AddParameter(command, "id", id);
-        return ExecuteVolunteerReader(command).FirstOrDefault();
+        var result = await _repository.GetById(id);
+        if (result == null)
+            throw new ApiException($"No se encontró la solicitud con ID {id}.", 404);
+
+        return result;
     }
 
-    public VolunteerDto Create(VolunteerDto volunteer)
+    public async Task<VolunteerDto?> GetByEmail(string email)
     {
-        using var command = CreateCommand(
-            """
-            SELECT anhelopets.fn_register_volunteer(
-                @userId::bigint,
-                @nationalId::varchar,
-                @volunteerType::varchar,
-                @motivation::text,
-                @createdBy::varchar);
-            """);
+        if (string.IsNullOrWhiteSpace(email))
+            throw new ApiException("El correo no es válido.", 400);
 
-        AddParameter(command, "userId", volunteer.UserId);
-        AddParameter(command, "nationalId", volunteer.NationalId);
-        AddParameter(command, "volunteerType", volunteer.VolunteerType);
-        AddParameter(command, "motivation", volunteer.Motivation);
-        AddParameter(command, "createdBy", volunteer.CreatedBy);
-
-        var volunteerId = Convert.ToInt64(ExecuteScalar(command));
-        return GetById(volunteerId) ?? throw new InvalidOperationException("Volunteer was created but could not be loaded.");
+        return await _repository.GetByEmail(email);
     }
 
-    public VolunteerDto? Update(long id, VolunteerDto volunteer)
+    public async Task<VolunteerDto> Submit(SubmitVolunteerApplicationDto dto)
     {
-        var existing = GetById(id);
-        if (existing == null)
-        {
-            return null;
-        }
+        if (string.IsNullOrWhiteSpace(dto.Email))
+            throw new ApiException("El correo es obligatorio.", 400);
 
-        if (!string.IsNullOrWhiteSpace(volunteer.ValidationStatus))
-        {
-            using var validateCommand = CreateCommand(
-                """
-                SELECT anhelopets.fn_validate_volunteer(
-                    @volunteerId::bigint,
-                    @validationStatus::varchar,
-                    @validatedByUserId::bigint,
-                    @validationNotes::text,
-                    @modifiedBy::varchar);
-                """);
+        if (string.IsNullOrWhiteSpace(dto.NationalId))
+            throw new ApiException("La cédula es obligatoria.", 400);
 
-            AddParameter(validateCommand, "volunteerId", id);
-            AddParameter(validateCommand, "validationStatus", volunteer.ValidationStatus);
-            AddParameter(validateCommand, "validatedByUserId", volunteer.ValidatedByUserId);
-            AddParameter(validateCommand, "validationNotes", volunteer.ValidationNotes);
-            AddParameter(validateCommand, "modifiedBy", volunteer.ModifiedBy);
-            ExecuteNonQuery(validateCommand);
-        }
+        if (string.IsNullOrWhiteSpace(dto.VolunteerType))
+            throw new ApiException("El tipo de voluntariado es obligatorio.", 400);
 
-        if (volunteer.Active.HasValue)
-        {
-            using var activeCommand = CreateCommand(
-                "SELECT anhelopets.fn_set_volunteer_active(@volunteerId::bigint, @active::boolean, @modifiedBy::varchar);");
+        if (string.IsNullOrWhiteSpace(dto.PhonePrimary))
+            throw new ApiException("El teléfono es obligatorio.", 400);
 
-            AddParameter(activeCommand, "volunteerId", id);
-            AddParameter(activeCommand, "active", volunteer.Active.Value);
-            AddParameter(activeCommand, "modifiedBy", volunteer.ModifiedBy);
-            ExecuteNonQuery(activeCommand);
-        }
-
-        return GetById(id);
+        return await _repository.Submit(dto);
     }
 
-    public bool Delete(long id)
+    public async Task<VolunteerDto> Update(string id, UpdateVolunteerDto dto)
     {
-        if (GetById(id) == null)
-        {
-            return false;
-        }
+        if (string.IsNullOrWhiteSpace(id))
+            throw new ApiException("El ID de voluntario no es válido.", 400);
 
-        using var command = CreateCommand(
-            "SELECT anhelopets.fn_set_volunteer_active(@volunteerId::bigint, false, @modifiedBy::varchar);");
+        var result = await _repository.Update(id, dto);
+        if (result == null)
+            throw new ApiException($"No se encontró la solicitud con ID {id}.", 404);
 
-        AddParameter(command, "volunteerId", id);
-        AddParameter(command, "modifiedBy", "api");
-        ExecuteNonQuery(command);
-
-        return true;
+        return result;
     }
 
-    private List<VolunteerDto> ExecuteVolunteerReader(IDbCommand command)
+    public async Task<VolunteerDto> UpdateStatus(string id, UpdateVolunteerStatusDto dto)
     {
-        try
-        {
-            using var reader = command.ExecuteReader();
-            var volunteers = new List<VolunteerDto>();
+        if (string.IsNullOrWhiteSpace(id))
+            throw new ApiException("El ID de voluntario no es válido.", 400);
 
-            while (reader.Read())
-            {
-                volunteers.Add(new VolunteerDto
-                {
-                    VolunteerId = GetInt64(reader, "volunteer_id"),
-                    UserId = GetInt64(reader, "user_id"),
-                    FullName = GetString(reader, "full_name"),
-                    NationalId = GetString(reader, "national_id"),
-                    VolunteerType = GetString(reader, "volunteer_type"),
-                    Motivation = GetString(reader, "motivation"),
-                    Email = GetString(reader, "email"),
-                    Phone = GetString(reader, "phone_primary"),
-                    City = GetString(reader, "city"),
-                    Town = GetString(reader, "town"),
-                    Active = GetBoolean(reader, "active"),
-                    ValidationStatus = GetString(reader, "validation_status"),
-                    ValidationNotes = GetString(reader, "validation_notes"),
-                    ValidatedAt = GetDateTime(reader, "validated_at"),
-                    ValidatedByUserId = GetNullableInt64(reader, "validated_by_user_id")
-                });
-            }
+        if (string.IsNullOrWhiteSpace(dto.Action))
+            throw new ApiException("La acción es obligatoria.", 400);
 
-            return volunteers;
-        }
-        finally
-        {
-            command.Connection?.Close();
-        }
-    }
+        var result = await _repository.UpdateStatus(id, dto);
+        if (result == null)
+            throw new ApiException($"No se encontró la solicitud con ID {id}.", 404);
 
-    private IDbCommand CreateCommand(string commandText)
-    {
-        var connection = _dbContext.Database.GetDbConnection();
-        if (connection.State != ConnectionState.Open)
-        {
-            connection.Open();
-        }
-
-        var command = connection.CreateCommand();
-        command.CommandText = commandText;
-        command.CommandTimeout = 60;
-        return command;
-    }
-
-    private static object? ExecuteScalar(IDbCommand command)
-    {
-        try
-        {
-            return command.ExecuteScalar();
-        }
-        finally
-        {
-            command.Connection?.Close();
-        }
-    }
-
-    private static void ExecuteNonQuery(IDbCommand command)
-    {
-        try
-        {
-            command.ExecuteNonQuery();
-        }
-        finally
-        {
-            command.Connection?.Close();
-        }
-    }
-
-    private static void AddParameter(IDbCommand command, string name, object? value)
-    {
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = name;
-        parameter.Value = value ?? DBNull.Value;
-        command.Parameters.Add(parameter);
-    }
-
-    private static string GetString(IDataRecord reader, string name)
-    {
-        var ordinal = reader.GetOrdinal(name);
-        return reader.IsDBNull(ordinal) ? string.Empty : reader.GetString(ordinal);
-    }
-
-    private static long GetInt64(IDataRecord reader, string name)
-    {
-        var ordinal = reader.GetOrdinal(name);
-        return reader.GetInt64(ordinal);
-    }
-
-    private static long? GetNullableInt64(IDataRecord reader, string name)
-    {
-        var ordinal = reader.GetOrdinal(name);
-        return reader.IsDBNull(ordinal) ? null : reader.GetInt64(ordinal);
-    }
-
-    private static bool? GetBoolean(IDataRecord reader, string name)
-    {
-        var ordinal = reader.GetOrdinal(name);
-        return reader.IsDBNull(ordinal) ? null : reader.GetBoolean(ordinal);
-    }
-
-    private static DateTime? GetDateTime(IDataRecord reader, string name)
-    {
-        var ordinal = reader.GetOrdinal(name);
-        return reader.IsDBNull(ordinal) ? null : reader.GetDateTime(ordinal);
+        return result;
     }
 }

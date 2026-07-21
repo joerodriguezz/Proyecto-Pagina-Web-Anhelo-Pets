@@ -1,161 +1,94 @@
 <script setup>
-import { ref, computed } from 'vue'
-import Icon from '../../components/Icon.vue'
+import { ref, computed, onMounted } from 'vue'
+import { getUsers, updateUserStatus, updateUserRoles } from '../../services/usersAdminServices'
+import { getRoles, createRole, updateRole, deleteRole } from '../../services/rolesServices'
 
-const ADMIN_ID = 'ADMIN-001'
-
+// ── Datos reales ──
 const usuarios = ref([])
-const showModal = ref(false)
-const selectedUser = ref(null)
+const usuariosLoading = ref(false)
+const roles = ref([])
+const rolesLoading = ref(false)
 
-const filtroTexto = ref('')
-const filtroRol = ref('Todos')
-const filtroEstado = ref('Todos')
-
-const modalConfirm = ref(false)
-const usuarioSeleccionado = ref(null)
-const mensajeConfirm = ref('')
-
-const toast = ref({ visible: false, tipo: 'exito', texto: '' })
-
-function adminPorDefecto() {
-  return {
-    id: 'ADMIN-001',
-    nombre: 'Shirley Valverde',
-    cedula: '1-0932-0528',
-    correo: 'shirley@anhelopets.cr',
-    telefono: '+506 8840-3334',
-    password: 'Anhelo123',
-    rol: 'Admin',
-    tipoVoluntario: '',
-    direccion: 'Quepos',
-    pais: 'Costa Rica',
-    solicitudVoluntario: null,
-    activo: true
-  }
-}
-
-function cargarUsuarios() {
+async function cargarUsuarios() {
+  usuariosLoading.value = true
   try {
-    const raw = localStorage.getItem('anhelo_usuarios')
-    const guardados = raw ? JSON.parse(raw) : null
-    const admin = adminPorDefecto()
-    if (Array.isArray(guardados) && guardados.length > 0) {
-      const idx = guardados.findIndex(u => u.id === ADMIN_ID)
-      if (idx >= 0) guardados[idx] = admin
-      else guardados.unshift(admin)
-      usuarios.value = guardados
-    } else {
-      usuarios.value = [admin]
-    }
-    guardarUsuarios()
+    const { data } = await getUsers()
+    usuarios.value = data || []
   } catch {
-    localStorage.removeItem('anhelo_usuarios')
-    usuarios.value = [adminPorDefecto()]
+    usuarios.value = []
+    mostrarToast('No se pudieron cargar los usuarios', 'error')
+  } finally {
+    usuariosLoading.value = false
   }
 }
 
-function guardarUsuarios() {
-  localStorage.setItem('anhelo_usuarios', JSON.stringify(usuarios.value))
-}
-
-cargarUsuarios()
-
-function toggleEstado(user) {
-  if (user.id === ADMIN_ID) return
-  const todos = JSON.parse(localStorage.getItem('anhelo_usuarios')) || []
-  const i = todos.findIndex(u => u.id === user.id)
-  if (i !== -1) {
-    todos[i].activo = !todos[i].activo
-    localStorage.setItem('anhelo_usuarios', JSON.stringify(todos))
-    user.activo = todos[i].activo
-    cargarUsuarios()
-    mostrarToast(user.activo ? 'Usuario activado.' : 'Usuario desactivado.')
+async function cargarRoles() {
+  rolesLoading.value = true
+  try {
+    const { data } = await getRoles()
+    roles.value = data || []
+  } catch {
+    roles.value = []
+    mostrarToast('No se pudieron cargar los roles', 'error')
+  } finally {
+    rolesLoading.value = false
   }
 }
 
-function pedirConfirmacionEstado(user) {
-  usuarioSeleccionado.value = user
+onMounted(() => {
+  cargarUsuarios()
+  cargarRoles()
+})
 
-  mensajeConfirm.value = user.activo
-  ? `
-    Estás a punto de desactivar la cuenta de
-    <strong>${user.nombre}</strong>.<br><br>
-    El usuario perderá acceso al sistema hasta que sea activado nuevamente.
-  `
-  : `
-    Estás a punto de activar la cuenta de
-    <strong>${user.nombre}</strong>.<br><br>
-    El usuario recuperará el acceso al sistema inmediatamente.
-  `
+// ── Pestañas del panel ──
+const TABS = [
+  { id: 'usuarios', titulo: 'Usuarios' },
+  { id: 'roles', titulo: 'Roles' }
+]
+const activeTab = ref('usuarios')
 
-  modalConfirm.value = true
-}
-
-function confirmarCambioEstado() {
-  if (usuarioSeleccionado.value) {
-    toggleEstado(usuarioSeleccionado.value)
-  }
-
-  modalConfirm.value = false
-  usuarioSeleccionado.value = null
-}
-
-function cancelarConfirmacion() {
-  modalConfirm.value = false
-  usuarioSeleccionado.value = null
-}
-
-
-function verDetalle(user) {
-  selectedUser.value = { ...user }
-  showModal.value = true
-}
-
-function cerrarModal() {
-  showModal.value = false
-  selectedUser.value = null
-}
-
+// ── Toast ──
+const toast = ref({ visible: false, tipo: 'exito', texto: '' })
 function mostrarToast(texto, tipo = 'exito') {
   toast.value = { visible: true, tipo, texto }
   setTimeout(() => { toast.value.visible = false }, 3000)
 }
 
+// ── Helpers de presentación ──
 function iniciales(nombre = '') {
-  return nombre.trim().split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()
-}
-
-function rolBadgeClass(rol) {
-  if (rol === 'Admin')      return 'badge-admin'
-  if (rol === 'Voluntario') return 'badge-aprobada'
-  return 'badge-blue'
-}
-
-function solicitudBadgeClass(estado) {
-  if (estado === 'Aprobada')  return 'badge-aprobada'
-  if (estado === 'Rechazada') return 'badge-rechazada'
-  if (estado === 'Pendiente') return 'badge-pendiente'
-  return 'badge-neutral'
+  return nombre.trim().split(/\s+/).map(p => p[0]).filter(Boolean).slice(0, 2).join('').toUpperCase()
 }
 
 function estadoBadgeClass(user) {
-  return user.activo ? 'badge-aprobada' : 'badge-inactivo'
+  return user.active ? 'badge-aprobada' : 'badge-inactivo'
 }
-
 function estadoLabel(user) {
-  return user.activo ? 'Activo' : 'Inactivo'
+  return user.active ? 'Activo' : 'Inactivo'
 }
 
-const hayFiltros = computed(() =>
-  filtroTexto.value.trim() !== '' ||
-  filtroRol.value !== 'Todos' ||
-  filtroEstado.value !== 'Todos'
+// Los tres roles semilla tienen su propio color; cualquier rol nuevo cae en badge-blue
+function rolBadgeClass(roleName) {
+  if (roleName === 'Admin') return 'badge-admin'
+  if (roleName === 'Voluntario') return 'badge-aprobada'
+  if (roleName === 'Usuario') return 'badge-neutral'
+  return 'badge-blue'
+}
+
+// ═══════════════════════════════════════════════
+// PESTAÑA USUARIOS
+// ═══════════════════════════════════════════════
+
+const filtroTexto = ref('')
+const filtroRol = ref('Todos')
+const filtroEstado = ref('Todos')
+
+const hayFiltrosUsuarios = computed(() =>
+  filtroTexto.value.trim() !== '' || filtroRol.value !== 'Todos' || filtroEstado.value !== 'Todos'
 )
 
-function limpiarFiltros() {
-  filtroTexto.value  = ''
-  filtroRol.value    = 'Todos'
+function limpiarFiltrosUsuarios() {
+  filtroTexto.value = ''
+  filtroRol.value = 'Todos'
   filtroEstado.value = 'Todos'
 }
 
@@ -164,31 +97,200 @@ const usuariosFiltrados = computed(() => {
     const t = filtroTexto.value.trim().toLowerCase()
     const coincideTexto =
       !t ||
-      u.nombre.toLowerCase().includes(t) ||
-      u.correo.toLowerCase().includes(t) ||
-      (u.cedula || '').toLowerCase().includes(t) ||
-      (u.codigoVoluntario || u.id).toLowerCase().includes(t)
+      u.fullName.toLowerCase().includes(t) ||
+      (u.email || '').toLowerCase().includes(t) ||
+      (u.nationalId || '').toLowerCase().includes(t) ||
+      u.userId.toLowerCase().includes(t)
 
     const coincideRol =
-      filtroRol.value === 'Todos' || u.rol === filtroRol.value
+      filtroRol.value === 'Todos' || u.roles.some(r => r.roleName === filtroRol.value)
 
     const coincideEstado =
       filtroEstado.value === 'Todos' ||
-      (filtroEstado.value === 'Activo'    &&  u.activo) ||
-      (filtroEstado.value === 'Inactivo'  && !u.activo) ||
-      (filtroEstado.value === 'Pendiente' && u.solicitudVoluntario?.estado === 'Pendiente') ||
-      (filtroEstado.value === 'Aprobada'  && u.solicitudVoluntario?.estado === 'Aprobada')  ||
-      (filtroEstado.value === 'Rechazada' && u.solicitudVoluntario?.estado === 'Rechazada')
+      (filtroEstado.value === 'Activo' && u.active) ||
+      (filtroEstado.value === 'Inactivo' && !u.active) ||
+      (filtroEstado.value === 'Voluntario' && u.isVolunteer)
 
     return coincideTexto && coincideRol && coincideEstado
   })
 })
 
-const totalUsuarios   = computed(() => usuarios.value.length)
-const totalActivos    = computed(() => usuarios.value.filter(u => u.activo).length)
-const totalInactivos  = computed(() => usuarios.value.filter(u => !u.activo).length)
-const totalVoluntarios = computed(() => usuarios.value.filter(u => u.rol === 'Voluntario').length)
-const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVoluntario?.estado === 'Pendiente').length)
+const totalUsuarios     = computed(() => usuarios.value.length)
+const totalActivos      = computed(() => usuarios.value.filter(u => u.active).length)
+const totalInactivos    = computed(() => usuarios.value.filter(u => !u.active).length)
+const totalVoluntarios  = computed(() => usuarios.value.filter(u => u.isVolunteer).length)
+const totalSinRol       = computed(() => usuarios.value.filter(u => u.roles.length === 0).length)
+
+// ── Modal de detalle + editor de roles ──
+const showModal = ref(false)
+const selectedUser = ref(null)
+const editandoRoles = ref(false)
+const rolesSeleccionados = ref([])
+const guardandoRoles = ref(false)
+
+function verDetalle(user) {
+  selectedUser.value = user
+  editandoRoles.value = false
+  showModal.value = true
+}
+
+function cerrarModal() {
+  showModal.value = false
+  selectedUser.value = null
+  editandoRoles.value = false
+}
+
+function abrirEditorRoles() {
+  rolesSeleccionados.value = selectedUser.value.roles.map(r => r.roleId)
+  editandoRoles.value = true
+}
+
+function toggleRolSeleccionado(roleId) {
+  const i = rolesSeleccionados.value.indexOf(roleId)
+  if (i === -1) rolesSeleccionados.value.push(roleId)
+  else rolesSeleccionados.value.splice(i, 1)
+}
+
+function reemplazarUsuarioEnLista(actualizado) {
+  const idx = usuarios.value.findIndex(u => u.userId === actualizado.userId)
+  if (idx !== -1) usuarios.value[idx] = actualizado
+  if (selectedUser.value?.userId === actualizado.userId) selectedUser.value = actualizado
+}
+
+async function guardarRolesUsuario() {
+  guardandoRoles.value = true
+  try {
+    const { data } = await updateUserRoles(selectedUser.value.userId, rolesSeleccionados.value)
+    reemplazarUsuarioEnLista(data)
+    editandoRoles.value = false
+    // El conteo de usuarios por rol (pestaña Roles) depende de esta asignación
+    await cargarRoles()
+    mostrarToast('Roles actualizados correctamente')
+  } catch {
+    mostrarToast('Error al actualizar los roles', 'error')
+  } finally {
+    guardandoRoles.value = false
+  }
+}
+
+// ── Confirmación activar/desactivar ──
+const modalConfirm = ref(false)
+const usuarioSeleccionado = ref(null)
+const mensajeConfirm = ref('')
+const cambiandoEstado = ref(false)
+
+function pedirConfirmacionEstado(user) {
+  usuarioSeleccionado.value = user
+  mensajeConfirm.value = user.active
+    ? `Estás a punto de desactivar la cuenta de <strong>${user.fullName}</strong>.<br><br>El usuario perderá acceso al sistema hasta que sea activado nuevamente.`
+    : `Estás a punto de activar la cuenta de <strong>${user.fullName}</strong>.<br><br>El usuario recuperará el acceso al sistema inmediatamente.`
+  modalConfirm.value = true
+}
+
+async function confirmarCambioEstado() {
+  if (!usuarioSeleccionado.value) return
+  cambiandoEstado.value = true
+  try {
+    const nuevoEstado = !usuarioSeleccionado.value.active
+    const { data } = await updateUserStatus(usuarioSeleccionado.value.userId, nuevoEstado)
+    reemplazarUsuarioEnLista(data)
+    mostrarToast(nuevoEstado ? 'Usuario activado.' : 'Usuario desactivado.')
+  } catch {
+    mostrarToast('Error al cambiar el estado', 'error')
+  } finally {
+    cambiandoEstado.value = false
+    modalConfirm.value = false
+    usuarioSeleccionado.value = null
+  }
+}
+
+function cancelarConfirmacion() {
+  modalConfirm.value = false
+  usuarioSeleccionado.value = null
+}
+
+// ═══════════════════════════════════════════════
+// PESTAÑA ROLES
+// ═══════════════════════════════════════════════
+
+const showModalRol = ref(false)
+const rolEditando = ref(null)
+const formRol = ref({ roleName: '', roleAccess: '', description: '' })
+const errorRol = ref('')
+const guardandoRol = ref(false)
+
+function abrirNuevoRol() {
+  rolEditando.value = null
+  formRol.value = { roleName: '', roleAccess: '', description: '' }
+  errorRol.value = ''
+  showModalRol.value = true
+}
+
+function abrirEditarRol(rol) {
+  rolEditando.value = rol
+  formRol.value = { roleName: rol.roleName, roleAccess: rol.roleAccess, description: rol.description || '' }
+  errorRol.value = ''
+  showModalRol.value = true
+}
+
+function cerrarModalRol() {
+  showModalRol.value = false
+  rolEditando.value = null
+}
+
+async function guardarRol() {
+  errorRol.value = ''
+  if (!formRol.value.roleName.trim()) { errorRol.value = 'El nombre es obligatorio'; return }
+  if (!formRol.value.roleAccess.trim()) { errorRol.value = 'El acceso es obligatorio'; return }
+
+  guardandoRol.value = true
+  try {
+    if (rolEditando.value) {
+      await updateRole(rolEditando.value.roleId, formRol.value)
+      mostrarToast('Rol actualizado correctamente')
+    } else {
+      await createRole(formRol.value)
+      mostrarToast('Rol creado correctamente')
+    }
+    await cargarRoles()
+    cerrarModalRol()
+  } catch (e) {
+    errorRol.value = e?.response?.data?.message || 'Error al guardar el rol'
+  } finally {
+    guardandoRol.value = false
+  }
+}
+
+// ── Confirmación de borrado ──
+const modalConfirmRol = ref(false)
+const rolAEliminar = ref(null)
+const eliminandoRol = ref(false)
+
+function pedirConfirmacionBorrarRol(rol) {
+  rolAEliminar.value = rol
+  modalConfirmRol.value = true
+}
+
+function cancelarBorrarRol() {
+  modalConfirmRol.value = false
+  rolAEliminar.value = null
+}
+
+async function confirmarBorrarRol() {
+  if (!rolAEliminar.value) return
+  eliminandoRol.value = true
+  try {
+    await deleteRole(rolAEliminar.value.roleId)
+    mostrarToast('Rol eliminado correctamente')
+    await cargarRoles()
+  } catch (e) {
+    mostrarToast(e?.response?.data?.message || 'No se pudo eliminar el rol', 'error')
+  } finally {
+    eliminandoRol.value = false
+    modalConfirmRol.value = false
+    rolAEliminar.value = null
+  }
+}
 </script>
 
 <template>
@@ -209,8 +311,12 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
     <header class="page-header">
       <div>
         <h1 class="admin-page-title">Usuarios</h1>
-        <p class="admin-page-sub">Control de cuentas y roles del sistema</p>
+        <p class="admin-page-sub">Cuentas del sistema y gestión de roles</p>
       </div>
+      <button v-if="activeTab === 'roles'" class="btn-primary" @click="abrirNuevoRol">
+        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nuevo rol
+      </button>
     </header>
 
     <!-- TARJETAS RESUMEN -->
@@ -231,158 +337,189 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
         <span class="don-label">Voluntarios</span>
         <strong class="don-value">{{ totalVoluntarios }}</strong>
       </div>
-      <div class="don-card total-pendientes">
-        <span class="don-label">Solicitudes pendientes</span>
-        <strong class="don-value">{{ totalPendientes }}</strong>
+      <div class="don-card total-sinrol">
+        <span class="don-label">Sin rol asignado</span>
+        <strong class="don-value">{{ totalSinRol }}</strong>
       </div>
     </div>
 
-    <!-- FILTROS -->
-    <div class="filtros-panel">
+    <!-- PANEL: pestañas + filtros + contenido -->
+    <div class="table-wrapper">
 
-      <!-- Buscar usuario -->
-      <div class="filtro-group">
-        <label class="filtro-label">Buscar usuario</label>
-        <div class="filtro-input-wrap">
-          <input
-            v-model="filtroTexto"
-            placeholder="Nombre, correo, cédula o ID..."
-            class="filtro-input filtro-input--icon"
-          />
-          <span class="filtro-icon filtro-icon--right">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </span>
-        </div>
-      </div>
-
-      <!-- Rol -->
-      <div class="filtro-group">
-        <label class="filtro-label">Rol</label>
-        <div class="filtro-input-wrap">
-          <select v-model="filtroRol" class="filtro-input filtro-select">
-            <option value="Todos">Todos</option>
-            <option value="Admin">Admin</option>
-            <option value="Voluntario">Voluntario</option>
-            <option value="Usuario">Usuario</option>
-          </select>
-          <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </span>
-        </div>
-      </div>
-
-      <!-- Estado -->
-      <div class="filtro-group">
-        <label class="filtro-label">Estado</label>
-        <div class="filtro-input-wrap">
-          <select v-model="filtroEstado" class="filtro-input filtro-select">
-            <option value="Todos">Todos los estados</option>
-            <option value="Activo">Activos</option>
-            <option value="Inactivo">Inactivos</option>
-            <option value="Pendiente">Solicitud pendiente</option>
-            <option value="Aprobada">Solicitud aprobada</option>
-            <option value="Rechazada">Solicitud rechazada</option>
-          </select>
-          <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </span>
-        </div>
-      </div>
-
-      <!-- Limpiar -->
-      <div class="filtro-group filtro-group--btn">
+      <nav class="panel-tabs">
         <button
-          type="button"
-          class="btn-limpiar"
-          :class="{ 'btn-limpiar--activo': hayFiltros }"
-          @click="limpiarFiltros"
+          v-for="t in TABS"
+          :key="t.id"
+          class="panel-tab"
+          :class="{ 'panel-tab--active': activeTab === t.id }"
+          @click="activeTab = t.id"
         >
-          Limpiar filtros
+          {{ t.titulo }}
+          <span class="panel-tab-count">{{ t.id === 'usuarios' ? totalUsuarios : roles.length }}</span>
         </button>
-      </div>
+      </nav>
+
+      <!-- ══════════════ PESTAÑA USUARIOS ══════════════ -->
+      <template v-if="activeTab === 'usuarios'">
+
+        <div class="panel-filtros">
+          <div class="filtro-input-wrap panel-buscar">
+            <input v-model="filtroTexto" placeholder="Nombre, correo, cédula o ID..." class="filtro-input filtro-input--icon" />
+            <span class="filtro-icon filtro-icon--right">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+          </div>
+
+          <div class="filtro-input-wrap" style="width:auto;min-width:160px">
+            <select v-model="filtroRol" class="filtro-input filtro-select">
+              <option value="Todos">Todos los roles</option>
+              <option v-for="r in roles" :key="r.roleId" :value="r.roleName">{{ r.roleName }}</option>
+            </select>
+            <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+          </div>
+
+          <div class="filtro-input-wrap" style="width:auto;min-width:160px">
+            <select v-model="filtroEstado" class="filtro-input filtro-select">
+              <option value="Todos">Todos los estados</option>
+              <option value="Activo">Activos</option>
+              <option value="Inactivo">Inactivos</option>
+              <option value="Voluntario">Voluntarios</option>
+            </select>
+            <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+            </span>
+          </div>
+
+          <button
+            v-if="hayFiltrosUsuarios"
+            type="button"
+            class="btn-limpiar btn-limpiar--activo"
+            @click="limpiarFiltrosUsuarios"
+          >
+            Limpiar filtros
+          </button>
+        </div>
+
+        <div v-if="usuariosLoading" class="empty-state">
+          <p class="empty-title">Cargando usuarios...</p>
+        </div>
+
+        <div v-else-if="usuariosFiltrados.length === 0" class="empty-state">
+          <p class="empty-title">No hay usuarios registrados</p>
+          <p class="empty-sub">{{ hayFiltrosUsuarios ? 'Ajusta los filtros para ver más resultados.' : 'Aún no hay cuentas creadas en el sistema.' }}</p>
+        </div>
+
+        <template v-else>
+          <div class="table-scroll">
+            <table class="don-table">
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Usuario</th>
+                  <th>Correo</th>
+                  <th>Roles</th>
+                  <th>Estado</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="u in usuariosFiltrados" :key="u.userId" class="don-row">
+
+                  <td><span class="id-pill">{{ u.userId }}</span></td>
+
+                  <td>
+                    <div class="usr-cell">
+                      <div class="usr-avatar"><span class="usr-avatar-ini">{{ iniciales(u.fullName) }}</span></div>
+                      <span class="donor-name">{{ u.fullName }}</span>
+                    </div>
+                  </td>
+
+                  <td><span class="donor-mail-td">{{ u.email || '—' }}</span></td>
+
+                  <td>
+                    <div class="roles-cell">
+                      <span v-for="r in u.roles" :key="r.roleId" class="estado-badge" :class="rolBadgeClass(r.roleName)">{{ r.roleName }}</span>
+                      <span v-if="u.roles.length === 0" class="fecha-text">Sin rol</span>
+                    </div>
+                  </td>
+
+                  <td><span class="estado-badge" :class="estadoBadgeClass(u)">{{ estadoLabel(u) }}</span></td>
+
+                  <td>
+                    <div class="acciones-cell">
+                      <button class="btn-ver" @click="verDetalle(u)" title="Ver detalle">Ver detalle</button>
+                      <button
+                        class="btn-toggle"
+                        :class="u.active ? 'btn-toggle--desactivar' : 'btn-toggle--activar'"
+                        :title="u.active ? 'Desactivar' : 'Activar'"
+                        @click="pedirConfirmacionEstado(u)"
+                      >
+                        {{ u.active ? 'Desactivar' : 'Activar' }}
+                      </button>
+                    </div>
+                  </td>
+
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            {{ usuariosFiltrados.length }} usuario{{ usuariosFiltrados.length !== 1 ? 's' : '' }} encontrado{{ usuariosFiltrados.length !== 1 ? 's' : '' }}
+          </div>
+        </template>
+      </template>
+
+      <!-- ══════════════ PESTAÑA ROLES ══════════════ -->
+      <template v-else>
+
+        <div v-if="rolesLoading" class="empty-state">
+          <p class="empty-title">Cargando roles...</p>
+        </div>
+
+        <div v-else-if="roles.length === 0" class="empty-state">
+          <p class="empty-title">No hay roles definidos</p>
+          <p class="empty-sub">Crea el primero con el botón "Nuevo rol".</p>
+        </div>
+
+        <template v-else>
+          <div class="table-scroll">
+            <table class="don-table">
+              <thead>
+                <tr>
+                  <th>Rol</th>
+                  <th>Acceso</th>
+                  <th>Descripción</th>
+                  <th>Usuarios</th>
+                  <th>Acción</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="r in roles" :key="r.roleId" class="don-row">
+                  <td><span class="estado-badge" :class="rolBadgeClass(r.roleName)">{{ r.roleName }}</span></td>
+                  <td><span class="metodo-text">{{ r.roleAccess }}</span></td>
+                  <td><span class="donor-mail-td">{{ r.description || '—' }}</span></td>
+                  <td><span class="id-pill">{{ r.userCount }}</span></td>
+                  <td>
+                    <div class="acciones-cell">
+                      <button class="btn-ver" @click="abrirEditarRol(r)">Editar</button>
+                      <button class="btn-toggle btn-toggle--desactivar" @click="pedirConfirmacionBorrarRol(r)">Eliminar</button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            {{ roles.length }} rol{{ roles.length !== 1 ? 'es' : '' }} definido{{ roles.length !== 1 ? 's' : '' }}
+          </div>
+        </template>
+      </template>
 
     </div>
 
-    <!-- ESTADO VACÍO -->
-    <div v-if="usuariosFiltrados.length === 0" class="empty-state">
-      <p class="empty-title">No hay usuarios registrados</p>
-      <p class="empty-sub">Ajusta los filtros o espera nuevos registros.</p>
-    </div>
-
-    <!-- TABLA PRINCIPAL -->
-    <div v-else class="table-wrapper">
-      <div class="table-scroll">
-        <table class="don-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Usuario</th>
-              <th>Correo</th>
-              <th>Rol</th>
-              <th>Solicitud</th>
-              <th>Estado</th>
-              <th>Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="u in usuariosFiltrados" :key="u.id" class="don-row">
-
-              <!-- ID -->
-              <td><span class="id-pill">{{ u.codigoVoluntario || u.id }}</span></td>
-
-              <!-- Usuario -->
-              <td>
-                <div class="usr-cell">
-                  <div class="usr-avatar">
-                    <span class="usr-avatar-ini">{{ iniciales(u.nombre) }}</span>
-                  </div>
-                  <span class="donor-name">{{ u.nombre }}</span>
-                </div>
-              </td>
-
-              <!-- Correo -->
-              <td><span class="donor-mail-td">{{ u.correo }}</span></td>
-
-              <!-- Rol -->
-              <td><span class="estado-badge" :class="rolBadgeClass(u.rol)">{{ u.rol }}</span></td>
-
-              <!-- Solicitud voluntario -->
-              <td>
-                <span v-if="u.solicitudVoluntario?.estado" class="estado-badge" :class="solicitudBadgeClass(u.solicitudVoluntario.estado)">
-                  {{ u.solicitudVoluntario.estado }}
-                </span>
-                <span v-else class="fecha-text">—</span>
-              </td>
-
-              <!-- Estado cuenta -->
-              <td><span class="estado-badge" :class="estadoBadgeClass(u)">{{ estadoLabel(u) }}</span></td>
-
-              <!-- Acciones -->
-              <td>
-                <div class="acciones-cell">
-                  <button class="btn-ver" @click="verDetalle(u)" title="Ver detalle">Ver detalle</button>
-                  <button
-                    class="btn-toggle"
-                    :class="u.activo ? 'btn-toggle--desactivar' : 'btn-toggle--activar'"
-                    :disabled="u.id === ADMIN_ID"
-                    :title="u.activo ? 'Desactivar' : 'Activar'"
-                    @click="pedirConfirmacionEstado(u)"
-                  >
-                    {{ u.activo ? 'Desactivar' : 'Activar' }}
-                  </button>
-                </div>
-              </td>
-
-            </tr>
-          </tbody>
-        </table>
-      </div>
-      <div class="table-footer">
-        {{ usuariosFiltrados.length }} usuario{{ usuariosFiltrados.length !== 1 ? 's' : '' }} encontrado{{ usuariosFiltrados.length !== 1 ? 's' : '' }}
-      </div>
-    </div>
-
-    <!-- ═══════════ MODAL DE DETALLE ═══════════ -->
+    <!-- ═══════════ MODAL DE DETALLE DE USUARIO ═══════════ -->
     <Teleport to="body">
       <Transition name="modal-fade">
         <div v-if="showModal && selectedUser" class="modal-overlay" @click.self="cerrarModal">
@@ -391,19 +528,19 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
             <button class="modal-close" @click="cerrarModal">✕</button>
 
             <div class="modal-header">
-              <span class="modal-id">{{ selectedUser.codigoVoluntario || selectedUser.id }}</span>
+              <span class="modal-id">{{ selectedUser.userId }}</span>
               <span class="estado-badge" :class="estadoBadgeClass(selectedUser)">{{ estadoLabel(selectedUser) }}</span>
-              <span class="estado-badge" :class="rolBadgeClass(selectedUser.rol)">{{ selectedUser.rol }}</span>
+              <span v-if="selectedUser.isVolunteer" class="estado-badge badge-aprobada">Voluntario</span>
             </div>
 
             <!-- Avatar + nombre -->
             <div class="modal-usuario-hero">
               <div class="modal-avatar">
-                <span class="modal-avatar-ini">{{ iniciales(selectedUser.nombre) }}</span>
+                <span class="modal-avatar-ini">{{ iniciales(selectedUser.fullName) }}</span>
               </div>
               <div>
-                <p class="modal-usuario-nombre">{{ selectedUser.nombre }}</p>
-                <p class="modal-usuario-correo">{{ selectedUser.correo }}</p>
+                <p class="modal-usuario-nombre">{{ selectedUser.fullName }}</p>
+                <p class="modal-usuario-correo">{{ selectedUser.email || 'Sin correo registrado' }}</p>
               </div>
             </div>
 
@@ -412,75 +549,87 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
               <div class="modal-grid">
                 <div class="modal-field">
                   <span class="modal-field-label">Cédula</span>
-                  <strong class="modal-field-value">{{ selectedUser.cedula || '—' }}</strong>
+                  <strong class="modal-field-value">{{ selectedUser.nationalId || '—' }}</strong>
                 </div>
                 <div class="modal-field">
                   <span class="modal-field-label">Teléfono</span>
-                  <strong class="modal-field-value">{{ selectedUser.telefono || '—' }}</strong>
+                  <strong class="modal-field-value">{{ selectedUser.phonePrimary || '—' }}</strong>
                 </div>
                 <div class="modal-field">
-                  <span class="modal-field-label">País</span>
-                  <strong class="modal-field-value">{{ selectedUser.pais || '—' }}</strong>
+                  <span class="modal-field-label">Nacionalidad</span>
+                  <strong class="modal-field-value">{{ selectedUser.nationality || '—' }}</strong>
                 </div>
                 <div class="modal-field">
+                  <span class="modal-field-label">Ciudad / Cantón</span>
+                  <strong class="modal-field-value">{{ [selectedUser.city, selectedUser.town].filter(Boolean).join(' / ') || '—' }}</strong>
+                </div>
+                <div class="modal-field modal-field--full">
                   <span class="modal-field-label">Dirección</span>
-                  <strong class="modal-field-value">{{ selectedUser.direccion || '—' }}</strong>
+                  <strong class="modal-field-value">{{ selectedUser.addressLine || '—' }}</strong>
                 </div>
               </div>
             </div>
 
-            <div class="modal-section">
-              <h4 class="modal-section-title">Rol y estado</h4>
+            <div v-if="selectedUser.isVolunteer" class="modal-section">
+              <h4 class="modal-section-title">Voluntariado</h4>
               <div class="modal-grid">
                 <div class="modal-field">
-                  <span class="modal-field-label">Rol</span>
-                  <span class="estado-badge" :class="rolBadgeClass(selectedUser.rol)" style="margin-top:4px;display:inline-block">{{ selectedUser.rol }}</span>
+                  <span class="modal-field-label">Tipo</span>
+                  <strong class="modal-field-value">{{ selectedUser.volunteerType || '—' }}</strong>
                 </div>
                 <div class="modal-field">
-                  <span class="modal-field-label">Tipo de voluntario</span>
-                  <strong class="modal-field-value">{{ selectedUser.tipoVoluntario || '—' }}</strong>
-                </div>
-                <div class="modal-field">
-                  <span class="modal-field-label">Estado de cuenta</span>
-                  <span class="estado-badge" :class="estadoBadgeClass(selectedUser)" style="margin-top:4px;display:inline-block">{{ estadoLabel(selectedUser) }}</span>
-                </div>
-                <div class="modal-field">
-                  <span class="modal-field-label">Solicitud voluntariado</span>
-                  <span
-                    v-if="selectedUser.solicitudVoluntario?.estado"
-                    class="estado-badge"
-                    :class="solicitudBadgeClass(selectedUser.solicitudVoluntario.estado)"
-                    style="margin-top:4px;display:inline-block"
-                  >{{ selectedUser.solicitudVoluntario.estado }}</span>
-                  <strong v-else class="modal-field-value">—</strong>
+                  <span class="modal-field-label">Validación</span>
+                  <strong class="modal-field-value">{{ selectedUser.volunteerValidationStatus || '—' }}</strong>
                 </div>
               </div>
             </div>
 
-            <!-- Nota informativa -->
-            <div class="modal-info-note">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              El rol se actualiza automáticamente desde <strong>Solicitudes de Voluntariado</strong> al aprobar o rechazar una postulación.
+            <!-- Roles -->
+            <div class="modal-section">
+              <div class="modal-section-head">
+                <h4 class="modal-section-title modal-section-title--flat">Roles asignados</h4>
+                <button v-if="!editandoRoles" type="button" class="rol-editar-btn" @click="abrirEditorRoles">Editar roles</button>
+              </div>
+
+              <template v-if="!editandoRoles">
+                <div class="roles-cell" style="margin-top:10px">
+                  <span v-for="r in selectedUser.roles" :key="r.roleId" class="estado-badge" :class="rolBadgeClass(r.roleName)">{{ r.roleName }}</span>
+                  <span v-if="selectedUser.roles.length === 0" class="fecha-text">Este usuario no tiene roles asignados</span>
+                </div>
+              </template>
+
+              <template v-else>
+                <div class="rol-checklist">
+                  <label v-for="r in roles" :key="r.roleId" class="rol-check-item">
+                    <input type="checkbox" :checked="rolesSeleccionados.includes(r.roleId)" @change="toggleRolSeleccionado(r.roleId)" />
+                    <span>{{ r.roleName }}</span>
+                  </label>
+                  <p v-if="roles.length === 0" class="fecha-text">No hay roles definidos. Créalos en la pestaña Roles.</p>
+                </div>
+                <div class="rol-editar-actions">
+                  <button type="button" class="btn-limpiar" @click="editandoRoles = false">Cancelar</button>
+                  <button type="button" class="btn-aprobar" style="flex:1" :disabled="guardandoRoles" @click="guardarRolesUsuario">
+                    {{ guardandoRoles ? 'Guardando...' : 'Guardar roles' }}
+                  </button>
+                </div>
+              </template>
             </div>
 
-            <div v-if="selectedUser.id !== ADMIN_ID" class="modal-acciones">
+            <div class="modal-acciones">
               <button
                 class="btn-aprobar"
-                :disabled="selectedUser.activo"
-                @click="() => { selectedUser.activo = true; guardarUsuarios(); cerrarModal() }"
+                :disabled="selectedUser.active"
+                @click="pedirConfirmacionEstado(selectedUser)"
               >
                 Activar usuario
               </button>
               <button
                 class="btn-rechazar"
-                :disabled="!selectedUser.activo"
-                @click="() => { selectedUser.activo = false; guardarUsuarios(); cerrarModal() }"
+                :disabled="!selectedUser.active"
+                @click="pedirConfirmacionEstado(selectedUser)"
               >
                 Desactivar usuario
               </button>
-            </div>
-            <div v-else class="modal-estado-final">
-              <p class="estado-aprobada-msg">Esta es la cuenta de administrador principal.</p>
             </div>
 
           </div>
@@ -488,7 +637,7 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
       </Transition>
     </Teleport>
 
-    <!-- ═══════════ MODAL DE CONFIRMACIÓN ═══════════ -->
+    <!-- ═══════════ MODAL CONFIRMAR ACTIVAR/DESACTIVAR ═══════════ -->
     <Teleport to="body">
       <Transition name="modal-fade">
         <div v-if="modalConfirm" class="modal-overlay" @click.self="cancelarConfirmacion">
@@ -501,13 +650,86 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
             </div>
 
             <h3 class="confirm-title">
-              {{ usuarioSeleccionado?.activo ? 'Desactivar usuario' : 'Activar usuario' }}
+              {{ usuarioSeleccionado?.active ? 'Desactivar usuario' : 'Activar usuario' }}
             </h3>
-            <p class="confirm-text">{{ usuarioSeleccionado?.nombre }}</p>
+            <p class="confirm-text">{{ usuarioSeleccionado?.fullName }}</p>
 
             <div class="modal-acciones">
               <button class="btn-rechazar" style="flex:none;padding:13px 24px" @click="cancelarConfirmacion">Cancelar</button>
-              <button class="btn-aprobar" style="flex:1" @click="confirmarCambioEstado">Confirmar</button>
+              <button class="btn-aprobar" style="flex:1" :disabled="cambiandoEstado" @click="confirmarCambioEstado">
+                {{ cambiandoEstado ? 'Guardando...' : 'Confirmar' }}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ═══════════ MODAL CREAR/EDITAR ROL ═══════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showModalRol" class="modal-overlay" @click.self="cerrarModalRol">
+          <div class="modal-box modal-box--sm">
+
+            <button class="modal-close" @click="cerrarModalRol">✕</button>
+
+            <h3 class="confirm-title rol-form-title">{{ rolEditando ? 'Editar rol' : 'Nuevo rol' }}</h3>
+
+            <div class="rol-form">
+              <div class="fg">
+                <label class="fg-label">Nombre <span class="req">*</span></label>
+                <input type="text" class="filtro-input" placeholder="Ej. Coordinador" v-model="formRol.roleName" />
+              </div>
+              <div class="fg">
+                <label class="fg-label">Acceso <span class="req">*</span></label>
+                <input type="text" class="filtro-input" placeholder="Ej. coordinador" v-model="formRol.roleAccess" />
+              </div>
+              <div class="fg">
+                <label class="fg-label">Descripción</label>
+                <textarea class="filtro-input rol-textarea" placeholder="Para qué se usa este rol..." v-model="formRol.description"></textarea>
+              </div>
+            </div>
+
+            <p v-if="errorRol" class="field-error">{{ errorRol }}</p>
+
+            <div class="modal-acciones">
+              <button class="btn-rechazar" style="flex:none;padding:13px 24px" @click="cerrarModalRol">Cancelar</button>
+              <button class="btn-aprobar" style="flex:1" :disabled="guardandoRol" @click="guardarRol">
+                {{ guardandoRol ? 'Guardando...' : (rolEditando ? 'Guardar cambios' : 'Crear rol') }}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ═══════════ MODAL CONFIRMAR BORRADO DE ROL ═══════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="modalConfirmRol" class="modal-overlay" @click.self="cancelarBorrarRol">
+          <div class="modal-box modal-box--sm">
+
+            <button class="modal-close" @click="cancelarBorrarRol">✕</button>
+
+            <div class="confirm-icon-wrap">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+            </div>
+
+            <h3 class="confirm-title">Eliminar rol</h3>
+            <p class="confirm-text">
+              ¿Eliminar <strong>{{ rolAEliminar?.roleName }}</strong>?
+              <template v-if="rolAEliminar?.userCount > 0">
+                <br><br>Tiene {{ rolAEliminar.userCount }} usuario{{ rolAEliminar.userCount !== 1 ? 's' : '' }} asignado{{ rolAEliminar.userCount !== 1 ? 's' : '' }}; no podrá eliminarse hasta quitarles el rol.
+              </template>
+            </p>
+
+            <div class="modal-acciones">
+              <button class="btn-rechazar" style="flex:none;padding:13px 24px" @click="cancelarBorrarRol">Cancelar</button>
+              <button class="btn-aprobar" style="flex:1" :disabled="eliminandoRol" @click="confirmarBorrarRol">
+                {{ eliminandoRol ? 'Eliminando...' : 'Eliminar' }}
+              </button>
             </div>
 
           </div>
@@ -519,8 +741,9 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
 </template>
 
 <style scoped>
-/* ── Variables (idénticas a Donaciones) ─────────────────── */
-.view-container {
+/* ── Variables — en :global(:root) para que los modales
+   Teleported a <body> también las hereden ─────────────── */
+:global(:root) {
   --verde:     #3A473C;
   --verde-sec: #92A894;
   --fondo:     #F7F8F7;
@@ -530,13 +753,25 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
   --borde:     #E8ECE8;
   --amarillo:  #F5B942;
   --verde-ok:  #4CAF6A;
-  background: transparent;
 }
 
+.view-container { background: transparent; }
+
 /* ── Encabezado ─────────────────────────────────────────── */
-.page-header       { margin-bottom: 28px; }
+.page-header       { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; flex-wrap: wrap; margin-bottom: 28px; }
 .admin-page-title  { font-size: 28px; font-weight: 800; color: var(--verde); letter-spacing: -0.5px; line-height: 1.1; }
 .admin-page-sub    { font-size: 14px; color: var(--texto-sec); margin-top: 4px; font-weight: 500; }
+
+.btn-primary {
+  display: flex; align-items: center; gap: 7px;
+  height: 38px; padding: 0 18px;
+  background: var(--verde); color: #ffffff;
+  border: none; border-radius: 8px;
+  font-size: 13px; font-weight: 700; cursor: pointer;
+  transition: background 0.18s; white-space: nowrap; flex-shrink: 0;
+  font-family: inherit;
+}
+.btn-primary:hover { background: #2d3730; }
 
 /* ── Tarjetas resumen ───────────────────────────────────── */
 .don-summary {
@@ -559,52 +794,79 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
   gap: 8px;
 }
 
-.total-usuarios  { border-top-color: var(--verde); }
-.total-activos   { border-top-color: var(--verde-ok); }
-.total-inactivos { border-top-color: #E57373; }
+.total-usuarios    { border-top-color: var(--verde); }
+.total-activos     { border-top-color: var(--verde-ok); }
+.total-inactivos   { border-top-color: #E57373; }
 .total-voluntarios { border-top-color: var(--verde-sec); }
-.total-pendientes  { border-top-color: var(--amarillo); }
+.total-sinrol      { border-top-color: var(--amarillo); }
 
 .don-label { font-size: 11px; color: var(--texto-sec); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
 .don-value { font-size: 24px; font-weight: 800; color: var(--verde); line-height: 1; }
 
-/* ── Panel de filtros ───────────────────────────────────── */
-.filtros-panel {
+/* ── Panel: pestañas + filtros + tabla ─────────────────── */
+.table-wrapper {
   background: var(--blanco);
   border-radius: 14px;
-  padding: 20px;
-  margin-bottom: 20px;
   border: 1px solid var(--borde);
+  overflow: hidden;
+}
+
+.panel-tabs {
   display: flex;
-  gap: 12px;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  gap: 2px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--borde);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
-
-.filtro-group {
+.panel-tab {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  flex: 1;
-  min-width: 130px;
-}
-
-.filtro-group--btn {
-  flex: 0 0 auto;
-  min-width: unset;
-}
-
-.filtro-label {
-  font-size: 11px;
+  align-items: center;
+  gap: 7px;
+  padding: 15px 16px 13px;
+  border: none;
+  border-bottom: 2.5px solid transparent;
+  background: transparent;
+  color: var(--texto-sec);
+  font-size: 13px;
   font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  white-space: nowrap;
+  transition: color 0.18s, border-color 0.18s;
+  margin-bottom: -1px;
+}
+.panel-tab:hover { color: var(--verde); }
+.panel-tab--active {
   color: var(--verde);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  min-height: 16px;
-  display: flex;
-  align-items: flex-end;
+  border-bottom-color: var(--verde);
+}
+.panel-tab-count {
+  min-width: 20px;
+  padding: 2px 7px;
+  border-radius: 20px;
+  background: var(--fondo);
+  color: var(--texto-sec);
+  font-size: 11px;
+  font-weight: 800;
+  text-align: center;
+}
+.panel-tab--active .panel-tab-count {
+  background: var(--verde);
+  color: var(--blanco);
 }
 
+.panel-filtros {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--borde);
+  flex-wrap: wrap;
+}
+.panel-buscar { flex: 1; min-width: 200px; max-width: 360px; }
+
+/* ── Controles de filtro ───────────────────────────────── */
 .filtro-input-wrap {
   position: relative;
   display: flex;
@@ -670,23 +932,13 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
 /* ── Estado vacío ───────────────────────────────────────── */
 .empty-state {
   text-align: center;
-  padding: 72px 24px;
-  background: var(--blanco);
-  border-radius: 14px;
-  border: 1px solid var(--borde);
+  padding: 56px 24px;
 }
 
-.empty-title { font-size: 16px; font-weight: 700; color: var(--texto); margin-bottom: 6px; }
+.empty-title { font-size: 15px; font-weight: 700; color: var(--texto); margin-bottom: 6px; }
 .empty-sub   { font-size: 13px; color: var(--texto-sec); }
 
 /* ── Tabla ──────────────────────────────────────────────── */
-.table-wrapper {
-  background: var(--blanco);
-  border-radius: 14px;
-  border: 1px solid var(--borde);
-  overflow: hidden;
-}
-
 .table-scroll          { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
 .don-table             { width: 100%; border-collapse: collapse; min-width: 720px; }
@@ -697,10 +949,14 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
 .don-table tbody tr:hover      { background: #F4F6F4; }
 .don-table tbody td    { padding: 13px 16px; vertical-align: middle; }
 
-.id-pill     { font-size: 11px; font-family: monospace; background: var(--fondo); border: 1px solid var(--borde); padding: 3px 9px; border-radius: 6px; color: var(--verde); font-weight: 700; white-space: nowrap; }
-.fecha-text  { font-size: 13px; color: var(--texto-sec); white-space: nowrap; }
-.donor-name  { font-size: 13px; font-weight: 700; color: var(--texto); }
+.id-pill      { font-size: 11px; font-family: monospace; background: var(--fondo); border: 1px solid var(--borde); padding: 3px 9px; border-radius: 6px; color: var(--verde); font-weight: 700; white-space: nowrap; }
+.fecha-text   { font-size: 13px; color: var(--texto-sec); white-space: nowrap; }
+.metodo-text  { font-size: 13px; color: var(--texto-sec); }
+.donor-name   { font-size: 13px; font-weight: 700; color: var(--texto); }
 .donor-mail-td { font-size: 13px; color: var(--texto-sec); }
+
+/* Varios badges de rol en una celda */
+.roles-cell { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
 
 /* Avatar en tabla */
 .usr-cell {
@@ -816,7 +1072,7 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
 }
 
 .modal-box {
-  background: #FFFFFF;
+  background: var(--blanco);
   border-radius: 20px;
   padding: 36px;
   width: 100%; max-width: 620px;
@@ -899,27 +1155,73 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
   margin-bottom: 14px; padding-bottom: 10px;
   border-bottom: 1px solid var(--borde);
 }
+.modal-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-bottom: 1px solid var(--borde);
+  padding-bottom: 10px;
+  margin-bottom: 0;
+}
+.modal-section-title--flat { border: none; margin: 0; padding: 0; }
 
 .modal-grid   { display: grid; grid-template-columns: repeat(2,1fr); gap: 16px; }
 .modal-field  { display: flex; flex-direction: column; gap: 4px; }
+.modal-field--full { grid-column: 1 / -1; }
 .modal-field-label { font-size: 10px; font-weight: 700; color: #9CA8A0; text-transform: uppercase; letter-spacing: 0.4px; }
 .modal-field-value { font-size: 14px; color: var(--texto); font-weight: 600; word-break: break-word; }
 
-/* Nota informativa en modal */
-.modal-info-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 12px 16px;
-  background: rgba(146,168,148,.10);
-  border-radius: 10px;
+/* Edición de roles del usuario, dentro del modal de detalle */
+.rol-editar-btn {
+  border: none;
+  background: transparent;
+  color: var(--verde);
   font-size: 12px;
-  color: #5A6E5C;
-  line-height: 1.6;
-  margin-bottom: 20px;
+  font-weight: 700;
+  cursor: pointer;
+  font-family: inherit;
+  text-decoration: underline;
+  padding: 0;
+}
+.rol-editar-btn:hover { color: #2d3730; }
+
+.rol-checklist {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+  margin-top: 12px;
+}
+.rol-check-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 12px;
+  border: 1.5px solid var(--borde);
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--texto);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.rol-check-item:hover { border-color: var(--verde-sec); background: var(--fondo); }
+.rol-check-item input { accent-color: var(--verde); width: 15px; height: 15px; flex-shrink: 0; }
+
+.rol-editar-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 16px;
 }
 
-.modal-info-note svg { flex-shrink: 0; margin-top: 1px; color: #5A6E5C; }
+/* Formulario de rol (modal crear/editar) */
+.rol-form-title { text-align: left; margin-bottom: 20px; }
+.rol-form { display: flex; flex-direction: column; gap: 14px; text-align: left; margin-bottom: 16px; }
+.fg { display: flex; flex-direction: column; gap: 6px; }
+.fg-label { font-size: 11px; font-weight: 700; color: var(--verde); text-transform: uppercase; letter-spacing: 0.4px; }
+.req { color: #c0392b; }
+.rol-textarea { height: 80px; padding-top: 10px; resize: vertical; line-height: 1.5; }
+.field-error { font-size: 11px; color: #c0392b; font-weight: 600; margin: 0 0 12px; text-align: left; }
 
 .modal-acciones {
   display: flex; gap: 10px;
@@ -943,10 +1245,6 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
 }
 .btn-rechazar:hover:not(:disabled) { background: #B71C1C; color: var(--blanco); }
 .btn-rechazar:disabled { opacity: 0.4; cursor: not-allowed; }
-
-.modal-estado-final { padding-top: 20px; border-top: 1px solid var(--borde); text-align: center; }
-.estado-aprobada-msg  { color: #2E7D32; font-weight: 700; font-size: 14px; }
-.estado-rechazada-msg { color: #B71C1C; font-weight: 700; font-size: 14px; }
 
 /* Confirmación */
 .confirm-icon-wrap {
@@ -975,53 +1273,29 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
 /* ── Responsive ─────────────────────────────────────────── */
 @media (max-width: 900px) {
   .don-summary { display: grid; grid-template-columns: repeat(2,1fr); }
-  .total-pendientes { grid-column: span 2; }
+  .total-sinrol { grid-column: span 2; }
 }
 
-@media (max-width: 640px) {
-  .filtros-panel     { flex-direction: column; }
-  .filtro-group      { min-width: 100%; }
-  .filtro-group--btn { width: 100%; }
-  .btn-limpiar       { width: 100%; }
-  .modal-grid        { grid-template-columns: 1fr; }
-  .modal-box         { padding: 24px 20px; }
-  .modal-acciones    { flex-direction: column; }
-  .don-summary       { grid-template-columns: 1fr; }
-  .total-pendientes  { grid-column: span 1; }
-  .acciones-cell     { flex-direction: column; align-items: flex-start; }
-}
-
-/* ── MOBILE RESPONSIVE ── */
 @media (max-width: 768px) {
   .don-summary {
     display: grid;
     grid-template-columns: repeat(2, 1fr);
     gap: 10px;
   }
+  .total-sinrol { grid-column: span 2; }
 
-  .total-pendientes { grid-column: span 2; }
-
-  .filtros-panel {
+  .panel-filtros {
     flex-direction: column;
+    align-items: stretch;
     gap: 10px;
     padding: 14px;
   }
+  .panel-buscar { max-width: none; }
+  .panel-tab { padding: 13px 12px 11px; font-size: 12px; }
 
-  .filtro-group,
-  .filtro-group--btn {
-    min-width: unset;
-    width: 100%;
-  }
+  .btn-limpiar { width: 100%; justify-content: center; }
 
-  .btn-limpiar {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .table-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
   .acciones-cell {
     flex-direction: column;
@@ -1042,8 +1316,10 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
   }
 
   .modal-grid { grid-template-columns: 1fr; }
+  .rol-checklist { grid-template-columns: 1fr; }
 
-  .modal-acciones {
+  .modal-acciones,
+  .rol-editar-actions {
     flex-direction: column;
   }
 
@@ -1060,14 +1336,16 @@ const totalPendientes = computed(() => usuarios.value.filter(u => u.solicitudVol
   }
 }
 
-@media (max-width: 480px) {
-  .don-summary { grid-template-columns: 1fr; }
-  .total-pendientes { grid-column: span 1; }
-
-  .don-table th:nth-child(3),
-  .don-table td:nth-child(3),
-  .don-table th:nth-child(6),
-  .don-table td:nth-child(6) { display: none; }
+@media (max-width: 640px) {
+  .page-header { flex-direction: column; align-items: flex-start; }
+  .btn-primary { width: 100%; justify-content: center; }
 }
 
+@media (max-width: 480px) {
+  .don-summary { grid-template-columns: 1fr; }
+  .total-sinrol { grid-column: span 1; }
+
+  .don-table th:nth-child(3),
+  .don-table td:nth-child(3) { display: none; }
+}
 </style>

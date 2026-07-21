@@ -1,9 +1,13 @@
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import Icon from '../../components/Icon.vue'
 import { usePetsStore } from '../../stores/usePetsStore'
+import { useRescuesStore } from '../../stores/useRescuesStore'
 import { createAnimals } from '../../services/petServices.js'
-const store = usePetsStore()
+const store        = usePetsStore()
+const rescuesStore = useRescuesStore()
+
+onMounted(() => store.fetchPets({ status: 'Todos' }))
 
 // ─────────────────────────────────────────────
 // Casas cuna — cargadas desde voluntarios registrados
@@ -37,7 +41,7 @@ const editingPetId = ref(null)
 
 const formData = ref({
   name: '', type: 'Perro', breed: '', age: '', sex: 'Macho',
-  size: 'Mediano', personality: '', healthBasic: '', status: 'Disponible',
+  personality: '', healthBasic: '', status: 'Disponible',
   description: '', internalNotes: '', images: [],
   casaCunaId: '', casaCunaNombre: '',
 })
@@ -191,11 +195,19 @@ async function savePet() {
   if (!validateForm()) return
   const petData = { ...formData.value, images: [...formData.value.images] }
   if (editMode.value && editingPetId.value !== null) {
-    store.updatePet(editingPetId.value, petData)
+    await store.updatePet(editingPetId.value, petData)
     showToast('success', 'Mascota actualizada correctamente')
   } else {
-    await createAnimals(petData)
-    showToast('success', 'Mascota registrada correctamente')
+    try {
+      const response = await createAnimals(petData)
+      await store.fetchPets({ status: 'Todos' })
+      showToast('success', 'Mascota registrada correctamente')
+    } catch (err) {
+      const detail = err.response?.data?.message || err.response?.data || err.message
+      console.error('Error al crear mascota:', detail)
+      showToast('error', 'Error al registrar la mascota')
+      return
+    }
   }
   closeForm()
 }
@@ -209,7 +221,7 @@ function openForm() {
   formErrors.value   = {}
   formData.value     = {
     name: '', type: 'Perro', breed: '', age: '', sex: 'Macho',
-    size: 'Mediano', personality: '', healthBasic: '', status: 'Disponible',
+    personality: '', healthBasic: '', status: 'Disponible',
     description: '', internalNotes: '', images: [],
     casaCunaId: '', casaCunaNombre: '',
   }
@@ -225,7 +237,6 @@ function openEdit(pet) {
     breed:         pet.breed,
     age:           pet.age,
     sex:           pet.sex,
-    size:          pet.size,
     personality:   pet.personality,
     healthBasic:   pet.healthBasic,
     status:        pet.status,
@@ -247,7 +258,7 @@ function closeForm() {
   formErrors.value   = {}
   formData.value     = {
     name: '', type: 'Perro', breed: '', age: '', sex: 'Macho',
-    size: 'Mediano', personality: '', healthBasic: '', status: 'Disponible',
+    personality: '', healthBasic: '', status: 'Disponible',
     description: '', internalNotes: '', images: [],
     casaCunaId: '', casaCunaNombre: '',
   }
@@ -360,11 +371,11 @@ const expedienteTratamientos = computed(() => {
 
 const expedienteRescates = computed(() => {
   if (!viewTarget.value) return []
-  const rescates = JSON.parse(localStorage.getItem('anhelo_rescates')) || []
-  return rescates
-    .filter(r => r.mascotaId === viewTarget.value.id || r.mascota === viewTarget.value.name)
+  if (!rescuesStore.loaded) rescuesStore.fetchRescues()
+  return rescuesStore.rescates.value
+    .filter(r => r.animalId === viewTarget.value.id || r.mascota === viewTarget.value.name)
     .sort((a, b) =>
-      String(b.fechaRescate || b.fechaCreacion || '').localeCompare(String(a.fechaRescate || a.fechaCreacion || ''))
+      String(b.fechaRescate || '').localeCompare(String(a.fechaRescate || ''))
     )
 })
 
@@ -2442,3 +2453,5 @@ const expedienteTimeline = computed(() => {
 
 
 </style>
+
+

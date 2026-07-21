@@ -31,7 +31,10 @@ public class UserContacts
     
     [Column("town")]
     public string? Town { get; set; }
-    
+
+    [Column("district")]
+    public string? District { get; set; }
+
     [Column("address_line")]
     public string? AddressLine { get; set; }
     

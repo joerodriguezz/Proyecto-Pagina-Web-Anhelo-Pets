@@ -165,7 +165,7 @@ function clearFilters() {
           </div>
 
           <p class="pet-meta">
-            {{ pet.type }} · {{ pet.sex }}<template v-if="pet.size"> · {{ pet.size }}</template>
+            {{ pet.type }} · {{ pet.sex }}
           </p>
 
           <p v-if="pet.personality" class="pet-personality">

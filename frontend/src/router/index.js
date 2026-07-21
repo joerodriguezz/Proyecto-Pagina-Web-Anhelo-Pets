@@ -247,27 +247,7 @@ router.beforeEach((to, from, next) => {
 
   }
 
-  /* PROTEGER ADMIN */
-
-  if (
-
-    to.path.startsWith('/admin')
-
-  ) {
-
-    if (
-
-      !usuario ||
-
-      usuario.rol !== 'Admin'
-
-    ) {
-
-      return next('/login')
-
-    }
-
-  }
+  
 
   /* PROTEGER PERFIL */
 
@@ -292,3 +272,4 @@ router.beforeEach((to, from, next) => {
 })
 
 export default router
+

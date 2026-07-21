@@ -17,6 +17,17 @@ if (!string.IsNullOrWhiteSpace(port))
 builder.Services.AddControllers();
 builder.Services.AddScoped<AuthRepository>();
 builder.Services.AddScoped<AnimalRepository>();
+builder.Services.AddScoped<RescueRepository>();
+builder.Services.AddScoped<FosterHomeRepository>();
+builder.Services.AddScoped<AnimalMedicalRecordRepository>();
+builder.Services.AddScoped<VeterinarianRepository>();
+builder.Services.AddScoped<RoleRepository>();
+builder.Services.AddScoped<UserAdminRepository>();
+builder.Services.AddScoped<VolunteerRepository>();
+builder.Services.AddScoped<IAnimalMedicalRecordService, AnimalMedicalRecordService>();
+builder.Services.AddScoped<IVeterinarianService, VeterinarianService>();
+builder.Services.AddScoped<IRoleService, RoleService>();
+builder.Services.AddScoped<IUserAdminService, UserAdminService>();
 builder.Services.AddScoped<IUserService, UserService>();
 builder.Services.AddScoped<IAnimalService, AnimalService>();
 builder.Services.AddScoped<IRescateService, RescateService>();
@@ -65,7 +76,32 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
+// ── Bootstrap temporal: aplica a la BD ya provisionada el esquema de
+// voluntariado corregido (ver database/tables.sql). Idempotente. Se retira
+// tras confirmarse.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AnheloPetsDbContext>();
+    db.Database.ExecuteSqlRaw("""
+        ALTER TABLE anhelopets.volunteers ADD COLUMN IF NOT EXISTS application_details text;
+        ALTER TABLE anhelopets.user_contacts ADD COLUMN IF NOT EXISTS district varchar(100);
+
+        DO $$
+        BEGIN
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns
+                WHERE table_schema = 'anhelopets' AND table_name = 'volunteers'
+                  AND column_name = 'validated_by_user_id' AND data_type <> 'text'
+            ) THEN
+                ALTER TABLE anhelopets.volunteers ALTER COLUMN validated_by_user_id TYPE text USING validated_by_user_id::text;
+            END IF;
+        END $$;
+        """);
+}
+
 app.UseMiddleware<ExceptionHandlingMiddleware>();
+
+
 
 // Swagger
 if (app.Environment.IsDevelopment())

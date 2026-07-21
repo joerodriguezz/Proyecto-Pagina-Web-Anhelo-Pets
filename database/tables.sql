@@ -12,6 +12,7 @@ CREATE TABLE users (
     user_id 	   text DEFAULT generate_user_id() PRIMARY KEY,
     username       varchar(100) NOT NULL,
     password_hash  text NOT NULL,
+    active         boolean NOT NULL DEFAULT true,
 
     created_at     timestamptz,
     created_by     varchar(100),
@@ -58,6 +59,7 @@ CREATE TABLE user_contacts (
     phone_secondary varchar(30),
     city            varchar(100),
     town            varchar(100),
+    district        varchar(100),
     address_line    text,
 
     created_at      timestamptz,
@@ -92,7 +94,7 @@ CREATE TABLE roles (
 
 CREATE TABLE user_roles (
     user_role_id bigint GENERATED ALWAYS AS IDENTITY,
-    user_id      bigint NOT NULL,
+    user_id      text NOT NULL,
     role_id      bigint NOT NULL,
     description  text,
 
@@ -114,6 +116,14 @@ CREATE TABLE user_roles (
         ON UPDATE CASCADE
         ON DELETE RESTRICT
 );
+
+-- Roles base: coinciden con los valores que ya usaba el frontend
+INSERT INTO roles (role_name, role_access, description, created_at, created_by)
+VALUES
+    ('Admin',      'admin',      'Acceso total al panel de administración', now(), 'system'),
+    ('Voluntario', 'voluntario', 'Usuario con perfil de voluntario activo', now(), 'system'),
+    ('Usuario',    'usuario',    'Cuenta estándar sin privilegios administrativos', now(), 'system')
+ON CONFLICT (role_name) DO NOTHING;
 
 -- ============================================================
 -- ANHELOPETS domain
@@ -193,7 +203,8 @@ CREATE TABLE rescue_records (
     location       text NOT NULL,
     description    text NOT NULL,
     status         varchar(30) NOT NULL DEFAULT 'Activo',
-    foster_home_id bigint,
+    foster_home_id text,
+    volunteer_id   text,
 
     created_at     timestamptz,
     created_by     varchar(100),
@@ -211,41 +222,35 @@ CREATE TABLE rescue_records (
 );
 
 CREATE TABLE volunteers (
-    volunteer_id bigint GENERATED ALWAYS AS IDENTITY,
-    user_id      bigint NOT NULL,
+    volunteer_id text DEFAULT generate_id('VOL') PRIMARY KEY,
+    user_id      text NOT NULL,
     active       boolean NOT NULL,
     national_id  varchar(50),
     volunteer_type varchar(100),
     motivation   text,
+    application_details text,
     validation_status varchar(20) NOT NULL DEFAULT 'Pendiente',
     validation_notes text,
     validated_at timestamptz,
-    validated_by_user_id bigint,
+    validated_by_user_id text,
 
     created_at   timestamptz,
     created_by   varchar(100),
     modified_at  timestamptz,
     modified_by  varchar(100),
 
-    CONSTRAINT pk_volunteers PRIMARY KEY (volunteer_id),
-    CONSTRAINT uq_volunteers_user_id UNIQUE (user_id),
     CONSTRAINT fk_volunteers_user_id
         FOREIGN KEY (user_id)
         REFERENCES users (user_id)
         ON UPDATE CASCADE
         ON DELETE CASCADE,
     CONSTRAINT ck_volunteers_validation_status
-        CHECK (validation_status IN ('Pendiente', 'Aprobado', 'Rechazado')),
-    CONSTRAINT fk_volunteers_validated_by_user_id
-        FOREIGN KEY (validated_by_user_id)
-        REFERENCES users (user_id)
-        ON UPDATE CASCADE
-        ON DELETE SET NULL
+        CHECK (validation_status IN ('Pendiente', 'Aprobado', 'Rechazado'))
 );
 
 CREATE TABLE veterinarians (
-    veterinarian_id bigint GENERATED ALWAYS AS IDENTITY,
-    volunteer_id    bigint NOT NULL,
+    veterinarian_id text DEFAULT generate_id('VET') PRIMARY KEY,
+    volunteer_id    TEXT NOT NULL,
     specialty       varchar(100) NOT NULL,
 
     created_at      timestamptz,
@@ -253,7 +258,6 @@ CREATE TABLE veterinarians (
     modified_at     timestamptz,
     modified_by     varchar(100),
 
-    CONSTRAINT pk_veterinarians PRIMARY KEY (veterinarian_id),
     CONSTRAINT uq_veterinarians_volunteer_id UNIQUE (volunteer_id),
     CONSTRAINT fk_veterinarians_volunteer_id
         FOREIGN KEY (volunteer_id)
@@ -264,8 +268,8 @@ CREATE TABLE veterinarians (
 
 CREATE TABLE animal_medical_records (
     animal_medical_record_id bigint GENERATED ALWAYS AS IDENTITY,
-    animal_id                bigint NOT NULL,
-    veterinarian_id          bigint NOT NULL,
+    animal_id                text NOT NULL,
+    veterinarian_id          text NOT NULL,
     diagnosis                text NOT NULL,
     treatment                text NOT NULL,
     notes                    text,
@@ -319,8 +323,8 @@ CREATE TABLE animal_care_schedules (
 );
 
 CREATE TABLE foster_homes (
-    foster_home_id bigint GENERATED ALWAYS AS IDENTITY,
-    volunteer_id   bigint,
+    foster_home_id text DEFAULT generate_id('FHM') PRIMARY KEY,
+    volunteer_id   TEXT,
     name           varchar(150) NOT NULL,
     address        text NOT NULL,
     phone          varchar(30) NOT NULL,
@@ -333,8 +337,6 @@ CREATE TABLE foster_homes (
     modified_at    timestamptz,
     modified_by    varchar(100),
 
-    CONSTRAINT pk_foster_homes PRIMARY KEY (foster_home_id),
-    CONSTRAINT uq_foster_homes_volunteer_id UNIQUE (volunteer_id),
     CONSTRAINT ck_foster_homes_capacity_positive CHECK (capacity > 0),
     CONSTRAINT fk_foster_homes_volunteer_id
         FOREIGN KEY (volunteer_id)
@@ -346,7 +348,7 @@ CREATE TABLE foster_homes (
 CREATE TABLE animal_foster_placements (
     animal_foster_placement_id bigint GENERATED ALWAYS AS IDENTITY,
     animal_id                  bigint NOT NULL,
-    foster_home_id             bigint NOT NULL,
+    foster_home_id             text NOT NULL,
     start_date                 date NOT NULL,
     end_date                   date,
     notes                      text,
@@ -377,6 +379,14 @@ ALTER TABLE rescue_records
     REFERENCES foster_homes (foster_home_id)
     ON UPDATE CASCADE
     ON DELETE SET NULL;
+
+-- FK comentada: volunteer_id almacena user_id del localStorage
+-- ALTER TABLE rescue_records
+--     ADD CONSTRAINT fk_rescue_records_volunteer_id
+--     FOREIGN KEY (volunteer_id)
+--     REFERENCES volunteers (volunteer_id)
+--     ON UPDATE CASCADE
+--     ON DELETE SET NULL;
 
 
 

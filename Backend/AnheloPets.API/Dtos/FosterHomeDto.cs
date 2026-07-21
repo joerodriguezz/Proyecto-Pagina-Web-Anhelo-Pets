@@ -4,9 +4,9 @@ namespace AnheloPets.API.DTOs;
 
 public class FosterHomeDto
 {
-    public long FosterHomeId { get; set; }
+    public string? FosterHomeId { get; set; }
 
-    public long? VolunteerId { get; set; }
+    public string? VolunteerId { get; set; }
 
     [Required(ErrorMessage = "El nombre es obligatorio.")]
     [StringLength(100, ErrorMessage = "El nombre no puede superar 100 caracteres.")]
