@@ -1,4 +1,4 @@
-<script setup>
+ <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { usePetsStore } from '../../stores/usePetsStore'
 
@@ -140,111 +140,156 @@ const statusClass = (estado) => ({
 <template>
   <div class="view-container">
 
+    <!-- CABECERA -->
     <header class="page-header">
-      <div>
-        <h1 class="page-title">Solicitudes de Adopción</h1>
-        <p class="page-sub">Gestión y seguimiento de solicitudes recibidas</p>
+      <div class="brand-row">
+        <div class="brand-mark">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+        </div>
+        <div>
+          <h1 class="admin-page-title">Solicitudes de Adopción</h1>
+          <p class="admin-page-sub">Gestión y seguimiento de solicitudes recibidas</p>
+        </div>
       </div>
     </header>
 
-    <!-- KPIs -->
+    <!-- TARJETAS RESUMEN -->
     <div class="don-summary">
-      <div class="don-card kpi-yellow">
-        <span class="don-label">Pendientes</span>
+      <div class="don-card pendiente-card">
+        <div class="don-icon pendiente-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg>
+        </div>
         <strong class="don-value">{{ solicitudes.filter(s => s.estado === 'Pendiente').length }}</strong>
+        <span class="don-label">Pendientes</span>
+        <span class="don-desc">Por revisar</span>
       </div>
-      <div class="don-card kpi-blue">
-        <span class="don-label">En proceso</span>
+      <div class="don-card proceso-card">
+        <div class="don-icon proceso-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
         <strong class="don-value">{{ solicitudes.filter(s => s.estado === 'En proceso').length }}</strong>
+        <span class="don-label">En proceso</span>
+        <span class="don-desc">En evaluación</span>
       </div>
-      <div class="don-card kpi-green">
-        <span class="don-label">Aprobadas</span>
+      <div class="don-card aprobada-card">
+        <div class="don-icon aprobada-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+        </div>
         <strong class="don-value">{{ solicitudes.filter(s => s.estado === 'Aprobada').length }}</strong>
+        <span class="don-label">Aprobadas</span>
+        <span class="don-desc">Adopciones confirmadas</span>
       </div>
-      <div class="don-card kpi-red">
-        <span class="don-label">Rechazadas</span>
+      <div class="don-card rechazada-card">
+        <div class="don-icon rechazada-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </div>
         <strong class="don-value">{{ solicitudes.filter(s => s.estado === 'Rechazada').length }}</strong>
+        <span class="don-label">Rechazadas</span>
+        <span class="don-desc">No procedieron</span>
       </div>
-      <div class="don-card kpi-gray">
-        <span class="don-label">Total</span>
+      <div class="don-card total-card">
+        <div class="don-icon total-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        </div>
         <strong class="don-value">{{ solicitudes.length }}</strong>
+        <span class="don-label">Total</span>
+        <span class="don-desc">En el sistema</span>
       </div>
     </div>
 
-    <!-- Filtros -->
+    <!-- FILTROS -->
     <div class="filtros-panel">
 
-      <!-- 1. Buscar solicitante -->
-      <div class="filtro-group">
-        <label class="filtro-label">Solicitante</label>
-        <div class="filtro-input-wrap">
-          <input
-            v-model="filterSolicitante"
-            type="text"
-            class="filtro-input filtro-text"
-            placeholder="Nombre, cédula o correo"
-          />
+      <div class="filtros-row">
+        <!-- Estado tabs -->
+        <div class="filtro-group filtro-group--tabs">
+          <label class="filtro-label">Estado</label>
+          <div class="tabs-wrap">
+            <button
+              v-for="s in ['Todos', 'Pendiente', 'En proceso', 'Aprobada', 'Rechazada']"
+              :key="s"
+              type="button"
+              class="tab-btn"
+              :class="{ active: filterStatus === s }"
+              @click="filterStatus = s"
+            >{{ s }}</button>
+          </div>
+        </div>
+
+        <!-- Fecha tabs -->
+        <div class="filtro-group filtro-group--tabs">
+          <label class="filtro-label">Fecha</label>
+          <div class="tabs-wrap">
+            <button
+              v-for="f in ['Todas', 'Hoy', 'Últimos 7 días', 'Últimos 30 días']"
+              :key="f"
+              type="button"
+              class="tab-btn"
+              :class="{ active: filterFecha === f }"
+              @click="filterFecha = f"
+            >{{ f }}</button>
+          </div>
         </div>
       </div>
 
-      <!-- 2. Buscar mascota -->
-      <div class="filtro-group">
-        <label class="filtro-label">Mascota</label>
-        <div class="filtro-input-wrap">
-          <input
-            v-model="filterMascota"
-            type="text"
-            class="filtro-input filtro-text"
-            placeholder="Nombre de la mascota"
-          />
+      <div class="filtros-divider"></div>
+
+      <div class="filtros-row filtros-row--end">
+        <!-- Solicitante -->
+        <div class="filtro-group filtro-group--search">
+          <label class="filtro-label">Solicitante</label>
+          <div class="filtro-input-wrap">
+            <span class="filtro-icon filtro-icon--left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+            <input
+              v-model="filterSolicitante"
+              type="text"
+              class="filtro-input filtro-input--icon-left"
+              placeholder="Nombre, cédula o correo"
+            />
+          </div>
+        </div>
+
+        <!-- Mascota -->
+        <div class="filtro-group filtro-group--search">
+          <label class="filtro-label">Mascota</label>
+          <div class="filtro-input-wrap">
+            <span class="filtro-icon filtro-icon--left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+            <input
+              v-model="filterMascota"
+              type="text"
+              class="filtro-input filtro-input--icon-left"
+              placeholder="Nombre de la mascota"
+            />
+          </div>
+        </div>
+
+        <!-- Limpiar -->
+        <div class="filtro-group filtro-group--btn">
+          <button
+            type="button"
+            class="btn-limpiar"
+            :class="{ 'btn-limpiar--activo': filterStatus !== 'Todos' || filterSolicitante.trim() !== '' || filterMascota.trim() !== '' || filterFecha !== 'Todas' }"
+            @click="limpiarFiltros"
+          >Limpiar filtros</button>
         </div>
       </div>
-
-      <!-- 3. Estado -->
-      <div class="filtro-group">
-        <label class="filtro-label">Estado</label>
-        <div class="filtro-input-wrap">
-          <select v-model="filterStatus" class="filtro-input filtro-select">
-            <option>Todos</option>
-            <option>Pendiente</option>
-            <option>En proceso</option>
-            <option>Aprobada</option>
-            <option>Rechazada</option>
-          </select>
-          <span class="filtro-icon-right no-events">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </span>
-        </div>
-      </div>
-
-      <!-- 4. Fecha -->
-      <div class="filtro-group">
-        <label class="filtro-label">Fecha</label>
-        <div class="filtro-input-wrap">
-          <select v-model="filterFecha" class="filtro-input filtro-select">
-            <option>Todas</option>
-            <option>Hoy</option>
-            <option>Últimos 7 días</option>
-            <option>Últimos 30 días</option>
-          </select>
-          <span class="filtro-icon-right no-events">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-          </span>
-        </div>
-      </div>
-
-      <!-- 5. Limpiar -->
-      <div class="filtro-group filtro-group-btn">
-        <label class="filtro-label">&nbsp;</label>
-        <button type="button" class="btn-limpiar" @click="limpiarFiltros">Limpiar filtros</button>
-      </div>
-
     </div>
 
-    <!-- Tabla -->
-    <div class="table-wrapper">
+    <!-- ESTADO VACÍO -->
+    <div v-if="filtered.length === 0" class="empty-state">
+      <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <p class="empty-title">No hay solicitudes que coincidan con el filtro</p>
+      <p class="empty-sub">Ajusta los filtros para ver más resultados.</p>
+    </div>
+
+    <!-- TABLA -->
+    <div v-else class="table-wrapper">
       <div class="table-scroll">
-        <table class="don-table" v-if="filtered.length > 0">
+        <table class="don-table">
           <thead>
             <tr>
               <th>ID</th>
@@ -261,280 +306,522 @@ const statusClass = (estado) => ({
               <td><span class="id-pill">{{ s.id }}</span></td>
               <td><span class="donor-name">{{ s.solicitante }}</span></td>
               <td><span class="pet-chip">{{ s.mascota }}</span></td>
-              <td><span class="muted-text">{{ s.fecha }}</span></td>
-              <td><span class="muted-text">{{ s.telefono }}</span></td>
+              <td><span class="fecha-text">{{ s.fecha }}</span></td>
+              <td><span class="fecha-text">{{ s.telefono }}</span></td>
               <td><span class="estado-badge" :class="statusClass(s.estado)">{{ s.estado }}</span></td>
               <td>
                 <div class="action-group">
-                  <button v-if="s.estado === 'Pendiente'" type="button" class="btn-accion btn-revisar" @click="procesoSolicitud(s.id)">Revisar</button>
-                  <button v-if="s.estado === 'En proceso'" type="button" class="btn-accion btn-aprobar" @click="aprobarSolicitud(s.id)">Aprobar</button>
-                  <button v-if="s.estado === 'En proceso'" type="button" class="btn-accion btn-rechazar" @click="rechazarSolicitud(s.id)">Rechazar</button>
-                  <button type="button" class="btn-ver" @click="verDetalle(s)">Ver detalle</button>
+                  <button v-if="s.estado === 'Pendiente'" type="button" class="btn-accion-pill btn-revisar" @click="procesoSolicitud(s.id)">Revisar</button>
+                  <button v-if="s.estado === 'En proceso'" type="button" class="btn-accion-pill btn-aprobar" @click="aprobarSolicitud(s.id)">Aprobar</button>
+                  <button v-if="s.estado === 'En proceso'" type="button" class="btn-accion-pill btn-rechazar" @click="rechazarSolicitud(s.id)">Rechazar</button>
+                  <button type="button" class="icon-only icon-only--ver" @click="verDetalle(s)" data-tooltip="Ver detalle">
+                    <img src="/img-acciones/eye.png" alt="Ver detalle" />
+                  </button>
                 </div>
               </td>
             </tr>
           </tbody>
         </table>
-        <div v-else class="empty-state">
-          <div class="empty-icon">📋</div>
-          <p>No hay solicitudes que coincidan con el filtro</p>
-        </div>
       </div>
-      <div v-if="filtered.length > 0" class="table-footer">
+      <div class="table-footer">
         {{ filtered.length }} solicitud{{ filtered.length !== 1 ? 'es' : '' }} encontrada{{ filtered.length !== 1 ? 's' : '' }}
       </div>
     </div>
 
-    <!-- Modal detalle -->
-    <Transition name="modal-fade">
-      <div v-if="showDetailModal" class="modal-overlay" @click.self="showDetailModal = false">
-        <div class="modal-box modal-large">
-          <div class="modal-head">
-            <div class="modal-head-left">
-              <div class="modal-meta">
-                <span class="id-pill">{{ selectedRequest?.id }}</span>
-                <span class="pet-chip">{{ selectedRequest?.mascota }}</span>
-                <span class="estado-badge" :class="statusClass(selectedRequest?.estado)">{{ selectedRequest?.estado }}</span>
-              </div>
-              <h2 class="modal-title-large">{{ selectedRequest?.solicitante }}</h2>
-            </div>
-            <button type="button" class="modal-close" @click="showDetailModal = false">✕</button>
-          </div>
-          <div class="modal-sections">
-            <div class="modal-section">
-              <div class="modal-section-title">Datos Personales & Contacto</div>
-              <div class="modal-grid modal-grid-3">
-                <div class="modal-field"><span class="modal-field-label">Cédula</span><span class="modal-field-val">{{ selectedRequest?.cedula }}</span></div>
-                <div class="modal-field"><span class="modal-field-label">Edad</span><span class="modal-field-val">{{ selectedRequest?.edad }}</span></div>
-                <div class="modal-field"><span class="modal-field-label">Profesión</span><span class="modal-field-val">{{ selectedRequest?.profesion }}</span></div>
-                <div class="modal-field"><span class="modal-field-label">Teléfono</span><span class="modal-field-val">{{ selectedRequest?.telefono }}</span></div>
-                <div class="modal-field"><span class="modal-field-label">WhatsApp</span><span class="modal-field-val">{{ selectedRequest?.whatsapp }}</span></div>
-                <div class="modal-field"><span class="modal-field-label">Correo</span><span class="modal-field-val">{{ selectedRequest?.email }}</span></div>
+    <!-- MODAL DETALLE — mismo lenguaje visual que el expediente de Ver mascota -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showDetailModal" class="modal-overlay" @click.self="showDetailModal = false">
+          <div class="modal-box modal-box--uniform">
+            <button type="button" class="modal-close" @click="showDetailModal = false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+
+            <div class="modal-head">
+              <div class="modal-head-avatar">{{ selectedRequest?.solicitante?.charAt(0) }}</div>
+              <div class="modal-head-left">
+                <div class="modal-meta">
+                  <span class="id-pill">{{ selectedRequest?.id }}</span>
+                  <span class="pet-chip">{{ selectedRequest?.mascota }}</span>
+                  <span class="estado-badge" :class="statusClass(selectedRequest?.estado)">{{ selectedRequest?.estado }}</span>
+                </div>
+                <h2 class="modal-title-large">{{ selectedRequest?.solicitante }}</h2>
               </div>
             </div>
-            <div class="modal-section">
-              <div class="modal-section-title">Hogar & Estilo de Vida</div>
-              <div class="modal-grid modal-grid-1">
-                <div class="modal-field"><span class="modal-field-label">Dirección</span><span class="modal-field-val">{{ selectedRequest?.direccion }}</span></div>
-                <div class="modal-field"><span class="modal-field-label">Personas del hogar</span><span class="modal-field-val">{{ selectedRequest?.hogar }}</span></div>
-                <div class="modal-field"><span class="modal-field-label">Otras mascotas</span><span class="modal-field-val">{{ selectedRequest?.otrasMascotas }}</span></div>
+
+            <div class="uniform-scroll">
+              <div class="modal-sections">
+
+                <div class="modal-section">
+                  <div class="modal-section-title">Datos personales</div>
+                  <div class="modal-grid modal-grid-3">
+                    <div class="modal-field"><span class="modal-field-label">Cédula</span><span class="modal-field-val">{{ selectedRequest?.cedula }}</span></div>
+                    <div class="modal-field"><span class="modal-field-label">Edad</span><span class="modal-field-val">{{ selectedRequest?.edad }}</span></div>
+                    <div class="modal-field"><span class="modal-field-label">Profesión</span><span class="modal-field-val">{{ selectedRequest?.profesion }}</span></div>
+                  </div>
+                </div>
+
+                <div class="modal-section">
+                  <div class="modal-section-title">Contacto</div>
+                  <div class="modal-grid modal-grid-3">
+                    <div class="modal-field"><span class="modal-field-label">Teléfono</span><span class="modal-field-val">{{ selectedRequest?.telefono }}</span></div>
+                    <div class="modal-field"><span class="modal-field-label">WhatsApp</span><span class="modal-field-val">{{ selectedRequest?.whatsapp }}</span></div>
+                    <div class="modal-field"><span class="modal-field-label">Correo</span><span class="modal-field-val">{{ selectedRequest?.email }}</span></div>
+                  </div>
+                </div>
+
+                <div class="modal-section">
+                  <div class="modal-section-title">Ubicación y hogar</div>
+                  <div class="modal-grid modal-grid-3">
+                    <div class="modal-field modal-field--full"><span class="modal-field-label">Ubicación</span><span class="modal-field-val">{{ selectedRequest?.direccion }}</span></div>
+                    <div class="modal-field"><span class="modal-field-label">Personas del hogar</span><span class="modal-field-val">{{ selectedRequest?.hogar }}</span></div>
+                    <div class="modal-field"><span class="modal-field-label">Otras mascotas</span><span class="modal-field-val">{{ selectedRequest?.otrasMascotas }}</span></div>
+                    <div class="modal-field"><span class="modal-field-label">Horas sola</span><span class="modal-field-val">{{ selectedRequest?.horasSola }}</span></div>
+                  </div>
+                  <div class="modal-field modal-field-highlight" style="margin-top:10px">
+                    <span class="modal-field-label">Rutina diaria</span>
+                    <span class="modal-field-val modal-field-quote">{{ selectedRequest?.rutina }}</span>
+                  </div>
+                </div>
+
+                <div class="modal-section">
+                  <div class="modal-section-title">Estado de la solicitud</div>
+                  <div class="modal-grid modal-grid-3">
+                    <div class="modal-field"><span class="modal-field-label">Mascota</span><span class="modal-field-val">{{ selectedRequest?.mascota }}</span></div>
+                    <div class="modal-field"><span class="modal-field-label">Fecha recibida</span><span class="modal-field-val">{{ selectedRequest?.fecha }}</span></div>
+                    <div class="modal-field"><span class="modal-field-label">Estado</span><span class="estado-badge" :class="statusClass(selectedRequest?.estado)" style="margin-top:2px;display:inline-block">{{ selectedRequest?.estado }}</span></div>
+                  </div>
+                </div>
+
+                <div class="modal-section">
+                  <div class="modal-section-title">Motivos de adopción</div>
+                  <div class="modal-field modal-field-highlight">
+                    <span class="modal-field-label">¿Por qué desea adoptar esta mascota?</span>
+                    <span class="modal-field-val modal-field-quote">{{ selectedRequest?.porqueMascota }}</span>
+                  </div>
+                  <div class="modal-field modal-field-highlight" style="margin-top:10px">
+                    <span class="modal-field-label">Motivos de adopción</span>
+                    <span class="modal-field-val modal-field-quote">{{ selectedRequest?.motivos }}</span>
+                  </div>
+                </div>
+
               </div>
             </div>
-            <div class="modal-section">
-              <div class="modal-section-title">Evaluación</div>
-              <div class="modal-grid modal-grid-1">
-                <div class="modal-field modal-field-highlight"><span class="modal-field-label">¿Por qué desea adoptar esta mascota?</span><span class="modal-field-val modal-field-quote">{{ selectedRequest?.porqueMascota }}</span></div>
-                <div class="modal-field modal-field-highlight"><span class="modal-field-label">Motivos de adopción</span><span class="modal-field-val modal-field-quote">{{ selectedRequest?.motivos }}</span></div>
-              </div>
-              <div class="modal-grid modal-grid-3" style="margin-top:10px">
-                <div class="modal-field"><span class="modal-field-label">Horas sola</span><span class="modal-field-val">{{ selectedRequest?.horasSola }}</span></div>
-                <div class="modal-field modal-span2"><span class="modal-field-label">Rutina diaria</span><span class="modal-field-val">{{ selectedRequest?.rutina }}</span></div>
-              </div>
+
+            <div class="modal-actions">
+              <button type="button" class="btn-ghost" @click="showDetailModal = false">Cerrar expediente</button>
             </div>
-          </div>
-          <div class="modal-actions">
-            <button type="button" class="btn-ghost" @click="showDetailModal = false">Cerrar</button>
           </div>
         </div>
-      </div>
-    </Transition>
+      </Transition>
+    </Teleport>
 
   </div>
 </template>
 
 <style scoped>
+/* ── Variables (idénticas a Mascotas) ─────────────────────────────────── */
 .view-container {
-  --verde: #3A473C; --verde-sec: #92A894; --fondo: #F7F8F7;
-  --blanco: #FFFFFF; --texto: #2F352F; --texto-sec: #6C756D;
-  --borde: #E8ECE8; --amarillo: #F5B942; --verde-ok: #4CAF6A;
-  background: transparent;
+  --verde:       #3A473C;
+  --verde-sec:   #92A894;
+  --fondo:       #F7F8F7;
+  --blanco:      #FFFFFF;
+  --texto:       #2B322C;
+  --texto-sec:   #7A827B;
+  --texto-ter:   #A2A9A3;
+  --borde:       #E9ECE9;
+  --borde-suave: #EFF2EF;
+  --amarillo:    #F5B942;
+  --verde-ok:    #4CAF6A;
+  --sombra-sm:   0 1px 2px rgba(58,71,60,.03);
+  --sombra-md:   0 2px 4px rgba(58,71,60,.05), 0 14px 32px -14px rgba(58,71,60,.18);
+  background:
+    radial-gradient(ellipse 800px 420px at 12% 0%, rgba(146,168,148,.07), transparent),
+    var(--fondo);
+  padding-bottom: 40px;
 }
 
-/* Header */
-.page-header { margin-bottom: 28px; }
-.page-title  { font-size: 28px; font-weight: 800; color: var(--verde); letter-spacing: -0.5px; line-height: 1.1; margin: 0 0 4px; }
-.page-sub    { font-size: 14px; color: var(--texto-sec); font-weight: 500; margin: 0; }
+/* ── Encabezado ────────────────────────────────────────────────────────── */
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.brand-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  min-width: 38px;
+  border-radius: 11px;
+  background: linear-gradient(150deg, var(--verde) 0%, #6E8870 100%);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 10px -3px rgba(58,71,60,.45);
+}
+.admin-page-title { font-size: 22px; font-weight: 700; color: var(--texto); letter-spacing: -0.4px; line-height: 1.15; margin: 0 0 2px; }
+.admin-page-sub   { font-size: 12.5px; color: var(--texto-sec); font-weight: 500; margin: 0; }
 
-/* KPIs */
-.don-summary { display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap; }
-.don-card    { flex: 1; min-width: 140px; background: var(--blanco); border-radius: 14px; padding: 20px; border: 1px solid var(--borde); border-top: 3px solid var(--borde); display: flex; flex-direction: column; gap: 6px; }
-.kpi-yellow  { border-top-color: var(--amarillo); }
-.kpi-blue    { border-top-color: #6E9BFF; }
-.kpi-green   { border-top-color: var(--verde-ok); }
-.kpi-red     { border-top-color: #D06060; }
-.kpi-gray    { border-top-color: var(--texto-sec); }
-.don-label   { font-size: 11px; color: var(--texto-sec); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
-.don-value   { font-size: 26px; font-weight: 800; color: var(--verde); line-height: 1; }
+/* ── Tarjetas resumen ──────────────────────────────────────────────────── */
+.don-summary {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.don-card {
+  background: var(--blanco);
+  border-radius: 14px;
+  padding: 16px 15px;
+  border: 1px solid var(--borde);
+  box-shadow: var(--sombra-sm);
+  display: flex;
+  flex-direction: column;
+  transition: box-shadow .18s ease, border-color .18s ease;
+}
+.don-card:hover { border-color: #D7DED8; box-shadow: var(--sombra-md); }
 
-/* Filtros */
-.filtros-panel    { background: var(--blanco); border-radius: 14px; padding: 20px; margin-bottom: 20px; border: 1px solid var(--borde); display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end; }
-.filtro-group     { display: flex; flex-direction: column; gap: 6px; flex: 0 0 auto; min-width: 160px; }
-.filtro-group-btn { justify-content: flex-end; }
-.filtro-label     { font-size: 11px; font-weight: 700; color: var(--verde); text-transform: uppercase; letter-spacing: 0.5px; }
+.don-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  border: 1px solid transparent;
+}
+.pendiente-icon  { background: #FDF6E8; border-color: #F2E1B8; color: #A97A0C; }
+.proceso-icon    { background: #EEF1FB; border-color: #CBD5F2; color: #4F73B8; }
+.aprobada-icon   { background: #EDF6EF; border-color: #C9E4CE; color: #2E7D45; }
+.rechazada-icon  { background: #FBEDEC; border-color: #F1C7C3; color: #B71C1C; }
+.total-icon      { background: #F2F3F2; border-color: #DFE2DF; color: #616861; }
+
+.don-value { font-size: 21px; font-weight: 700; color: var(--texto); line-height: 1; letter-spacing: -0.4px; font-variant-numeric: tabular-nums; }
+.don-label { font-size: 10.5px; color: var(--texto-ter); font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 7px; }
+.don-desc  { font-size: 11px; color: var(--texto-sec); margin-top: 2px; }
+
+/* ── Panel de filtros ──────────────────────────────────────────────────── */
+.filtros-panel {
+  background: var(--blanco);
+  border-radius: 14px;
+  padding: 18px 20px;
+  margin-bottom: 20px;
+  border: 1px solid var(--borde);
+  box-shadow: var(--sombra-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.filtros-row { display: flex; gap: 24px; flex-wrap: wrap; }
+.filtros-row--end { align-items: flex-end; justify-content: space-between; }
+.filtros-divider { height: 1px; background: var(--borde-suave); }
+
+.filtro-group { display: flex; flex-direction: column; gap: 7px; }
+.filtro-group--tabs { flex: 0 0 auto; }
+.filtro-group--btn  { flex: 0 0 auto; }
+.filtro-group--search { flex: 1; min-width: 220px; max-width: 340px; }
+
+.filtro-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--texto-ter);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+}
+
+/* Tabs */
+.tabs-wrap {
+  display: flex;
+  gap: 3px;
+  background: var(--fondo);
+  border: 1px solid var(--borde-suave);
+  border-radius: 10px;
+  padding: 3px;
+  flex-wrap: wrap;
+}
+.tab-btn {
+  padding: 7px 13px;
+  border-radius: 7px;
+  border: none;
+  background: transparent;
+  color: var(--texto-sec);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.18s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+.tab-btn:hover { color: var(--texto); }
+.tab-btn.active { background: var(--blanco); color: var(--texto); box-shadow: var(--sombra-sm); border: 1px solid var(--borde); }
+
+/* Inputs */
 .filtro-input-wrap { position: relative; display: flex; align-items: center; }
-.filtro-input     { width: 100%; height: 38px; padding: 0 36px 0 12px; border-radius: 8px; border: 1.5px solid var(--borde); background: var(--fondo); font-size: 13px; color: var(--texto); font-family: inherit; outline: none; transition: border-color .18s; box-sizing: border-box; }
+.filtro-input {
+  width: 100%;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: 9px;
+  border: 1px solid var(--borde);
+  background: var(--fondo);
+  font-size: 13px;
+  color: var(--texto);
+  font-family: inherit;
+  outline: none;
+  transition: border-color 0.18s, background 0.18s;
+  box-sizing: border-box;
+}
 .filtro-input:focus { border-color: var(--verde-sec); background: var(--blanco); }
-.filtro-text      { padding-right: 12px; }
-.filtro-select    { appearance: none; -webkit-appearance: none; cursor: pointer; }
-.filtro-icon-right { position: absolute; right: 11px; display: flex; align-items: center; color: var(--texto-sec); }
-.no-events        { pointer-events: none; }
-.btn-limpiar      { height: 38px; padding: 0 16px; border-radius: 8px; border: 1.5px solid var(--borde); background: var(--blanco); color: var(--texto-sec); font-size: 12px; font-weight: 700; cursor: pointer; font-family: inherit; white-space: nowrap; transition: all .18s; }
-.btn-limpiar:hover { background: var(--verde); color: var(--blanco); border-color: var(--verde); }
+.filtro-input::placeholder { color: var(--texto-ter); }
+.filtro-input--icon-left { padding-left: 36px; }
 
-/* Tabla */
-.table-wrapper { background: var(--blanco); border-radius: 14px; border: 1px solid var(--borde); overflow: hidden; margin-bottom: 32px; }
-.table-scroll  { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.don-table     { width: 100%; border-collapse: collapse; min-width: 680px; }
-.don-table thead tr { background: var(--verde); }
-.don-table thead th { padding: 13px 16px; text-align: left; color: var(--blanco); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; white-space: nowrap; }
-.don-table tbody tr { border-bottom: 1px solid var(--borde); transition: background .15s; }
-.don-table tbody tr:last-child { border-bottom: none; }
-.don-table tbody tr:hover { background: #F4F6F4; }
-.don-table tbody td { padding: 13px 16px; vertical-align: middle; }
-.table-footer  { padding: 12px 16px; border-top: 1px solid var(--borde); font-size: 12px; color: var(--texto-sec); font-weight: 500; }
+.filtro-icon { position: absolute; display: flex; align-items: center; color: var(--texto-sec); }
+.filtro-icon--left { left: 12px; }
 
-/* Chips / badges */
-.id-pill     { font-size: 11px; font-family: monospace; background: var(--fondo); border: 1px solid var(--borde); padding: 3px 9px; border-radius: 6px; color: var(--verde); font-weight: 700; white-space: nowrap; }
-.pet-chip    { font-size: 12px; font-weight: 600; color: #4A6E4C; background: rgba(146,168,148,.12); padding: 3px 10px; border-radius: 7px; white-space: nowrap; }
-.donor-name  { font-size: 13px; font-weight: 700; color: var(--texto); display: block; }
-.muted-text  { font-size: 13px; color: var(--texto-sec); white-space: nowrap; }
-.estado-badge    { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; white-space: nowrap; }
-.badge-pendiente { background: #FFF7E0; color: #96650A; }
-.badge-proceso   { background: rgba(110,155,255,.14); color: #4F73B8; }
-.badge-aprobada  { background: #E8F5E9; color: #2E7D32; }
-.badge-rechazada { background: #FDECEA; color: #B71C1C; }
-.badge-neutral   { background: #F0F4F0; color: #7A847C; }
+.btn-limpiar {
+  height: 36px;
+  padding: 0 16px;
+  border-radius: 9px;
+  border: 1px solid var(--borde);
+  background: transparent;
+  color: var(--texto-sec);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.18s;
+  font-family: inherit;
+}
+.btn-limpiar--activo { border-color: var(--verde); color: var(--verde); }
+.btn-limpiar:hover   { background: var(--verde); color: var(--blanco); border-color: var(--verde); }
+
+/* ── Estado vacío ──────────────────────────────────────────────────────── */
+.empty-state {
+  text-align: center;
+  padding: 72px 24px;
+  background: var(--blanco);
+  border-radius: 14px;
+  border: 1px solid var(--borde);
+  color: var(--verde-sec);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+.empty-state svg { opacity: 0.4; }
+.empty-title { font-size: 16px; font-weight: 700; color: var(--texto); margin: 0; }
+.empty-sub   { font-size: 13px; color: var(--texto-sec); margin: 0; }
+
+/* ── Tabla ─────────────────────────────────────────────────────────────── */
+.table-wrapper {
+  background: var(--blanco);
+  border-radius: 14px;
+  border: 1px solid var(--borde);
+  overflow: hidden;
+  box-shadow: var(--sombra-sm);
+}
+.table-scroll        { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+.don-table           { width: 100%; border-collapse: collapse; min-width: 700px; }
+.don-table thead th  { padding: 12px 16px; text-align: left; color: var(--texto-ter); font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.6px; white-space: nowrap; }
+.don-table tbody tr  { border-top: 1px solid var(--borde-suave); transition: background 0.15s; }
+.don-table tbody tr:hover { background: #FAFBFA; }
+.don-table tbody td  { padding: 12px 16px; vertical-align: middle; }
+
+.id-pill    { font-size: 11px; font-family: ui-monospace, Menlo, Consolas, monospace; background: var(--fondo); border: 1px solid var(--borde); padding: 3px 9px; border-radius: 6px; color: var(--texto); font-weight: 700; white-space: nowrap; }
+.donor-name { display: block; font-size: 12.5px; font-weight: 700; color: var(--texto); line-height: 1.3; }
+.fecha-text { font-size: 12.5px; color: var(--texto-sec); white-space: nowrap; }
+
+.pet-chip {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: #4E6E51;
+  background: #F1F5F1;
+  padding: 3px 10px;
+  border-radius: 7px;
+  white-space: nowrap;
+}
+
+/* Badges */
+.estado-badge    { display: inline-block; font-size: 10.5px; font-weight: 700; padding: 4px 11px; border-radius: 20px; white-space: nowrap; }
+.badge-pendiente { background: #FDF6E8; color: #96650A; }
+.badge-proceso   { background: #EEF1FB; color: #4F73B8; }
+.badge-aprobada  { background: #EDF6EF; color: #2E7D32; }
+.badge-rechazada { background: #FBEDEC; color: #B71C1C; }
+.badge-neutral   { background: #F2F3F2; color: #7A827B; }
 
 /* Acciones */
 .action-group { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-.btn-ver      { padding: 6px 14px; border-radius: 7px; border: 1.5px solid var(--borde); background: var(--blanco); color: var(--verde); font-size: 12px; font-weight: 700; cursor: pointer; transition: all .18s; white-space: nowrap; font-family: inherit; }
-.btn-ver:hover { background: var(--verde); color: var(--blanco); border-color: var(--verde); }
-.btn-accion   { padding: 5px 12px; border-radius: 7px; border: 1.5px solid transparent; font-size: 12px; font-weight: 700; cursor: pointer; white-space: nowrap; font-family: inherit; transition: all .15s; }
-.btn-revisar  { background: rgba(110,155,255,.1); border-color: rgba(110,155,255,.3); color: #4F73B8; }
-.btn-revisar:hover  { background: rgba(110,155,255,.2); }
-.btn-aprobar  { background: #E8F5E9; border-color: rgba(76,175,80,.3); color: #2E7D32; }
-.btn-aprobar:hover  { background: #C8E6C9; }
-.btn-rechazar { background: #FDECEA; border-color: rgba(208,96,96,.25); color: #B71C1C; }
-.btn-rechazar:hover { background: #FFCDD2; }
+.btn-accion-pill {
+  padding: 6px 13px;
+  border-radius: 9px;
+  border: 1px solid var(--borde);
+  background: transparent;
+  color: var(--texto-sec);
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s;
+  font-family: inherit;
+}
+.btn-revisar  { background: #EEF1FB; border-color: #CBD5F2; color: #4F73B8; }
+.btn-revisar:hover  { background: #DDE4FA; }
+.btn-aprobar  { background: #EDF6EF; border-color: #C9E4CE; color: #2E7D32; }
+.btn-aprobar:hover  { background: #D9EEDC; }
+.btn-rechazar { background: #FBEDEC; border-color: #F1C7C3; color: #B71C1C; }
+.btn-rechazar:hover { background: #F7D6D2; }
 
-/* Empty */
-.empty-state { text-align: center; padding: 52px 20px; }
-.empty-icon  { font-size: 36px; margin-bottom: 12px; }
-.empty-state p { color: #9AA89C; font-size: 14px; margin: 0; }
+/* Botón icon-only "Ver detalle" — mismo componente que en el módulo Mascotas */
+.icon-only {
+  width: 38px; height: 38px; border-radius: 8px; border: 1px solid var(--borde);
+  background: var(--blanco); display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background-color .16s ease, border-color .16s ease; position: relative;
+  flex-shrink: 0;
+}
+.icon-only img { width: 16px; height: 16px; object-fit: contain; }
+.icon-only--ver { }
+.icon-only--ver:hover { border-color: #C7D3C8; background: #FAFCFA; }
+.icon-only::before {
+  content: attr(data-tooltip); position: absolute; bottom: calc(100% + 8px); left: 50%;
+  transform: translateX(-50%) translateY(4px); background: var(--verde); color: #fff;
+  font-size: 11px; font-weight: 600; padding: 5px 9px; border-radius: 7px; white-space: nowrap;
+  opacity: 0; visibility: hidden; pointer-events: none; transition: opacity .15s ease, transform .15s ease; z-index: 20;
+}
+.icon-only:hover::before { opacity: 1; visibility: visible; transform: translateX(-50%) translateY(0); }
 
-/* Modal */
-.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.35); backdrop-filter: blur(4px); z-index: 1000; display: flex; align-items: center; justify-content: center; padding: 24px; }
-.modal-box     { background: var(--blanco); border-radius: 20px; padding: 28px; width: 100%; max-width: 480px; max-height: 88vh; overflow-y: auto; box-shadow: 0 20px 60px rgba(0,0,0,.18); }
-.modal-large   { max-width: 760px; }
-.modal-head    { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 24px; padding-bottom: 20px; border-bottom: 1.5px solid #F0F4F0; }
-.modal-meta    { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
-.modal-title-large { font-size: 24px; font-weight: 800; color: var(--verde); margin: 0; letter-spacing: -0.3px; }
-.modal-close   { width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid #EEF3EE; background: transparent; color: #9AA89C; font-size: 14px; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: all .15s; }
+.table-footer { padding: 12px 16px; border-top: 1px solid var(--borde-suave); font-size: 12px; color: var(--texto-sec); font-weight: 500; }
+
+/* ══════════════════════════════════════════════
+   MODAL — mismo lenguaje de diseño que el
+   expediente "Ver mascota": hero + bloques + 880×660
+   ══════════════════════════════════════════════ */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,0.35);
+  backdrop-filter: blur(4px);
+  z-index: 1000;
+  display: flex; align-items: center; justify-content: center;
+  padding: 24px;
+}
+.modal-box {
+  background: var(--blanco);
+  border-radius: 22px;
+  box-shadow: var(--sombra-md);
+  position: relative;
+}
+.modal-box--uniform {
+  width: 880px;
+  max-width: 92vw;
+  height: 660px;
+  max-height: 90vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+.uniform-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+
+.modal-close {
+  position: absolute; top: 18px; right: 18px; z-index: 6;
+  width: 34px; height: 34px; border-radius: 9px; border: 1.5px solid #EEF3EE; background: transparent;
+  color: #9AA89C; display: flex; align-items: center; justify-content: center; cursor: pointer;
+  transition: all .15s;
+}
+.modal-close svg { width: 18px; height: 18px; }
 .modal-close:hover { background: #F0F4F0; color: var(--verde); }
-.modal-sections { display: flex; flex-direction: column; gap: 24px; margin-bottom: 4px; }
+
+/* Cabecera del expediente — mismo patrón que Rescates / Ver mascota */
+.modal-head {
+  flex-shrink: 0;
+  display: flex; align-items: flex-start; gap: 16px;
+  padding: 26px 36px 20px;
+  border-bottom: 1.5px solid #F0F4F0;
+}
+.modal-head-left { flex: 1; min-width: 0; }
+.modal-head-avatar {
+  width: 56px; height: 56px; min-width: 56px; border-radius: 14px; background: #F1F5F1;
+  color: #4E6E51; font-size: 20px; font-weight: 800; overflow: hidden; text-transform: uppercase;
+  display: flex; align-items: center; justify-content: center;
+}
+.modal-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 10px; }
+.modal-title-large { font-size: 22px; font-weight: 800; color: var(--verde); margin: 0; letter-spacing: -0.3px; overflow-wrap: break-word; }
+
+/* Cuerpo por secciones */
+.modal-sections { display: flex; flex-direction: column; gap: 22px; padding: 22px 36px 8px; }
 .modal-section  { display: flex; flex-direction: column; gap: 12px; }
-.modal-section-title { font-size: 11px; font-weight: 800; color: #9AA89C; text-transform: uppercase; letter-spacing: .7px; display: flex; align-items: center; gap: 8px; }
+.modal-section-title {
+  font-size: 11px; font-weight: 800; color: #9AA89C; text-transform: uppercase; letter-spacing: .7px;
+  display: flex; align-items: center; gap: 8px;
+}
 .modal-section-title::before { content: ''; display: block; width: 3px; height: 14px; background: #92A894; border-radius: 2px; }
+
 .modal-grid   { display: grid; gap: 10px; }
 .modal-grid-3 { grid-template-columns: repeat(3, 1fr); }
-.modal-grid-1 { grid-template-columns: 1fr; }
-.modal-field  { background: #F7FAF7; border-radius: 12px; padding: 12px 14px; border: 1px solid #EEF3EE; display: flex; flex-direction: column; gap: 4px; }
+.modal-field  {
+  background: #F7FAF7; border-radius: 12px; padding: 12px 14px; border: 1px solid #EEF3EE;
+  display: flex; flex-direction: column; gap: 4px; min-width: 0;
+}
+.modal-field--full { grid-column: 1 / -1; }
 .modal-field-highlight { background: #FAFCFA; border-left: 3px solid #92A894; }
-.modal-span2  { grid-column: span 2; }
 .modal-field-label { font-size: 11px; font-weight: 700; color: #9AA89C; text-transform: uppercase; letter-spacing: .4px; }
-.modal-field-val   { font-size: 14px; font-weight: 600; color: var(--verde); line-height: 1.5; }
+.modal-field-val   { font-size: 14px; font-weight: 600; color: var(--verde); line-height: 1.5; overflow-wrap: break-word; word-break: break-word; }
 .modal-field-quote { font-style: italic; font-weight: 500; color: #3A4C3C; }
-.modal-actions { display: flex; gap: 10px; padding-top: 16px; border-top: 1px solid #F0F4F0; margin-top: 20px; }
-.btn-ghost     { padding: 11px 22px; border-radius: 12px; border: 1.5px solid #EEF3EE; background: transparent; color: #7A847C; font-size: 14px; font-weight: 700; cursor: pointer; transition: all .2s; }
+
+/* Pie del expediente */
+.modal-actions {
+  flex-shrink: 0; display: flex; gap: 10px; justify-content: flex-end;
+  padding: 16px 36px 20px; border-top: 1px solid var(--borde-suave); margin-top: 0;
+}
+.btn-ghost {
+  padding: 11px 22px; border-radius: 12px; border: 1.5px solid #EEF3EE; background: transparent;
+  color: #7A847C; font-size: 14px; font-weight: 700; cursor: pointer; transition: all .2s; font-family: inherit;
+}
 .btn-ghost:hover { background: #F0F4F0; color: var(--verde); }
 
-.modal-fade-enter-active { transition: all .22s ease; }
-.modal-fade-leave-active { transition: all .16s ease; }
-.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
-.modal-fade-enter-from .modal-box { transform: scale(.97) translateY(8px); }
+.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.22s ease; }
+.modal-fade-enter-from, .modal-fade-leave-to       { opacity: 0; }
 
-@media (max-width: 900px) { .don-summary { display: grid; grid-template-columns: repeat(2,1fr); } }
-@media (max-width: 640px) { .filtros-panel { flex-direction: column; } .modal-grid-3 { grid-template-columns: 1fr 1fr; } .modal-box { padding: 20px; } .don-summary { grid-template-columns: 1fr; } }
-@media (max-width: 500px) { .modal-grid-3 { grid-template-columns: 1fr; } }
-
-
-/* ── MOBILE RESPONSIVE ── */
+/* ── Responsive ────────────────────────────────────────────────────────── */
+@media (max-width: 1100px) {
+  .don-summary { grid-template-columns: repeat(3, 1fr); }
+}
+@media (max-width: 900px) {
+  .don-summary { grid-template-columns: repeat(2, 1fr); }
+  .modal-box--uniform { width: 94vw; height: 88vh; }
+  .modal-grid-3 { grid-template-columns: repeat(2, 1fr); }
+}
 @media (max-width: 768px) {
-  .don-summary {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-  }
+  .don-summary { grid-template-columns: repeat(2, 1fr); gap: 10px; }
 
-  .don-card:last-child {
-    grid-column: span 2;
-  }
+  .filtros-panel { padding: 14px; gap: 14px; }
+  .filtros-row { flex-direction: column; gap: 12px; }
+  .filtro-group { min-width: unset; width: 100%; }
+  .filtro-group--search { max-width: none; }
 
-  .filtros-panel {
-    flex-direction: column;
-    gap: 10px;
-    padding: 16px;
-  }
+  .tabs-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; flex-wrap: nowrap; padding-bottom: 4px; }
+  .tab-btn { white-space: nowrap; flex-shrink: 0; }
 
-  .filtro-group {
-    min-width: unset;
-    width: 100%;
-  }
+  .btn-limpiar { width: 100%; }
 
-  .filtro-group-btn {
-    width: 100%;
-  }
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
 
-  .btn-limpiar {
-    width: 100%;
-    justify-content: center;
-  }
+  .modal-box--uniform { width: 96vw; height: 92vh; border-radius: 18px; }
+  .modal-head, .modal-sections, .modal-actions { padding-left: 20px; padding-right: 20px; }
+  .modal-grid-3 { grid-template-columns: 1fr; }
 
-  .table-wrapper {
-    overflow: hidden;
-  }
+  .page-header { flex-direction: column; align-items: flex-start; gap: 10px; }
 
-  .table-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .modal-box {
-    padding: 20px 16px;
-    margin: 0 8px;
-    max-height: 95vh;
-  }
-
-  .modal-grid-3 {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .modal-acciones {
-    flex-direction: column;
-  }
-
-  .action-group {
-    flex-wrap: wrap;
-  }
+  .action-group { flex-wrap: wrap; }
 }
-
 @media (max-width: 480px) {
-  .don-summary {
-    grid-template-columns: 1fr;
-  }
-
-  .don-card:last-child {
-    grid-column: span 1;
-  }
-
-  .modal-grid-3 {
-    grid-template-columns: 1fr;
-  }
-
-  .modal-span2 {
-    grid-column: span 1;
-  }
+  .don-summary { grid-template-columns: 1fr; }
 }
-
-
 </style>
