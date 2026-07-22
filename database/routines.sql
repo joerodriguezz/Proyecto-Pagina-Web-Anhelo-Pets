@@ -200,7 +200,7 @@ $$;
 
 CREATE OR REPLACE FUNCTION fn_get_auth_user(p_username_or_email text)
 RETURNS TABLE (
-    user_id bigint,
+    user_id text,
     username varchar(100),
     email varchar(255),
     password_hash text,
@@ -239,7 +239,7 @@ AS $$
 $$;
 
 CREATE OR REPLACE FUNCTION fn_update_password_hash(
-    p_user_id bigint,
+    p_user_id text,
     p_password_hash text,
     p_modified_by varchar(100) DEFAULT 'api'
 )
@@ -848,9 +848,9 @@ $$;
 CREATE OR REPLACE FUNCTION fn_get_foster_placements_admin()
 RETURNS TABLE (
     animal_foster_placement_id bigint,
-    animal_id bigint,
+    animal_id text,
     animal_name varchar(100),
-    foster_home_id bigint,
+    foster_home_id text,
     foster_home_name varchar(150),
     start_date date,
     end_date date,
@@ -875,8 +875,8 @@ AS $$
 $$;
 
 CREATE OR REPLACE FUNCTION fn_assign_animal_foster_home(
-    p_animal_id bigint,
-    p_foster_home_id bigint,
+    p_animal_id text,
+    p_foster_home_id text,
     p_start_date date,
     p_end_date date DEFAULT NULL,
     p_notes text DEFAULT NULL,
@@ -930,8 +930,8 @@ $$;
 
 CREATE OR REPLACE FUNCTION fn_update_foster_placement(
     p_animal_foster_placement_id bigint,
-    p_animal_id bigint,
-    p_foster_home_id bigint,
+    p_animal_id text,
+    p_foster_home_id text,
     p_start_date date,
     p_end_date date DEFAULT NULL,
     p_notes text DEFAULT NULL,

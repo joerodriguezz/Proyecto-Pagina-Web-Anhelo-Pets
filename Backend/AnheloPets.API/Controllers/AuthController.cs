@@ -53,13 +53,4 @@ public class AuthController : ControllerBase
         await _userService.ResetPasswordByEmail(request);
         return NoContent();
     }
-
-    [HttpPut("users/{userId:long}/password")]
-    public IActionResult UpdatePassword(long userId, [FromBody] PasswordUpdateDto request)
-    {
-        if (request == null) return BadRequest();
-        if (!_userService.UpdatePassword(userId, request)) return NotFound();
-
-        return NoContent();
-    }
 }

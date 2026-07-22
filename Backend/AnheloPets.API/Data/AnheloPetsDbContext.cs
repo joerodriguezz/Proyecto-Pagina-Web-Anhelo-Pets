@@ -35,6 +35,8 @@ public class AnheloPetsDbContext : DbContext
 
     public DbSet<Donation> Donations { get; set; }
 
+    public DbSet<AdoptionRequest> AdoptionRequests { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -206,6 +208,23 @@ public class AnheloPetsDbContext : DbContext
             entity.Property(d => d.ValidationStatus).HasColumnName("validation_status").HasMaxLength(20);
             entity.Property(d => d.CreatedBy).HasColumnName("created_by").HasMaxLength(100);
             entity.Property(d => d.ModifiedBy).HasColumnName("modified_by").HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<AdoptionRequest>(entity =>
+        {
+            entity.ToTable("adoption_requests");
+            entity.Property(r => r.AdoptionRequestId)
+                .HasColumnName("adoption_request_id")
+                .HasDefaultValueSql("generate_id('ADO')")
+                .ValueGeneratedOnAdd();
+            entity.Property(r => r.UserId).HasColumnName("user_id").HasColumnType("text");
+            entity.Property(r => r.AnimalId).HasColumnName("animal_id").HasColumnType("text");
+            entity.Property(r => r.ValidationStatus).HasColumnName("validation_status").HasMaxLength(20);
+            entity.Property(r => r.CreatedBy).HasColumnName("created_by").HasMaxLength(100);
+            entity.Property(r => r.ModifiedBy).HasColumnName("modified_by").HasMaxLength(100);
+            entity.Property(r => r.ValidatedByUserId).HasColumnName("validated_by_user_id").HasColumnType("text");
+
+            entity.HasIndex(r => new { r.UserId, r.AnimalId }).IsUnique();
         });
     }
 }

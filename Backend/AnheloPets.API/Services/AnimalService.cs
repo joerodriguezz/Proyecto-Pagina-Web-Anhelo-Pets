@@ -107,6 +107,9 @@ public class AnimalService : IAnimalService
 
             while (reader.Read())
             {
+                var ageYears = GetInt32(reader, "age_years");
+                var totalAgeMonths = GetInt32(reader, "age_months");
+
                 animals.Add(new AnimalDto
                 {
                     AnimalId = GetIdString(reader, "animal_id"),
@@ -114,8 +117,12 @@ public class AnimalService : IAnimalService
                     Species = GetString(reader, "species"),
                     Breed = GetString(reader, "breed"),
                     BirthDate = GetDateOnly(reader, "birth_date"),
-                    AgeYears = GetInt32(reader, "age_years"),
-                        Sex = GetString(reader, "sex"),
+                    AgeYears = ageYears,
+                    // age_months de fn_get_pet_catalog es el total de meses desde el
+                    // nacimiento (años*12 + meses); acá se guarda solo el resto tras
+                    // los años completos, que es lo que el frontend concatena con AgeYears.
+                    AgeMonths = totalAgeMonths.HasValue ? totalAgeMonths.Value - (ageYears ?? 0) * 12 : null,
+                    Sex = GetString(reader, "sex"),
                     AnimalStatus = GetString(reader, "animal_status"),
                     HealthStatus = GetString(reader, "health_status"),
                     Description = GetString(reader, "description"),

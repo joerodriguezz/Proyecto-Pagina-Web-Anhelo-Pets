@@ -28,6 +28,7 @@ builder.Services.AddScoped<RoleRepository>();
 builder.Services.AddScoped<UserAdminRepository>();
 builder.Services.AddScoped<VolunteerRepository>();
 builder.Services.AddScoped<DonationRepository>();
+builder.Services.AddScoped<AdoptionRequestRepository>();
 builder.Services.AddScoped<IAnimalMedicalRecordService, AnimalMedicalRecordService>();
 builder.Services.AddScoped<IVeterinarianService, VeterinarianService>();
 builder.Services.AddScoped<IRoleService, RoleService>();
@@ -38,8 +39,8 @@ builder.Services.AddScoped<IRescateService, RescateService>();
 builder.Services.AddScoped<IVolunteerService, VolunteerService>();
 builder.Services.AddScoped<IFosterHomeService, FosterHomeService>();
 builder.Services.AddScoped<IFosterPlacementService, FosterPlacementService>();
-builder.Services.AddScoped<IAdoptionService, AdoptionService>();
 builder.Services.AddScoped<IDonationService, DonationService>();
+builder.Services.AddScoped<IAdoptionRequestService, AdoptionRequestService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
 
 // Swagger
@@ -98,7 +99,9 @@ builder.Services.AddCors(options =>
 {
     options.AddPolicy("VuePolicy", policy =>
     {
-        policy.AllowAnyOrigin()
+        policy.WithOrigins(
+                  "https://proyecto-pagina-web-anhelo-pets.vercel.app",
+                  "http://localhost:5173")
               .AllowAnyHeader()
               .AllowAnyMethod();
     });

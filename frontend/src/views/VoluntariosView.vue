@@ -487,26 +487,8 @@ onMounted(() => {
   cargarSolicitudActual()
 
   if (usuarioActivo.value) {
-    fullName.value = usuarioActivo.value.nombre  || ''
-    idCard.value   = usuarioActivo.value.cedula  || ''
-    email.value    = usuarioActivo.value.correo  || ''
-
-    // Dirección guardada como objeto
-    const dir = usuarioActivo.value.direccion
-    if (dir && typeof dir === 'object') {
-      provincia.value = dir.provincia || ''
-      canton.value    = dir.canton    || ''
-      distrito.value  = dir.distrito  || ''
-    }
-
-    if (usuarioActivo.value.telefono) {
-      const partes = usuarioActivo.value.telefono.split(' ')
-      if (partes.length >= 2) {
-        const found = phoneCodesList.find(c => c.code === partes[0])
-        selectedCountry.value = found || { name: '', code: partes[0] }
-        phone.value = partes.slice(1).join(' ')
-      }
-    }
+    fullName.value = usuarioActivo.value.nombre || ''
+    email.value    = usuarioActivo.value.correo || ''
   }
 })
 
@@ -806,7 +788,7 @@ async function submitVolunteer() {
             </div>
             <div class="form-group">
               <label>Cédula</label>
-              <input v-model="idCard" type="text" placeholder="1-2345-6789" disabled>
+              <input v-model="idCard" type="text" placeholder="1-2345-6789">
             </div>
           </div>
 

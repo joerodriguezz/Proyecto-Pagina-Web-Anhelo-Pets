@@ -8,6 +8,7 @@ public class AnimalDto
     public string Breed { get; set; } = string.Empty;
     public DateOnly? BirthDate { get; set; }
     public int? AgeYears { get; set; }
+    public int? AgeMonths { get; set; }
     public string? Sex { get; set; }
     public string AnimalStatus { get; set; } = string.Empty;
     public string HealthStatus { get; set; } = string.Empty;

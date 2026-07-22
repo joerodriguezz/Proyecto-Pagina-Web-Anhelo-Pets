@@ -3,28 +3,44 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { RouterLink } from 'vue-router'
 import { usePetsStore } from '../../stores/usePetsStore'
 import { useRescuesStore } from '../../stores/useRescuesStore'
+import { getAdoptionRequests, mapAdoptionRequestDtoToRow } from '../../services/adoptionServices'
 
 // ─── Stores ───────────────────────────────────────────────────
 const petsStore   = usePetsStore()
 const rescuesStore = useRescuesStore()
 
-// ─── localStorage (solicitudes, usuarios, donaciones aún en LS) ─
-const solicitudes = ref([])
+// ─── localStorage (usuarios, donaciones aún en LS) ─
 const usuarios    = ref([])
 const donaciones  = ref([])
 
+// ─── Solicitudes de adopción (API real) ─────────────────────────
+const solicitudesAdopcion = ref([])
+
+async function cargarSolicitudesAdopcion() {
+  try {
+    const { data } = await getAdoptionRequests()
+    solicitudesAdopcion.value = (data || []).map(mapAdoptionRequestDtoToRow)
+  } catch {
+    solicitudesAdopcion.value = []
+  }
+}
+
 function cargar() {
-  try { solicitudes.value = JSON.parse(localStorage.getItem('anhelo_solicitudes') || '[]') } catch { solicitudes.value = [] }
   try { usuarios.value    = JSON.parse(localStorage.getItem('anhelo_usuarios')    || '[]') } catch { usuarios.value    = [] }
   try { donaciones.value  = JSON.parse(localStorage.getItem('anhelo_donaciones')  || '[]') } catch { donaciones.value  = [] }
 }
 
 function onStorage(e) {
-  const claves = ['anhelo_solicitudes', 'anhelo_usuarios', 'anhelo_donaciones']
+  const claves = ['anhelo_usuarios', 'anhelo_donaciones']
   if (claves.includes(e.key)) cargar()
 }
 
-onMounted(() => { cargar(); rescuesStore.fetchRescues(); window.addEventListener('storage', onStorage) })
+onMounted(() => {
+  cargar()
+  cargarSolicitudesAdopcion()
+  rescuesStore.fetchRescues()
+  window.addEventListener('storage', onStorage)
+})
 onUnmounted(() => window.removeEventListener('storage', onStorage))
 
 // ─── KPI 1 · Mascotas registradas ────────────────────────────
@@ -32,10 +48,7 @@ const totalMascotas = computed(() => petsStore.pets.length)
 
 // ─── KPI 2 · Adopciones activas ──────────────────────────────
 const totalAdopciones = computed(() =>
-  petsStore.pets.reduce((sum, pet) => {
-    const reqs = pet.requests || []
-    return sum + reqs.filter(r => r.status !== 'Rechazada').length
-  }, 0)
+  solicitudesAdopcion.value.filter(s => s.estado !== 'Rechazada').length
 )
 
 // ─── KPI 3 · Rescates activos ─────────────────────────────────
@@ -67,16 +80,11 @@ const totalVoluntarios = computed(() =>
 )
 
 // ─── Solicitudes recientes ────────────────────────────────────
-const solicitudesRecientes = computed(() => {
-  const todas = []
-  petsStore.pets.forEach(pet => {
-    (pet.requests || []).forEach(r => {
-      todas.push({ ...r, mascotaNombre: pet.name })
-    })
-  })
-  todas.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-  return todas.slice(0, 5)
-})
+const solicitudesRecientes = computed(() =>
+  [...solicitudesAdopcion.value]
+    .sort((a, b) => new Date(b.fecha || 0) - new Date(a.fecha || 0))
+    .slice(0, 5)
+)
 
 // ─── Estado de mascotas ───────────────────────────────────────
 const mascotasDisponibles = computed(() => petsStore.pets.filter(p => p.status === 'Disponible').length)
@@ -261,10 +269,10 @@ const donutSegments = computed(() => {
                 </thead>
                 <tbody>
                   <tr v-for="r in solicitudesRecientes" :key="r.id">
-                    <td><span class="cell-name">{{ r.applicantName || '—' }}</span></td>
-                    <td><span class="cell-pet">{{ r.mascotaNombre || '—' }}</span></td>
-                    <td><span class="cell-date">{{ formatFecha(r.createdAt) }}</span></td>
-                    <td><span class="estado-badge" :class="badgeClass(r.status)">{{ r.status || 'Pendiente' }}</span></td>
+                    <td><span class="cell-name">{{ r.solicitante || '—' }}</span></td>
+                    <td><span class="cell-pet">{{ r.mascota || '—' }}</span></td>
+                    <td><span class="cell-date">{{ formatFecha(r.fecha) }}</span></td>
+                    <td><span class="estado-badge" :class="badgeClass(r.estado)">{{ r.estado || 'Pendiente' }}</span></td>
                   </tr>
                 </tbody>
               </table>
@@ -405,7 +413,7 @@ const donutSegments = computed(() => {
             <div class="summary-item">
               <span class="summary-label">Solicitudes pendientes</span>
               <div class="summary-val-wrap">
-                <span class="summary-val summary-val--num">{{ solicitudesRecientes.filter(s => s.status === 'Pendiente' || !s.status).length }}</span>
+                <span class="summary-val summary-val--num">{{ solicitudesAdopcion.filter(s => s.estado === 'Pendiente').length }}</span>
               </div>
             </div>
             <div class="summary-item">

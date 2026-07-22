@@ -3,7 +3,7 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
 import FooterBar from '../components/FooterBar.vue'
-import { getAnimals } from '../services/petServices.js'
+import { getAnimals, mapDtoToPet } from '../services/petServices.js'
 
 const router = useRouter()
 
@@ -25,8 +25,7 @@ const filtered = computed(() =>
     const matchSearch = !search ||
       pet.name.toLowerCase().includes(search) ||
       pet.type.toLowerCase().includes(search) ||
-      (pet.description || '').toLowerCase().includes(search) ||
-      (pet.personality || '').toLowerCase().includes(search)
+      (pet.description || '').toLowerCase().includes(search)
     return matchType && matchSex && matchStatus && matchSearch
   })
 )
@@ -50,7 +49,7 @@ async function loadAnimals() {
 
   try {
     const response = await getAnimals(buildQueryParams())
-    pets.value = response.data || []
+    pets.value = (response.data || []).map(mapDtoToPet)
   } catch (err) {
     console.error('Error cargando mascotas:', err)
     error.value = 'No se pudieron cargar las mascotas.'
@@ -166,10 +165,6 @@ function clearFilters() {
 
           <p class="pet-meta">
             {{ pet.type }} · {{ pet.sex }}
-          </p>
-
-          <p v-if="pet.personality" class="pet-personality">
-            <span class="pill-tag">{{ pet.personality }}</span>
           </p>
 
           <p class="pet-desc">{{ pet.description || pet.desc }}</p>
@@ -566,20 +561,6 @@ function clearFilters() {
   font-size: 13px;
   font-weight: 500;
   margin-bottom: 10px;
-}
-
-.pet-personality {
-  margin-bottom: 10px;
-}
-
-.pill-tag {
-  background: #E7EEE7;
-  color: #3A473C;
-  font-size: 11px;
-  font-weight: 700;
-  padding: 4px 12px;
-  border-radius: 999px;
-  letter-spacing: 0.02em;
 }
 
 .pet-desc {

@@ -19,6 +19,7 @@ export const logout = () => {
 
 export const getCurrentUser = async () => {
     const { data } = await get('/api/auth/me')
+    setToken(data.token)
     return data
 }
 

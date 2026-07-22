@@ -38,12 +38,6 @@ public class LoginDtoRequest
     public string Password { get; set; } = string.Empty;
 }
 
-public class PasswordUpdateDto
-{
-    public string Password { get; set; } = string.Empty;
-    public string ModifiedBy { get; set; } = "api";
-}
-
 public class AuthUserDto
 {
     public string? UserId { get; set; }

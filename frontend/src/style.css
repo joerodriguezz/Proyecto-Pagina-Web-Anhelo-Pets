@@ -4,13 +4,16 @@
 
 @import url('https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&display=swap');
 
-*, *::before, *::after {
+*,
+*::before,
+*::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
 :root {
+  /* Colores de marca */
   --green-dark:   #1F6B45;
   --green:        #2E8B57;
   --green-light:  #3FA26A;
@@ -21,17 +24,24 @@
   --cream:        #F7F3EC;
   --cream-dark:   #EDE8DF;
   --white:        #FFFFFF;
+
+  /* Texto */
   --text-dark:    #1A2E22;
   --text-mid:     #4A5E52;
   --text-light:   #7A8E82;
+
+  /* Bordes y sombras */
   --border:       #D6E8DC;
-  --shadow-sm:    0 2px 8px rgba(42,92,66,0.10);
-  --shadow-md:    0 4px 20px rgba(42,92,66,0.15);
-  --shadow-lg:    0 8px 40px rgba(42,92,66,0.20);
+  --shadow-sm:    0 2px 8px rgba(42, 92, 66, 0.10);
+  --shadow-md:    0 4px 20px rgba(42, 92, 66, 0.15);
+  --shadow-lg:    0 8px 40px rgba(42, 92, 66, 0.20);
+
+  /* Radios */
   --radius-sm:    8px;
   --radius-md:    14px;
   --radius-lg:    22px;
   --radius-full:  9999px;
+
   font-family: "Poppins", sans-serif;
 }
 
@@ -48,18 +58,32 @@ body {
   flex-direction: column;
 }
 
-a { text-decoration: none; color: inherit; }
-img { max-width: 100%; display: block; }
-ul { list-style: none; }
+a {
+  text-decoration: none;
+  color: inherit;
+}
 
-/* ---- Shared Buttons ---- */
-.btn-primary {
+img {
+  max-width: 100%;
+  display: block;
+}
+
+ul {
+  list-style: none;
+}
+
+/* =========================================
+   Botones compartidos
+   Base común (.btn-base) + modificadores de color.
+   ========================================= */
+
+.btn-primary,
+.btn-outline,
+.btn-outline-green,
+.btn-yellow {
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  background: var(--green);
-  color: var(--white);
-  border: 2px solid var(--green);
   padding: 10px 22px;
   border-radius: var(--radius-full);
   font-size: 15px;
@@ -67,72 +91,62 @@ ul { list-style: none; }
   cursor: pointer;
   transition: background 0.2s, transform 0.15s, box-shadow 0.2s;
 }
+
+.btn-primary:hover,
+.btn-outline:hover,
+.btn-outline-green:hover,
+.btn-yellow:hover {
+  transform: translateY(-1px);
+}
+
+/* Sólido verde, para la acción principal de la página */
+.btn-primary {
+  background: var(--green);
+  color: var(--white);
+  border: 2px solid var(--green);
+}
 .btn-primary:hover {
   background: var(--green-dark);
   border-color: var(--green-dark);
   box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
 }
 
+/* Contorno blanco, para usar sobre fondos oscuros/hero */
 .btn-outline {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
   background: transparent;
   color: var(--white);
   border: 2px solid var(--white);
-  padding: 10px 22px;
-  border-radius: var(--radius-full);
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s, transform 0.15s;
 }
 .btn-outline:hover {
-  background: rgba(255,255,255,0.15);
-  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.15);
 }
 
+/* Contorno verde, para usar sobre fondos claros */
 .btn-outline-green {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
   background: transparent;
   color: var(--green);
   border: 2px solid var(--green);
-  padding: 10px 22px;
-  border-radius: var(--radius-full);
-  font-size: 15px;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background 0.2s, transform 0.15s;
 }
 .btn-outline-green:hover {
   background: rgba(46, 139, 87, 0.10);
-  transform: translateY(-1px);
 }
 
+/* Sólido verde con texto en negrita, para llamados a la acción destacados */
 .btn-yellow {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
   background: var(--green);
   color: var(--white);
   border: 2px solid var(--green);
-  padding: 10px 22px;
-  border-radius: var(--radius-full);
-  font-size: 15px;
   font-weight: 700;
-  cursor: pointer;
-  transition: background 0.2s, transform 0.15s;
 }
 .btn-yellow:hover {
   background: var(--green-dark);
   border-color: var(--green-dark);
-  transform: translateY(-1px);
 }
 
-/* ---- Section Headings ---- */
+/* =========================================
+   Encabezados de sección
+   ========================================= */
+
 .section-title {
   font-size: 32px;
   font-weight: 700;
@@ -140,6 +154,7 @@ ul { list-style: none; }
   text-align: center;
   margin-bottom: 8px;
 }
+
 .section-subtitle {
   font-size: 16px;
   color: var(--text-mid);
@@ -147,14 +162,20 @@ ul { list-style: none; }
   margin-bottom: 40px;
 }
 
-/* ---- Containers ---- */
+/* =========================================
+   Contenedores
+   ========================================= */
+
 .container {
   max-width: 1180px;
   margin: 0 auto;
   padding: 0 24px;
 }
 
-/* ---- Badge/Tag ---- */
+/* =========================================
+   Badges / etiquetas de estado
+   ========================================= */
+
 .badge {
   display: inline-block;
   padding: 4px 12px;
@@ -163,13 +184,32 @@ ul { list-style: none; }
   font-weight: 600;
   letter-spacing: 0.5px;
 }
-.badge-green   { background: var(--green-pale); color: var(--green-dark); }
-.badge-yellow  { background: #FFF3CC; color: #8A6A00; }
-.badge-gray    { background: #E8E8E8; color: #555; }
-.badge-red     { background: #FFECEC; color: #C0392B; }
-.badge-blue    { background: #E8F4FF; color: #1A6FAF; }
 
-/* ---- Card ---- */
+.badge-green {
+  background: var(--green-pale);
+  color: var(--green-dark);
+}
+.badge-yellow {
+  background: #FFF3CC;
+  color: #8A6A00;
+}
+.badge-gray {
+  background: #E8E8E8;
+  color: #555;
+}
+.badge-red {
+  background: #FFECEC;
+  color: #C0392B;
+}
+.badge-blue {
+  background: #E8F4FF;
+  color: #1A6FAF;
+}
+
+/* =========================================
+   Tarjeta genérica
+   ========================================= */
+
 .card {
   background: var(--white);
   border: 1px solid var(--border);
@@ -178,13 +218,20 @@ ul { list-style: none; }
   box-shadow: var(--shadow-sm);
   transition: box-shadow 0.2s, transform 0.2s;
 }
+
 .card:hover {
   box-shadow: var(--shadow-md);
   transform: translateY(-2px);
 }
 
-/* ---- Form Controls ---- */
-.form-group { margin-bottom: 18px; }
+/* =========================================
+   Controles de formulario
+   ========================================= */
+
+.form-group {
+  margin-bottom: 18px;
+}
+
 .form-label {
   display: block;
   font-size: 14px;
@@ -192,7 +239,10 @@ ul { list-style: none; }
   color: var(--text-mid);
   margin-bottom: 6px;
 }
-.form-input, .form-select, .form-textarea {
+
+.form-input,
+.form-select,
+.form-textarea {
   width: 100%;
   padding: 10px 14px;
   border: 1.5px solid var(--border);
@@ -203,23 +253,35 @@ ul { list-style: none; }
   transition: border-color 0.2s, box-shadow 0.2s;
   outline: none;
 }
-.form-input:focus, .form-select:focus, .form-textarea:focus {
-  border-color: var(--green);
-  box-shadow: 0 0 0 3px rgba(58,122,86,0.12);
-}
-.form-textarea { resize: vertical; min-height: 100px; }
 
-/* ---- Table ---- */
+.form-input:focus,
+.form-select:focus,
+.form-textarea:focus {
+  border-color: var(--green);
+  box-shadow: 0 0 0 3px rgba(58, 122, 86, 0.12);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+/* =========================================
+   Tabla de datos
+   ========================================= */
+
 .table-wrapper {
   overflow-x: auto;
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
 }
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 14px;
 }
+
 .data-table th {
   background: var(--cream);
   color: var(--text-mid);
@@ -229,20 +291,40 @@ ul { list-style: none; }
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
+
 .data-table td {
   padding: 12px 16px;
   border-bottom: 1px solid var(--border);
   color: var(--text-dark);
 }
-.data-table tr:last-child td { border-bottom: none; }
-.data-table tr:hover td { background: #F8FBF9; }
 
-/* ---- Page Hero Strip ---- */
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tr:hover td {
+  background: #F8FBF9;
+}
+
+/* =========================================
+   Franja hero de página
+   ========================================= */
+
 .page-hero {
   background: linear-gradient(135deg, var(--green-dark) 0%, var(--green) 100%);
   color: var(--white);
   padding: 60px 24px;
   text-align: center;
 }
-.page-hero h1 { font-size: 36px; font-weight: 800; color: var(--white); margin-bottom: 10px; }
-.page-hero p  { font-size: 17px; opacity: 0.88; }
+
+.page-hero h1 {
+  font-size: 36px;
+  font-weight: 800;
+  color: var(--white);
+  margin-bottom: 10px;
+}
+
+.page-hero p {
+  font-size: 17px;
+  opacity: 0.88;
+}

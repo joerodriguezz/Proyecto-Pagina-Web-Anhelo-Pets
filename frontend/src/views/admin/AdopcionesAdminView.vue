@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { usePetsStore } from '../../stores/usePetsStore'
+import { getAdoptionRequests, updateAdoptionRequestStatus, mapAdoptionRequestDtoToRow } from '../../services/adoptionServices'
 
 const store = usePetsStore()
 
@@ -19,13 +20,18 @@ function limpiarFiltros() {
 
 // ─── Solicitudes ─────────────────────────────────────────────────────────────
 const solicitudes = ref([])
+const cargando = ref(false)
 
-function cargarSolicitudes() {
-  const guardadas = JSON.parse(localStorage.getItem('anhelo_solicitudes')) || []
-  guardadas.forEach(item => {
-    if (!item.estado && item.status) item.estado = item.status
-  })
-  solicitudes.value = guardadas
+async function cargarSolicitudes() {
+  cargando.value = true
+  try {
+    const { data } = await getAdoptionRequests()
+    solicitudes.value = (data || []).map(mapAdoptionRequestDtoToRow)
+  } catch {
+    solicitudes.value = []
+  } finally {
+    cargando.value = false
+  }
 }
 
 onMounted(() => { cargarSolicitudes() })
@@ -85,39 +91,26 @@ const filtered = computed(() => {
 })
 
 // ─── Acciones ────────────────────────────────────────────────────────────────
-function guardarSolicitudes() {
-  localStorage.setItem('anhelo_solicitudes', JSON.stringify(solicitudes.value))
-}
-
-function sincronizarMascota(solicitud, nuevoEstadoMascota) {
-  const mascota = solicitud.petId
-    ? store.pets.find(p => p.id === solicitud.petId)
-    : store.pets.find(p => p.name === solicitud.mascota)
-  if (mascota) store.changeStatus(mascota.id, nuevoEstadoMascota)
+async function aplicarAccion(id, action) {
+  try {
+    await updateAdoptionRequestStatus(id, action)
+    await cargarSolicitudes()
+    await store.fetchPets({ status: 'Todos' })
+  } catch {
+    alert('No se pudo actualizar la solicitud.')
+  }
 }
 
 function procesoSolicitud(id) {
-  const s = solicitudes.value.find(s => s.id === id)
-  if (!s) return
-  s.estado = 'En proceso'
-  guardarSolicitudes()
-  sincronizarMascota(s, 'En proceso')
+  return aplicarAccion(id, 'Proceso')
 }
 
 function aprobarSolicitud(id) {
-  const s = solicitudes.value.find(s => s.id === id)
-  if (!s) return
-  s.estado = 'Aprobada'
-  guardarSolicitudes()
-  sincronizarMascota(s, 'Adoptada')
+  return aplicarAccion(id, 'Aprobar')
 }
 
 function rechazarSolicitud(id) {
-  const s = solicitudes.value.find(s => s.id === id)
-  if (!s) return
-  s.estado = 'Rechazada'
-  guardarSolicitudes()
-  sincronizarMascota(s, 'Disponible')
+  return aplicarAccion(id, 'Rechazar')
 }
 
 // ─── Modal ───────────────────────────────────────────────────────────────────

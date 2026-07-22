@@ -352,6 +352,56 @@ CREATE TABLE donations (
     CONSTRAINT ck_donations_validation_status CHECK (validation_status IN ('Pendiente', 'Aprobada', 'Rechazada'))
 );
 
+CREATE TABLE adoption_requests (
+    adoption_request_id text DEFAULT generate_id('ADO') PRIMARY KEY,
+    user_id            text NOT NULL,
+    animal_id          text NOT NULL,
+
+    applicant_name     varchar(150) NOT NULL,
+    national_id        varchar(50) NOT NULL,
+    email              varchar(255) NOT NULL,
+    phone              varchar(30) NOT NULL,
+    age                integer NOT NULL,
+    has_whatsapp       boolean NOT NULL DEFAULT false,
+    lives_in_costa_rica boolean NOT NULL DEFAULT true,
+    foreign_country    varchar(100),
+    address            text NOT NULL,
+
+    pet_name_snapshot  varchar(150) NOT NULL,
+    reason_for_pet     text,
+    adoption_reasons   text NOT NULL,
+    household_members  text NOT NULL,
+    other_pets         text,
+    profession         varchar(150) NOT NULL,
+    daily_routine      text NOT NULL,
+    hours_alone        varchar(50) NOT NULL,
+
+    validation_status  varchar(20) NOT NULL DEFAULT 'Pendiente',
+    validation_notes   text,
+    validated_at       timestamptz,
+    validated_by_user_id text,
+
+    created_at         timestamptz,
+    created_by         varchar(100),
+    modified_at        timestamptz,
+    modified_by        varchar(100),
+
+    CONSTRAINT ck_adoption_requests_validation_status
+        CHECK (validation_status IN ('Pendiente', 'En proceso', 'Aprobada', 'Rechazada')),
+    CONSTRAINT ck_adoption_requests_age_positive CHECK (age > 0),
+    CONSTRAINT uq_adoption_requests_user_animal UNIQUE (user_id, animal_id),
+    CONSTRAINT fk_adoption_requests_user_id
+        FOREIGN KEY (user_id)
+        REFERENCES users (user_id)
+        ON UPDATE CASCADE
+        ON DELETE CASCADE,
+    CONSTRAINT fk_adoption_requests_animal_id
+        FOREIGN KEY (animal_id)
+        REFERENCES animals (animal_id)
+        ON UPDATE CASCADE
+        ON DELETE RESTRICT
+);
+
 -- ============================================================
 -- Indexes for foreign keys and common access patterns
 -- ============================================================
@@ -420,6 +470,15 @@ CREATE INDEX ix_donations_validation_status
 
 CREATE INDEX ix_donations_donated_at
     ON donations (donated_at);
+
+CREATE INDEX ix_adoption_requests_user_id
+    ON adoption_requests (user_id);
+
+CREATE INDEX ix_adoption_requests_animal_id
+    ON adoption_requests (animal_id);
+
+CREATE INDEX ix_adoption_requests_validation_status
+    ON adoption_requests (validation_status);
 
 -- Optional case-insensitive uniqueness without requiring the citext extension.
 -- Use these if your business rules require case-insensitive usernames/emails.

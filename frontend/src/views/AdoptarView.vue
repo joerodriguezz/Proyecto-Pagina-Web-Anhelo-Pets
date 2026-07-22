@@ -5,6 +5,7 @@ import NavBar from '../components/NavBar.vue'
 import FooterBar from '../components/FooterBar.vue'
 import { usePetsStore } from '../stores/usePetsStore'
 import { useAuthStore } from '../stores/useAuthStore'
+import { submitAdoptionRequest } from '../services/adoptionServices'
 
 import {
   countryList,
@@ -26,7 +27,6 @@ const showTermsModal = ref(false)
 const dropdownContainer = ref(null)
 
 const usuarioActual = ref(null)
-const yaTieneSolicitud = ref(false)
 
 /* ---------------- GALERÍA ---------------- */
 
@@ -53,6 +53,16 @@ const petImages = computed(() => {
   return ['/img-mascotas/mascotas.jpg']
 
 })
+
+function prevImage() {
+  currentImageIndex.value = currentImageIndex.value === 0
+    ? petImages.value.length - 1
+    : currentImageIndex.value - 1
+}
+
+function nextImage() {
+  currentImageIndex.value = (currentImageIndex.value + 1) % petImages.value.length
+}
 
 /* ---------------- PAÍSES ---------------- */
 
@@ -214,62 +224,6 @@ onMounted(() => {
 
   }
 
-  const solicitudes = JSON.parse(
-
-    localStorage.getItem(
-      'anhelo_solicitudes'
-    )
-
-  ) || []
-
-  const solicitudExistente =
-    solicitudes.find(s =>
-
-      s.usuarioId ===
-      usuarioGuardado?.id
-
-    )
-
-  if (solicitudExistente) {
-
-    yaTieneSolicitud.value = true
-
-    phone.value =
-      solicitudExistente.telefono
-        ?.replace(/\D/g, '')
-        || ''
-
-    livesInCostaRica.value =
-      solicitudExistente.viveEnCR === 'Sí'
-        ? 'si'
-        : 'no'
-
-    countrySearch.value =
-      solicitudExistente.paisExtranjero || ''
-
-    whyThisPet.value =
-      solicitudExistente.porqueMascota || ''
-
-    adoptionReasons.value =
-      solicitudExistente.motivos || ''
-
-    householdMembers.value =
-      solicitudExistente.hogar || ''
-
-    otherPetsDetails.value =
-      solicitudExistente.otrasMascotas || ''
-
-    profession.value =
-      solicitudExistente.profesion || ''
-
-    dailyRoutine.value =
-      solicitudExistente.rutina || ''
-
-    hoursAlone.value =
-      solicitudExistente.horasSola || ''
-
-  }
-
   document.addEventListener(
     'click',
     handleClickOutside
@@ -288,139 +242,51 @@ onBeforeUnmount(() => {
 
 /* ---------------- ENVIAR ---------------- */
 
-function submitForm() {
+const enviandoSolicitud = ref(false)
+const errorEnvio = ref('')
 
-  const solicitudes = JSON.parse(
+async function submitForm() {
 
-    localStorage.getItem(
-      'anhelo_solicitudes'
-    )
+  errorEnvio.value = ''
+  enviandoSolicitud.value = true
 
-  ) || []
+  try {
+    await submitAdoptionRequest({
+      animalId: route.params.id || '',
+      applicantName: fullName.value,
+      nationalId: idCard.value,
+      email: email.value,
+      phone: `${selectedCountryObject.value.code} ${phone.value}`,
+      age: age.value,
+      hasWhatsapp: isWhatsApp.value,
+      livesInCostaRica: livesInCostaRica.value === 'si',
+      foreignCountry: countrySearch.value,
+      address: fullAddress.value,
+      petNameSnapshot: selectedPet.value,
+      reasonForPet: whyThisPet.value,
+      adoptionReasons: adoptionReasons.value,
+      householdMembers: householdMembers.value,
+      otherPets: otherPetsDetails.value,
+      profession: profession.value,
+      dailyRoutine: dailyRoutine.value,
+      hoursAlone: hoursAlone.value,
+    })
 
-  const solicitudDuplicada =
-    solicitudes.find(s =>
+    submitted.value = true
 
-      s.usuarioId === usuarioActual.value?.id
-      &&
-      s.mascota === selectedPet.value
-
-    )
-
-  if (solicitudDuplicada) {
-
-    alert(
-      'Ya enviaste una solicitud para esta mascota.'
-    )
-
-    return
-
+    window.scrollTo({
+      top: 0,
+      behavior: 'smooth'
+    })
+  } catch (e) {
+    if (e?.response?.status === 409) {
+      alert('Ya enviaste una solicitud para esta mascota.')
+    } else {
+      errorEnvio.value = e?.response?.data?.message || 'No se pudo enviar la solicitud. Intenta de nuevo.'
+    }
+  } finally {
+    enviandoSolicitud.value = false
   }
-
-  const ultimoNumero =
-  solicitudes.length + 1
-
-const idGenerado =
-  `ADO-${String(ultimoNumero).padStart(3, '0')}`
-
-
-const mascotaSeleccionada =
-  store.pets.find(
-    p => p.name === selectedPet.value
-  )
-
-
-const nuevaSolicitud = {
-
-  id:
-    idGenerado,
-  
-    petId:
-      mascotaSeleccionada?.id || '',  
-
-    usuarioId:
-      usuarioActual.value?.id || '',
-
-    solicitante:
-      fullName.value,
-
-    cedula:
-      idCard.value,
-
-    email:
-      email.value,
-
-    telefono:
-      `${selectedCountryObject.value.code} ${phone.value}`,
-
-    edad:
-      age.value,
-
-    whatsapp:
-      isWhatsApp.value
-        ? 'Sí'
-        : 'No',
-
-    viveEnCR:
-      livesInCostaRica.value === 'si'
-        ? 'Sí'
-        : 'No',
-
-    paisExtranjero:
-      countrySearch.value,
-
-    direccion:
-      fullAddress.value,
-
-    mascota:
-      selectedPet.value,
-
-    porqueMascota:
-      whyThisPet.value,
-
-    motivos:
-      adoptionReasons.value,
-
-    hogar:
-      householdMembers.value,
-
-    otrasMascotas:
-      otherPetsDetails.value,
-
-    profesion:
-      profession.value,
-
-    rutina:
-      dailyRoutine.value,
-
-    horasSola:
-      hoursAlone.value,
-
-    fecha:
-      new Date()
-        .toISOString()
-        .split('T')[0],  
-
-    estado:
-      'Pendiente'
-
-  }
-
-  solicitudes.push(
-    nuevaSolicitud
-  )
-
-  localStorage.setItem(
-    'anhelo_solicitudes',
-    JSON.stringify(solicitudes)
-  )
-
-  submitted.value = true
-
-  window.scrollTo({
-    top: 0,
-    behavior: 'smooth'
-  })
 
 }
 
@@ -738,9 +604,10 @@ function goBack() {
           </div>
 
           <!-- ── Acciones ── -->
+          <p v-if="errorEnvio" class="submit-error">{{ errorEnvio }}</p>
           <div class="actions-group">
-            <button type="submit" class="pet-btn" :disabled="!termsAccepted">
-              Enviar solicitud
+            <button type="submit" class="pet-btn" :disabled="!termsAccepted || enviandoSolicitud">
+              {{ enviandoSolicitud ? 'Enviando...' : 'Enviar solicitud' }}
             </button>
             <button type="button" class="pet-btn-outline" @click="goBack">
               Volver
@@ -1599,6 +1466,17 @@ textarea.form-input {
 /* ═══════════════════════════════════
    BOTONES
 ═══════════════════════════════════ */
+
+.submit-error {
+  color: #C45252;
+  background: rgba(235,119,119,0.13);
+  border-radius: 10px;
+  padding: 10px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 14px;
+  text-align: center;
+}
 
 .actions-group {
   display: flex;

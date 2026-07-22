@@ -1,4 +1,3 @@
-using System.Data;
 using System.Security.Cryptography;
 using AnheloPets.API.Data;
 using AnheloPets.API.DTOs;
@@ -34,7 +33,7 @@ public class UserService : IUserService
         request.Password = HashPassword(request.Password);
 
         var created = await _authRepository.Register(request);
-        var enriched = GetAuthUser(created.Username) ?? created;
+        var enriched = await GetAuthUser(created.Username) ?? created;
 
         return BuildAuthResponse(enriched);
     }
@@ -57,15 +56,15 @@ public class UserService : IUserService
             throw new UnauthorizedException("Correo o contraseña incorrectos");
         }
 
-        var enriched = GetAuthUser(authUser.Email) ?? authUser;
+        var enriched = await GetAuthUser(authUser.Email) ?? authUser;
 
         return BuildAuthResponse(enriched);
     }
 
-    public Task<AuthResponseDto?> GetCurrentUser(string username)
+    public async Task<AuthResponseDto?> GetCurrentUser(string username)
     {
-        var enriched = GetAuthUser(username);
-        return Task.FromResult(enriched == null ? null : BuildAuthResponse(enriched));
+        var enriched = await GetAuthUser(username);
+        return enriched == null ? null : BuildAuthResponse(enriched);
     }
 
     public async Task ResetPasswordByEmail(ResetPasswordDto request)
@@ -103,132 +102,45 @@ public class UserService : IUserService
         };
     }
 
-    public bool UpdatePassword(long userId, PasswordUpdateDto request)
+    private async Task<AuthUserDto?> GetAuthUser(string usernameOrEmail)
     {
-        if (GetAuthUserById(userId) == null)
+        var key = usernameOrEmail.Trim().ToLower();
+
+        var row = await (
+            from u in _dbContext.Users
+            join up in _dbContext.UserProfiles on u.UserId equals up.UserId
+            join uc in _dbContext.UserContacts on u.UserId equals uc.UserId
+            where u.Username.ToLower() == key || uc.Email.ToLower() == key
+            select new { u, up, uc }
+        ).FirstOrDefaultAsync();
+
+        if (row == null)
         {
-            return false;
+            return null;
         }
 
-        using var command = CreateCommand(
-            """
-            SELECT anhelopets.fn_update_password_hash(
-                @userId::bigint,
-                @passwordHash::text,
-                @modifiedBy::varchar);
-            """);
+        var volunteer = await _dbContext.Volunteers.FirstOrDefaultAsync(v => v.UserId == row.u.UserId);
 
-        AddParameter(command, "userId", userId);
-        AddParameter(command, "passwordHash", HashPassword(request.Password));
-        AddParameter(command, "modifiedBy", request.ModifiedBy);
-        ExecuteNonQuery(command);
+        var roles = await (
+            from ur in _dbContext.UserRoles
+            join r in _dbContext.Roles on ur.RoleId equals r.RoleId
+            where ur.UserId == row.u.UserId
+            select (string?)r.RoleName
+        ).ToArrayAsync();
 
-        return true;
-    }
-
-    private AuthUserDto? GetAuthUser(string usernameOrEmail)
-    {
-        using var command = CreateCommand("SELECT * FROM anhelopets.fn_get_auth_user(@usernameOrEmail::text);");
-        AddParameter(command, "usernameOrEmail", usernameOrEmail);
-
-        try
-        {
-            using var reader = command.ExecuteReader();
-            return reader.Read() ? ReadAuthUser(reader) : null;
-        }
-        finally
-        {
-            command.Connection?.Close();
-        }
-    }
-
-    private AuthUserDto? GetAuthUserById(long userId)
-    {
-        using var command = CreateCommand(
-            """
-            SELECT *
-            FROM anhelopets.fn_get_auth_user(
-                (SELECT username FROM anhelopets.users WHERE user_id = @userId::bigint));
-            """);
-
-        AddParameter(command, "userId", userId);
-
-        try
-        {
-            using var reader = command.ExecuteReader();
-            return reader.Read() ? ReadAuthUser(reader) : null;
-        }
-        finally
-        {
-            command.Connection?.Close();
-        }
-    }
-
-    private static AuthUserDto ReadAuthUser(IDataRecord reader)
-    {
         return new AuthUserDto
         {
-            UserId = GetString(reader, "user_id"),
-            Username = GetString(reader, "username"),
-            Email = GetString(reader, "email"),
-            FirstName = GetString(reader, "first_name"),
-            LastName = GetString(reader, "last_name"),
-            IsVolunteer = GetBoolean(reader, "is_volunteer"),
-            VolunteerActive = GetBoolean(reader, "volunteer_active"),
-            VolunteerValidationStatus = GetString(reader, "volunteer_validation_status"),
-            Roles = GetStringArray(reader, "roles")
+            UserId = row.u.UserId,
+            Username = row.u.Username,
+            Email = row.uc.Email,
+            Password = row.u.PasswordHash,
+            FirstName = row.up.FirstName,
+            LastName = row.up.LastName,
+            IsVolunteer = volunteer != null,
+            VolunteerActive = volunteer?.Active ?? false,
+            VolunteerValidationStatus = volunteer?.ValidationStatus,
+            Roles = roles
         };
-    }
-
-    private IDbCommand CreateCommand(string commandText)
-    {
-        var connection = _dbContext.Database.GetDbConnection();
-        if (connection.State != ConnectionState.Open)
-        {
-            connection.Open();
-        }
-
-        var command = connection.CreateCommand();
-        command.CommandText = commandText;
-        command.CommandTimeout = 60;
-        return command;
-    }
-
-    private static object? ExecuteScalar(IDbCommand command)
-    {
-        try
-        {
-            return command.ExecuteScalar();
-        }
-        finally
-        {
-            command.Connection?.Close();
-        }
-    }
-
-    private static void ExecuteNonQuery(IDbCommand command)
-    {
-        try
-        {
-            command.ExecuteNonQuery();
-        }
-        finally
-        {
-            command.Connection?.Close();
-        }
-    }
-
-    private static void AddParameter(IDbCommand command, string name, object? value)
-    {
-        var parameter = command.CreateParameter();
-        parameter.ParameterName = name;
-        parameter.Value = value switch
-        {
-            null => DBNull.Value,
-            DateOnly date => date.ToDateTime(TimeOnly.MinValue),
-            _ => value
-        };
-        command.Parameters.Add(parameter);
     }
 
     private static string HashPassword(string password)
@@ -252,29 +164,5 @@ public class UserService : IUserService
         var actualHash = Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, HashAlgorithmName.SHA256, expectedHash.Length);
 
         return CryptographicOperations.FixedTimeEquals(actualHash, expectedHash);
-    }
-
-    private static string GetString(IDataRecord reader, string name)
-    {
-        var ordinal = reader.GetOrdinal(name);
-        return reader.IsDBNull(ordinal) ? string.Empty : reader.GetString(ordinal);
-    }
-
-    private static long GetInt64(IDataRecord reader, string name)
-    {
-        var ordinal = reader.GetOrdinal(name);
-        return reader.GetInt64(ordinal);
-    }
-
-    private static bool GetBoolean(IDataRecord reader, string name)
-    {
-        var ordinal = reader.GetOrdinal(name);
-        return !reader.IsDBNull(ordinal) && reader.GetBoolean(ordinal);
-    }
-
-    private static string[] GetStringArray(IDataRecord reader, string name)
-    {
-        var ordinal = reader.GetOrdinal(name);
-        return reader.IsDBNull(ordinal) ? [] : (string[])reader.GetValue(ordinal);
     }
 }

@@ -6,7 +6,6 @@ public interface IUserService
 {
     Task<AuthResponseDto> Register(RegisterUserDto request);
     Task<AuthResponseDto> Login(LoginDtoRequest request);
-    bool UpdatePassword(long userId, PasswordUpdateDto request);
     Task<AuthResponseDto?> GetCurrentUser(string userId);
     Task ResetPasswordByEmail(ResetPasswordDto request);
 }
