@@ -1,4 +1,4 @@
-import { get, post } from '../api/api'
+import { get, post, remove } from '../api/api'
 import { setToken, clearToken } from '../utils/tokenStorage'
 
 export const login = async (credentials) => {
@@ -25,4 +25,18 @@ export const getCurrentUser = async () => {
 
 export const resetPasswordByEmail = (email, newPassword) => {
     return post('/api/auth/password-reset', { email, newPassword })
+}
+
+export const uploadProfilePhoto = async (file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    const { data } = await post('/api/auth/me/photo', formData)
+    setToken(data.token)
+    return data
+}
+
+export const deleteProfilePhoto = async () => {
+    const { data } = await remove('/api/auth/me/photo')
+    setToken(data.token)
+    return data
 }

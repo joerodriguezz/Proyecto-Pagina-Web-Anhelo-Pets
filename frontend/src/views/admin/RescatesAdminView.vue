@@ -3,7 +3,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { ubicacionesCR } from '../../data/ubicaciones'
 import { useRescuesStore } from '../../stores/useRescuesStore'
 import { getAnimals, createAnimals } from '../../services/petServices'
-import { getFosterHomes, createFosterHome } from '../../services/fosterHomeServices'
+import { getFosterHomes, createFosterHome, uploadFosterHomePhoto } from '../../services/fosterHomeServices'
 
 /* ─── Store de rescates ──────────────────────────────────── */
 const store = useRescuesStore()
@@ -153,11 +153,35 @@ const showQuickFoster = ref(false)
 const quickFoster     = ref({ name: '', address: '', phone: '', responsible: '', capacity: 1 })
 const quickFosterLoading = ref(false)
 const quickFosterErrors  = ref([])
+const quickFosterPhotoFile    = ref(null)
+const quickFosterPhotoPreview = ref('')
+const quickFosterPhotoInput   = ref(null)
 
 function abrirQuickFoster() {
   quickFoster.value = { name: '', address: '', phone: '', responsible: '', capacity: 1 }
   quickFosterErrors.value = []
+  quickFosterPhotoFile.value = null
+  quickFosterPhotoPreview.value = ''
   showQuickFoster.value = true
+}
+
+function triggerQuickFosterPhoto() {
+  quickFosterPhotoInput.value?.click()
+}
+
+function onQuickFosterPhotoChange(e) {
+  const file = e.target.files?.[0]
+  if (!file || !file.type.startsWith('image/')) return
+  quickFosterPhotoFile.value = file
+  const reader = new FileReader()
+  reader.onload = ev => { quickFosterPhotoPreview.value = ev.target.result }
+  reader.readAsDataURL(file)
+}
+
+function quitarQuickFosterPhoto() {
+  quickFosterPhotoFile.value = null
+  quickFosterPhotoPreview.value = ''
+  if (quickFosterPhotoInput.value) quickFosterPhotoInput.value.value = ''
 }
 
 async function guardarQuickFoster() {
@@ -171,7 +195,14 @@ async function guardarQuickFoster() {
 
   quickFosterLoading.value = true
   try {
-    await createFosterHome(quickFoster.value)
+    const { data: created } = await createFosterHome(quickFoster.value)
+    if (quickFosterPhotoFile.value && created?.fosterHomeId) {
+      try {
+        await uploadFosterHomePhoto(created.fosterHomeId, quickFosterPhotoFile.value)
+      } catch {
+        mostrarToast('Casa cuna creada, pero la foto no se pudo subir.', 'error')
+      }
+    }
     await loadFosterHomes()
     showQuickFoster.value = false
     mostrarToast('Casa cuna creada correctamente.')
@@ -1130,6 +1161,24 @@ function iniciales(nombre) {
               <div class="modal-field">
                 <label class="fg-label">Capacidad</label>
                 <input type="number" min="1" max="50" class="form-input" v-model.number="quickFoster.capacity" placeholder="1">
+              </div>
+            </div>
+
+            <div class="foto-wrap" style="margin-top:18px">
+              <div class="foto-preview" :class="{ 'has-img': quickFosterPhotoPreview }">
+                <img v-if="quickFosterPhotoPreview" :src="quickFosterPhotoPreview" class="foto-img" alt="Foto de la casa cuna">
+                <div v-else class="foto-placeholder">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+                  <span>Sin foto</span>
+                </div>
+              </div>
+              <div class="foto-actions">
+                <input ref="quickFosterPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" @change="onQuickFosterPhotoChange">
+                <button type="button" class="btn-foto" @click="triggerQuickFosterPhoto">
+                  {{ quickFosterPhotoPreview ? 'Cambiar foto' : 'Subir foto' }}
+                </button>
+                <button v-if="quickFosterPhotoPreview" type="button" class="btn-foto" @click="quitarQuickFosterPhoto">Quitar foto</button>
+                <p class="foto-hint">JPG, PNG o WEBP. Máximo 5MB.</p>
               </div>
             </div>
           </div>

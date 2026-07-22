@@ -30,6 +30,9 @@ public class FosterHome
     [Column("active")]
     public bool Active { get; set; } = true;
 
+    [Column("photo_url")]
+    public string? PhotoUrl { get; set; }
+
     [Column("created_at")]
     public DateTime? CreatedAt { get; set; }
 

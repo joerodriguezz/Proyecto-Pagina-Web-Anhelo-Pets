@@ -42,6 +42,7 @@ builder.Services.AddScoped<IFosterPlacementService, FosterPlacementService>();
 builder.Services.AddScoped<IDonationService, DonationService>();
 builder.Services.AddScoped<IAdoptionRequestService, AdoptionRequestService>();
 builder.Services.AddScoped<IJwtService, JwtService>();
+builder.Services.AddScoped<IAnimalPhotoService, AnimalPhotoService>();
 
 // Swagger
 builder.Services.AddEndpointsApiExplorer();
@@ -71,6 +72,24 @@ builder.Services
             ClockSkew = TimeSpan.FromMinutes(1)
         };
     });
+
+// Supabase Storage
+var supabaseUrl = builder.Configuration["Supabase:Url"];
+var supabaseServiceKey = builder.Configuration["Supabase:ServiceKey"];
+if (string.IsNullOrWhiteSpace(supabaseUrl) || string.IsNullOrWhiteSpace(supabaseServiceKey))
+{
+    throw new InvalidOperationException(
+        "Supabase:Url / Supabase:ServiceKey no configurados. Usa `dotnet user-secrets set Supabase:ServiceKey ...` " +
+        "en desarrollo, o Supabase__Url / Supabase__ServiceKey en el entorno de despliegue.");
+}
+
+builder.Services.AddHttpClient("Supabase", client =>
+{
+    client.BaseAddress = new Uri(supabaseUrl);
+    client.DefaultRequestHeaders.Add("apikey", supabaseServiceKey);
+    client.DefaultRequestHeaders.Add("Authorization", $"Bearer {supabaseServiceKey}");
+});
+builder.Services.AddScoped<ISupabaseStorageService, SupabaseStorageService>();
 
 // Base de datos PostgreSQL
 var defaultConnection = builder.Configuration.GetConnectionString("DefaultConnection");

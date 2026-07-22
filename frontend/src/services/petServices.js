@@ -59,4 +59,19 @@ export const changeAnimalStatus = (id, status) => {
     })
 }
 
+export const uploadAnimalPhoto = (animalId, file, isPrimary = false) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    formData.append('isPrimary', isPrimary)
+    return post(`/api/Animals/${animalId}/photos`, formData)
+}
+
+export const getAnimalPhotos = (animalId) => {
+    return get(`/api/Animals/${animalId}/photos`)
+}
+
+export const deleteAnimalPhoto = (animalId, photoId) => {
+    return remove(`/api/Animals/${animalId}/photos/${photoId}`)
+}
+
 export { mapDtoToPet }

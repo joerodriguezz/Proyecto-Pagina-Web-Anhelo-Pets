@@ -1,6 +1,6 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import { login as apiLogin, logout as apiLogout, getCurrentUser } from '../services/authServices'
+import { login as apiLogin, logout as apiLogout, getCurrentUser, uploadProfilePhoto, deleteProfilePhoto } from '../services/authServices'
 import { isLoggedIn } from '../utils/tokenStorage'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -35,8 +35,20 @@ export const useAuthStore = defineStore('auth', () => {
     user.value = null
   }
 
+  async function updatePhoto(file) {
+    const data = await uploadProfilePhoto(file)
+    user.value = data
+    return data
+  }
+
+  async function removePhoto() {
+    const data = await deleteProfilePhoto()
+    user.value = data
+    return data
+  }
+
   const isAdmin = computed(() => user.value?.roles?.includes('Admin') ?? false)
   const isVolunteer = computed(() => user.value?.roles?.includes('Voluntario') ?? false)
 
-  return { user, isReady, init, login, logout, isAdmin, isVolunteer }
+  return { user, isReady, init, login, logout, updatePhoto, removePhoto, isAdmin, isVolunteer }
 })

@@ -36,6 +36,7 @@ function adaptarUsuarioSesion(apiUser) {
     correo: apiUser.email,
     telefono: apiUser.phonePrimary || '',
     rol: rolPrincipal,
+    foto: apiUser.photoUrl || '',
     solicitudVoluntario: apiUser.isVolunteer
       ? { estado: apiUser.volunteerActive ? 'Aprobada' : (apiUser.volunteerValidationStatus || 'Pendiente') }
       : null,
@@ -63,35 +64,33 @@ const estadoLabel = computed(() => {
 })
 
 /* ─── Foto de perfil ──────────────────────────── */
-const fotoKey      = computed(() => usuario.value ? `anhelo_foto_${usuario.value.id}` : null)
-const fotoPreview  = ref('')
+const fotoPreview  = computed(() => usuario.value?.foto || '')
 const fileInputRef = ref(null)
-
-function cargarFoto() {
-  if (fotoKey.value) fotoPreview.value = localStorage.getItem(fotoKey.value) || ''
-}
-
-onMounted(cargarFoto)
-watch(fotoKey, cargarFoto)
+const subiendoFoto = ref(false)
 
 function triggerFileInput() { fileInputRef.value?.click() }
 
-function onFotoChange(e) {
+async function onFotoChange(e) {
   const file = e.target.files?.[0]
-  if (!file || !file.type.startsWith('image/')) return
-  const reader = new FileReader()
-  reader.onload = ev => {
-    fotoPreview.value = ev.target.result
-    if (fotoKey.value) localStorage.setItem(fotoKey.value, ev.target.result)
-    window.dispatchEvent(new Event('anhelo:foto-actualizada'))
-  }
-  reader.readAsDataURL(file)
   e.target.value = ''
+  if (!file || !file.type.startsWith('image/')) return
+
+  subiendoFoto.value = true
+  try {
+    await authStore.updatePhoto(file)
+  } catch (err) {
+    console.error('Error al subir la foto de perfil:', err)
+  } finally {
+    subiendoFoto.value = false
+  }
 }
 
-function eliminarFoto() {
-  fotoPreview.value = ''
-  if (fotoKey.value) localStorage.removeItem(fotoKey.value)
+async function eliminarFoto() {
+  try {
+    await authStore.removePhoto()
+  } catch (err) {
+    console.error('Error al quitar la foto de perfil:', err)
+  }
 }
 
 /* ─── Cerrar sesión ───────────────────────────── */

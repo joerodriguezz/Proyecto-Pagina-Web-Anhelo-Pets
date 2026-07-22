@@ -18,3 +18,9 @@ export const createFosterHome = (fh) => {
 export const deactivateFosterHome = (id) => {
     return remove(`/api/foster-homes/${id}`)
 }
+
+export const uploadFosterHomePhoto = (id, file) => {
+    const formData = new FormData()
+    formData.append('file', file)
+    return post(`/api/foster-homes/${id}/photo`, formData)
+}

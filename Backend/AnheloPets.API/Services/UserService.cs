@@ -3,6 +3,7 @@ using AnheloPets.API.Data;
 using AnheloPets.API.DTOs;
 using AnheloPets.API.Exceptions;
 using AnheloPets.API.Repository;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 
 namespace AnheloPets.API.Services;
@@ -12,16 +13,21 @@ public class UserService : IUserService
     private const int HashIterations = 100_000;
     private const int SaltSize = 16;
     private const int KeySize = 32;
+    private static readonly string[] AllowedPhotoTypes = { "image/jpeg", "image/png", "image/webp" };
+    private const long MaxPhotoBytes = 5 * 1024 * 1024;
+
     private readonly AuthRepository _authRepository;
     private readonly IJwtService _jwtService;
+    private readonly ISupabaseStorageService _storageService;
 
     private readonly AnheloPetsDbContext _dbContext;
 
-    public UserService(AnheloPetsDbContext dbContext, AuthRepository authRepository, IJwtService jwtService)
+    public UserService(AnheloPetsDbContext dbContext, AuthRepository authRepository, IJwtService jwtService, ISupabaseStorageService storageService)
     {
         _dbContext = dbContext;
         _authRepository = authRepository;
         _jwtService = jwtService;
+        _storageService = storageService;
     }
 
     public async Task<AuthResponseDto> Register(RegisterUserDto request)
@@ -85,6 +91,60 @@ public class UserService : IUserService
         await _dbContext.SaveChangesAsync();
     }
 
+    public async Task<AuthResponseDto?> UploadProfilePhoto(string userId, IFormFile file)
+    {
+        var user = await _dbContext.Users.FindAsync(userId);
+        var profile = await _dbContext.UserProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
+        if (user == null || profile == null)
+        {
+            return null;
+        }
+
+        if (file == null || file.Length == 0)
+        {
+            throw new BadRequestException("El archivo es obligatorio.");
+        }
+
+        if (!AllowedPhotoTypes.Contains(file.ContentType))
+        {
+            throw new BadRequestException("Solo se permiten imágenes JPG, PNG o WEBP.");
+        }
+
+        if (file.Length > MaxPhotoBytes)
+        {
+            throw new BadRequestException("La imagen no puede superar 5MB.");
+        }
+
+        var path = $"profiles/{userId}/{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
+        string publicUrl;
+        using (var stream = file.OpenReadStream())
+        {
+            publicUrl = await _storageService.UploadPublicAsync("public-media", path, stream, file.ContentType);
+        }
+
+        profile.PhotoUrl = publicUrl;
+        profile.ModifiedAt = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        return await GetCurrentUser(user.Username);
+    }
+
+    public async Task<AuthResponseDto?> DeleteProfilePhoto(string userId)
+    {
+        var user = await _dbContext.Users.FindAsync(userId);
+        var profile = await _dbContext.UserProfiles.FirstOrDefaultAsync(p => p.UserId == userId);
+        if (user == null || profile == null)
+        {
+            return null;
+        }
+
+        profile.PhotoUrl = null;
+        profile.ModifiedAt = DateTime.UtcNow;
+        await _dbContext.SaveChangesAsync();
+
+        return await GetCurrentUser(user.Username);
+    }
+
     private AuthResponseDto BuildAuthResponse(AuthUserDto user)
     {
         return new AuthResponseDto
@@ -98,7 +158,8 @@ public class UserService : IUserService
             Roles = user.Roles,
             IsVolunteer = user.IsVolunteer ?? false,
             VolunteerActive = user.VolunteerActive ?? false,
-            VolunteerValidationStatus = user.VolunteerValidationStatus
+            VolunteerValidationStatus = user.VolunteerValidationStatus,
+            PhotoUrl = user.PhotoUrl
         };
     }
 
@@ -139,7 +200,8 @@ public class UserService : IUserService
             IsVolunteer = volunteer != null,
             VolunteerActive = volunteer?.Active ?? false,
             VolunteerValidationStatus = volunteer?.ValidationStatus,
-            Roles = roles
+            Roles = roles,
+            PhotoUrl = row.up.PhotoUrl
         };
     }
 

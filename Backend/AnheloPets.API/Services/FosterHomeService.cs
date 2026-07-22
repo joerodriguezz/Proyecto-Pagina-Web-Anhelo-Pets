@@ -76,4 +76,16 @@ public class FosterHomeService : IFosterHomeService
 
         return true;
     }
+
+    public async Task<FosterHomeDto?> SetPhotoUrl(string id, string url)
+    {
+        if (string.IsNullOrWhiteSpace(id))
+            throw new ApiException("El ID de casa cuna no es válido.");
+
+        var result = await _repository.SetPhotoUrl(id, url);
+        if (result == null)
+            throw new ApiException($"No se encontró la casa cuna con ID {id}.", 404);
+
+        return result;
+    }
 }

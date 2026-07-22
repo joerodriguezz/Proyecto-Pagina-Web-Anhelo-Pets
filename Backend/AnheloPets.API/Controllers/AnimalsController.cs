@@ -1,3 +1,4 @@
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using AnheloPets.API.DTOs;
 using AnheloPets.API.Services;
@@ -9,10 +10,12 @@ namespace AnheloPets.API.Controllers;
 public class AnimalsController : ControllerBase
 {
     private readonly IAnimalService _animalService;
+    private readonly IAnimalPhotoService _animalPhotoService;
 
-    public AnimalsController(IAnimalService animalService)
+    public AnimalsController(IAnimalService animalService, IAnimalPhotoService animalPhotoService)
     {
         _animalService = animalService;
+        _animalPhotoService = animalPhotoService;
     }
 
     [HttpGet]
@@ -68,5 +71,33 @@ public class AnimalsController : ControllerBase
         if (updated == null) return NotFound();
 
         return Ok(updated);
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpGet("{id}/photos")]
+    public async Task<IActionResult> GetPhotos(string id) => Ok(await _animalPhotoService.GetByAnimalId(id));
+
+    [Authorize(Roles = "Admin")]
+    [HttpPost("{id}/photos")]
+    public async Task<IActionResult> UploadPhoto(string id, IFormFile file, [FromForm] bool isPrimary = false)
+    {
+        var created = await _animalPhotoService.Upload(id, file, isPrimary);
+        return Ok(created);
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpPatch("{id}/photos/{photoId:long}/primary")]
+    public async Task<IActionResult> SetPrimaryPhoto(string id, long photoId)
+    {
+        var updated = await _animalPhotoService.SetPrimary(photoId);
+        return Ok(updated);
+    }
+
+    [Authorize(Roles = "Admin")]
+    [HttpDelete("{id}/photos/{photoId:long}")]
+    public async Task<IActionResult> DeletePhoto(string id, long photoId)
+    {
+        await _animalPhotoService.Delete(photoId);
+        return NoContent();
     }
 }

@@ -36,9 +36,12 @@ public class UserProfile
     public DateOnly? BirthDate { get; set; }
     
     [Column("nationality")]
-    
+
     public required string Nationality { get; set; }
-    
+
+    [Column("photo_url")]
+    public string? PhotoUrl { get; set; }
+
     [Column("created_at")]
     public DateTime? CreatedAt { get; set; }
     

@@ -37,6 +37,8 @@ public class AnheloPetsDbContext : DbContext
 
     public DbSet<AdoptionRequest> AdoptionRequests { get; set; }
 
+    public DbSet<AnimalPhoto> AnimalPhotos { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -126,6 +128,7 @@ public class AnheloPetsDbContext : DbContext
             entity.Property(f => f.Responsible).HasColumnName("responsible").HasColumnType("varchar(150)");
             entity.Property(f => f.Capacity).HasColumnName("capacity").HasColumnType("integer");
             entity.Property(f => f.Active).HasColumnName("active").HasColumnType("boolean");
+            entity.Property(f => f.PhotoUrl).HasColumnName("photo_url").HasColumnType("text");
             entity.Property(f => f.CreatedAt).HasColumnName("created_at").HasColumnType("timestamptz");
             entity.Property(f => f.CreatedBy).HasColumnName("created_by").HasColumnType("varchar(100)");
             entity.Property(f => f.ModifiedAt).HasColumnName("modified_at").HasColumnType("timestamptz");
@@ -225,6 +228,15 @@ public class AnheloPetsDbContext : DbContext
             entity.Property(r => r.ValidatedByUserId).HasColumnName("validated_by_user_id").HasColumnType("text");
 
             entity.HasIndex(r => new { r.UserId, r.AnimalId }).IsUnique();
+        });
+
+        modelBuilder.Entity<AnimalPhoto>(entity =>
+        {
+            entity.ToTable("animal_photos");
+            entity.Property(p => p.AnimalPhotoId).HasColumnName("animal_photo_id").ValueGeneratedOnAdd();
+            entity.Property(p => p.AnimalId).HasColumnName("animal_id").HasColumnType("text");
+            entity.Property(p => p.CreatedBy).HasColumnName("created_by").HasMaxLength(100);
+            entity.Property(p => p.ModifiedBy).HasColumnName("modified_by").HasMaxLength(100);
         });
     }
 }

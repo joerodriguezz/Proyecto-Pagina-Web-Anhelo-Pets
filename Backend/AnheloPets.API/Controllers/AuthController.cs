@@ -53,4 +53,30 @@ public class AuthController : ControllerBase
         await _userService.ResetPasswordByEmail(request);
         return NoContent();
     }
+
+    [Authorize]
+    [HttpPost("me/photo")]
+    public async Task<IActionResult> UploadMyPhoto(IFormFile file)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+        var result = await _userService.UploadProfilePhoto(userId, file);
+        if (result == null) return NotFound();
+
+        return Ok(result);
+    }
+
+    [Authorize]
+    [HttpDelete("me/photo")]
+    public async Task<IActionResult> DeleteMyPhoto()
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (string.IsNullOrWhiteSpace(userId)) return Unauthorized();
+
+        var result = await _userService.DeleteProfilePhoto(userId);
+        if (result == null) return NotFound();
+
+        return Ok(result);
+    }
 }

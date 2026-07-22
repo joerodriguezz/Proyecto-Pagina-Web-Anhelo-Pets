@@ -3,7 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import Icon from '../../components/Icon.vue'
 import { usePetsStore } from '../../stores/usePetsStore'
 import { useRescuesStore } from '../../stores/useRescuesStore'
-import { createAnimals } from '../../services/petServices.js'
+import { createAnimals, uploadAnimalPhoto, getAnimalPhotos, deleteAnimalPhoto } from '../../services/petServices.js'
 const store        = usePetsStore()
 const rescuesStore = useRescuesStore()
 
@@ -148,7 +148,17 @@ function handleImageUpload(e) {
   e.target.value = ''
 }
 
-function removeImage(index) {
+async function removeImage(index) {
+  const img = formData.value.images[index]
+  if (img?.animalPhotoId && editingPetId.value) {
+    try {
+      await deleteAnimalPhoto(editingPetId.value, img.animalPhotoId)
+    } catch (err) {
+      console.error('Error al borrar la foto:', err)
+      showToast('error', 'No se pudo borrar la foto')
+      return
+    }
+  }
   formData.value.images.splice(index, 1)
 }
 
@@ -191,15 +201,34 @@ function clearErr(campo) {
 // ─────────────────────────────────────────────
 // Guardar mascota
 // ──────────────────────────────────────────a───
+async function subirFotosNuevas(animalId) {
+  const nuevas = formData.value.images.filter(img => img.file && !img.animalPhotoId)
+  if (nuevas.length === 0) return
+
+  try {
+    await Promise.all(
+      nuevas.map((img, i) => uploadAnimalPhoto(animalId, img.file, i === 0 && !formData.value.images.some(x => x.animalPhotoId)))
+    )
+  } catch (err) {
+    console.error('Error al subir fotos:', err)
+    showToast('error', 'Mascota guardada, pero una foto no se pudo subir')
+  }
+}
+
 async function savePet() {
   if (!validateForm()) return
   const petData = { ...formData.value, images: [...formData.value.images] }
   if (editMode.value && editingPetId.value !== null) {
     await store.updatePet(editingPetId.value, petData)
+    await subirFotosNuevas(editingPetId.value)
+    await store.fetchPets({ status: 'Todos' })
     showToast('success', 'Mascota actualizada correctamente')
   } else {
     try {
-      const response = await createAnimals(petData)
+      const { data: created } = await createAnimals(petData)
+      if (created?.animalId) {
+        await subirFotosNuevas(created.animalId)
+      }
       await store.fetchPets({ status: 'Todos' })
       showToast('success', 'Mascota registrada correctamente')
     } catch (err) {
@@ -228,7 +257,7 @@ function openForm() {
   showForm.value = true
 }
 
-function openEdit(pet) {
+async function openEdit(pet) {
   editMode.value     = true
   editingPetId.value = pet.id
   formData.value     = {
@@ -249,6 +278,16 @@ function openEdit(pet) {
   formErrors.value = {}
   showForm.value   = true
   showViewModal.value = false
+
+  try {
+    const { data } = await getAnimalPhotos(pet.id)
+    formData.value.images = (data || []).map(p => ({
+      preview: p.photoUrl,
+      animalPhotoId: p.animalPhotoId,
+    }))
+  } catch (err) {
+    console.error('Error al cargar la galería de fotos:', err)
+  }
 }
 
 function closeForm() {

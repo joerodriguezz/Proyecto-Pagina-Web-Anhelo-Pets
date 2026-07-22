@@ -2,6 +2,7 @@ using AnheloPets.API.Data;
 using AnheloPets.API.DTOs;
 using AnheloPets.API.Exceptions;
 using AnheloPets.API.Models;
+using AnheloPets.API.Services;
 using Microsoft.EntityFrameworkCore;
 
 namespace AnheloPets.API.Repository;
@@ -13,11 +14,23 @@ public class DonationRepository
         "Aprobar", "Rechazar"
     };
 
-    private readonly AnheloPetsDbContext _context;
+    private const string PrivateBucket = "donation-proofs";
 
-    public DonationRepository(AnheloPetsDbContext context)
+    private static readonly Dictionary<string, string> MimeToExtension = new()
+    {
+        ["image/jpeg"] = ".jpg",
+        ["image/png"] = ".png",
+        ["image/webp"] = ".webp",
+        ["application/pdf"] = ".pdf",
+    };
+
+    private readonly AnheloPetsDbContext _context;
+    private readonly ISupabaseStorageService _storageService;
+
+    public DonationRepository(AnheloPetsDbContext context, ISupabaseStorageService storageService)
     {
         _context = context;
+        _storageService = storageService;
     }
 
     public async Task<IEnumerable<DonationDto>> GetAllAsync()
@@ -26,13 +39,19 @@ public class DonationRepository
             .OrderByDescending(d => d.CreatedAt)
             .ToListAsync();
 
-        return donations.Select(ToDto);
+        var dtos = new List<DonationDto>(donations.Count);
+        foreach (var donation in donations)
+        {
+            dtos.Add(await ToDtoAsync(donation));
+        }
+
+        return dtos;
     }
 
     public async Task<DonationDto?> GetByIdAsync(long id)
     {
         var donation = await _context.Donations.FindAsync(id);
-        return donation == null ? null : ToDto(donation);
+        return donation == null ? null : await ToDtoAsync(donation);
     }
 
     public async Task<DonationDto> CreateAsync(SubmitDonationDto dto)
@@ -72,6 +91,8 @@ public class DonationRepository
             throw new BadRequestException("El comprobante es obligatorio.");
         }
 
+        var proofPath = await UploadProofAsync(dto.ProofFile);
+
         var donation = new Donation
         {
             DonorName = dto.DonorName.Trim(),
@@ -82,7 +103,7 @@ public class DonationRepository
             Amount = dto.Amount,
             DonatedAt = dto.DonatedAt,
             Message = string.IsNullOrWhiteSpace(dto.Message) ? null : dto.Message.Trim(),
-            ProofFile = dto.ProofFile,
+            ProofFile = proofPath,
             ValidationStatus = "Pendiente",
             CreatedAt = DateTime.UtcNow,
             CreatedBy = string.IsNullOrWhiteSpace(dto.CreatedBy) ? "public" : dto.CreatedBy
@@ -91,7 +112,7 @@ public class DonationRepository
         _context.Donations.Add(donation);
         await _context.SaveChangesAsync();
 
-        return ToDto(donation);
+        return await ToDtoAsync(donation);
     }
 
     public async Task<DonationDto> UpdateStatusAsync(long id, UpdateDonationStatusDto dto)
@@ -114,22 +135,74 @@ public class DonationRepository
 
         await _context.SaveChangesAsync();
 
-        return ToDto(donation);
+        return await ToDtoAsync(donation);
     }
 
-    private static DonationDto ToDto(Donation d) => new()
+    /// <summary>Decodifica el data URL (data:&lt;mime&gt;;base64,&lt;payload&gt;) que manda el
+    /// frontend y sube los bytes al bucket privado. Devuelve el path guardado, no una URL.</summary>
+    private async Task<string> UploadProofAsync(string dataUrl)
     {
-        DonationId = d.DonationId,
-        DonorName = d.DonorName,
-        Email = d.Email,
-        Phone = d.Phone,
-        Method = d.Method,
-        Currency = d.Currency,
-        Amount = d.Amount,
-        DonatedAt = d.DonatedAt,
-        Message = d.Message,
-        ProofFile = d.ProofFile,
-        ValidationStatus = d.ValidationStatus,
-        CreatedAt = d.CreatedAt
-    };
+        var commaIndex = dataUrl.IndexOf(',');
+        if (!dataUrl.StartsWith("data:") || commaIndex < 0)
+        {
+            throw new BadRequestException("El comprobante tiene un formato inválido.");
+        }
+
+        var header = dataUrl[5..commaIndex]; // "<mime>;base64"
+        var mime = header.Split(';')[0];
+
+        if (!MimeToExtension.TryGetValue(mime, out var extension))
+        {
+            throw new BadRequestException("Solo se permiten comprobantes JPG, PNG, WEBP o PDF.");
+        }
+
+        var base64Payload = dataUrl[(commaIndex + 1)..];
+        byte[] bytes;
+        try
+        {
+            bytes = Convert.FromBase64String(base64Payload);
+        }
+        catch (FormatException)
+        {
+            throw new BadRequestException("El comprobante tiene un formato inválido.");
+        }
+
+        if (bytes.Length > 10 * 1024 * 1024)
+        {
+            throw new BadRequestException("El comprobante no puede superar 10MB.");
+        }
+
+        var path = $"donations/{Guid.NewGuid()}{extension}";
+        using var stream = new MemoryStream(bytes);
+        return await _storageService.UploadPrivateAsync(PrivateBucket, path, stream, mime);
+    }
+
+    private async Task<DonationDto> ToDtoAsync(Donation d)
+    {
+        string? signedUrl;
+        try
+        {
+            signedUrl = await _storageService.CreateSignedUrlAsync(PrivateBucket, d.ProofFile);
+        }
+        catch
+        {
+            signedUrl = null;
+        }
+
+        return new DonationDto
+        {
+            DonationId = d.DonationId,
+            DonorName = d.DonorName,
+            Email = d.Email,
+            Phone = d.Phone,
+            Method = d.Method,
+            Currency = d.Currency,
+            Amount = d.Amount,
+            DonatedAt = d.DonatedAt,
+            Message = d.Message,
+            ProofFile = signedUrl ?? d.ProofFile,
+            ValidationStatus = d.ValidationStatus,
+            CreatedAt = d.CreatedAt
+        };
+    }
 }

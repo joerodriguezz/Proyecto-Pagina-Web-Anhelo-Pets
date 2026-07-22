@@ -243,12 +243,18 @@ function formatFecha(f) {
   return isNaN(d) ? f : d.toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
+// El comprobante ahora es una URL firmada de Supabase Storage (con ?token=...),
+// no un data: URI — se detecta el tipo por la extensión del archivo en el path.
+function extensionDe(comprobante) {
+  return (comprobante?.split('?')[0] || '').toLowerCase()
+}
+
 function esImagen(comprobante) {
-  return comprobante?.startsWith('data:image')
+  return /\.(jpe?g|png|webp)$/.test(extensionDe(comprobante))
 }
 
 function esPDF(comprobante) {
-  return comprobante?.startsWith('data:application/pdf')
+  return extensionDe(comprobante).endsWith('.pdf')
 }
 
 function abrirPDF(comprobante) {

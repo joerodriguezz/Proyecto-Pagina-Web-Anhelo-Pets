@@ -29,6 +29,8 @@ public class FosterHomeDto
 
     public bool Active { get; set; } = true;
 
+    public string? PhotoUrl { get; set; }
+
     public string CreatedBy { get; set; } = "api";
     public string ModifiedBy { get; set; } = "api";
 }

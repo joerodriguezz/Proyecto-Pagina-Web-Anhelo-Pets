@@ -82,6 +82,18 @@ public class FosterHomeRepository
         return true;
     }
 
+    public async Task<FosterHomeDto?> SetPhotoUrl(string id, string url)
+    {
+        var entity = await _context.FosterHomes.FindAsync(id);
+        if (entity == null) return null;
+
+        entity.PhotoUrl = url;
+        entity.ModifiedAt = DateTime.UtcNow;
+        await _context.SaveChangesAsync();
+
+        return MapToDto(entity);
+    }
+
     private static FosterHomeDto MapToDto(FosterHome f) => new()
     {
         FosterHomeId = f.FosterHomeId,
@@ -92,5 +104,6 @@ public class FosterHomeRepository
         Responsible = f.Responsible,
         Capacity = f.Capacity,
         Active = f.Active,
+        PhotoUrl = f.PhotoUrl,
     };
 }

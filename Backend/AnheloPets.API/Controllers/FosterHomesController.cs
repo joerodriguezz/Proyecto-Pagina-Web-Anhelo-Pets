@@ -1,21 +1,26 @@
 using AnheloPets.API.DTOs;
 using AnheloPets.API.Exceptions;
 using AnheloPets.API.Services;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 
 namespace AnheloPets.API.Controllers;
 
 [ApiController]
 [Route("api/foster-homes")]
+[Authorize(Roles = "Admin")]
 public class FosterHomesController : ControllerBase
 {
-    private readonly IFosterHomeService _fosterHomeService;
-    private readonly IConfiguration _configuration;
+    private static readonly string[] AllowedPhotoTypes = { "image/jpeg", "image/png", "image/webp" };
+    private const long MaxPhotoBytes = 5 * 1024 * 1024;
 
-    public FosterHomesController(IFosterHomeService fosterHomeService, IConfiguration configuration)
+    private readonly IFosterHomeService _fosterHomeService;
+    private readonly ISupabaseStorageService _storageService;
+
+    public FosterHomesController(IFosterHomeService fosterHomeService, ISupabaseStorageService storageService)
     {
         _fosterHomeService = fosterHomeService;
-        _configuration = configuration;
+        _storageService = storageService;
     }
 
     [HttpGet]
@@ -59,7 +64,6 @@ public class FosterHomesController : ControllerBase
     [HttpPost("{id}/photo")]
     public async Task<IActionResult> UploadPhoto(string id, IFormFile file)
     {
-        // Verificar que la casa cuna existe
         try
         {
             await _fosterHomeService.GetById(id);
@@ -69,36 +73,25 @@ public class FosterHomesController : ControllerBase
             return NotFound(new { message = ex.Message });
         }
 
-        // Validar archivo
         if (file == null || file.Length == 0)
             return BadRequest(new { message = "El archivo es obligatorio." });
 
-        var allowedTypes = new[] { "image/jpeg", "image/png", "image/webp" };
-        if (!allowedTypes.Contains(file.ContentType))
+        if (!AllowedPhotoTypes.Contains(file.ContentType))
             return BadRequest(new { message = "Solo se permiten imágenes JPG, PNG o WEBP." });
 
-        if (file.Length > 5 * 1024 * 1024)
+        if (file.Length > MaxPhotoBytes)
             return BadRequest(new { message = "La imagen no puede superar 5MB." });
 
-        // Subir a Supabase Storage
-        var supabaseUrl = _configuration["Supabase:Url"];
-        var supabaseKey = _configuration["Supabase:ServiceKey"];
-        var fileName = $"foster-home-{id}-{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
-        var uploadUrl = $"{supabaseUrl}/storage/v1/object/foster-homes/{fileName}";
+        var path = $"foster-homes/{id}/{Guid.NewGuid()}{Path.GetExtension(file.FileName)}";
 
-        using var httpClient = new HttpClient();
-        httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {supabaseKey}");
-        httpClient.DefaultRequestHeaders.Add("apikey", supabaseKey);
+        string publicUrl;
+        using (var stream = file.OpenReadStream())
+        {
+            publicUrl = await _storageService.UploadPublicAsync("public-media", path, stream, file.ContentType);
+        }
 
-        using var stream = file.OpenReadStream();
-        using var content = new StreamContent(stream);
-        content.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue(file.ContentType);
+        await _fosterHomeService.SetPhotoUrl(id, publicUrl);
 
-        var response = await httpClient.PutAsync(uploadUrl, content);
-        if (!response.IsSuccessStatusCode)
-            return StatusCode(500, new { message = "Error al subir la imagen." });
-
-        var publicUrl = $"{supabaseUrl}/storage/v1/object/public/foster-homes/{fileName}";
         return Ok(new { url = publicUrl });
     }
 }

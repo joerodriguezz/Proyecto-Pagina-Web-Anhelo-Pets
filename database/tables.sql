@@ -32,6 +32,7 @@ CREATE TABLE user_profiles (
     second_last_name varchar(100),
     birth_date      date,
     nationality     varchar(100),
+    photo_url       text,
 
     created_at      timestamptz,
     created_by      varchar(100),
@@ -250,6 +251,7 @@ CREATE TABLE foster_homes (
     responsible    varchar(150) NOT NULL,
     capacity       integer NOT NULL,
     active         boolean NOT NULL DEFAULT true,
+    photo_url      text,
 
     created_at     timestamptz,
     created_by     varchar(100),
