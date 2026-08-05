@@ -1,6 +1,6 @@
 <script setup>
-import { ref, computed, onMounted } from 'vue'
-import { getAuditLog, AUDIT_MODULOS, AUDIT_TIPOS_ACCION } from '../../composables/useAuditLog'
+import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
+import { getAuditLog } from '../../composables/useAuditLog'
 
 // ─────────────────────────────────────────────
 // Datos
@@ -9,7 +9,13 @@ const registros = ref([])
 function cargarRegistros() {
   registros.value = getAuditLog()
 }
-onMounted(cargarRegistros)
+onMounted(() => {
+  cargarRegistros()
+  document.addEventListener('click', handleClickOutside)
+})
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleClickOutside)
+})
 
 // ─────────────────────────────────────────────
 // Modal ver detalle
@@ -27,45 +33,75 @@ function openView(r) {
 const filterModulo     = ref('Todos')
 const filterEstado     = ref('Todos')
 const filterTipoAccion = ref('Todos')
-const filterRol        = ref('Todos')
-const filterUsuario    = ref('Todos')
+const filterUsuario    = ref('')
 const fechaInicio      = ref('')
 const fechaFin         = ref('')
-const searchQuery      = ref('')
 
-const MODULO_TABS = ['Todos', ...AUDIT_MODULOS]
+const MODULO_TABS = ['Todos', 'Mascotas', 'Adopciones', 'Rescates', 'Salud', 'Usuarios', 'Donaciones', 'Voluntarios', 'Autenticación']
 const ESTADO_TABS = ['Todos', 'Exitoso', 'Fallido']
 
-const rolesDisponibles = computed(() => {
-  const set = new Set(registros.value.map(r => r.rol).filter(Boolean))
-  return ['Todos', ...Array.from(set)]
-})
-const usuariosDisponibles = computed(() => {
-  const set = new Set(registros.value.map(r => r.usuario).filter(Boolean))
-  return ['Todos', ...Array.from(set)]
-})
+// NOTA: los "value" deben coincidir con el valor real que guarda useAuditLog
+// para el campo tipoAccion de cada registro. Si el sistema de auditoría usa
+// otras claves para inicio/cierre de sesión, ajustar 'login' / 'logout' aquí.
+const TIPO_ACCION_OPTIONS = [
+  { value: 'crear',    label: 'Crear' },
+  { value: 'editar',   label: 'Editar' },
+  { value: 'eliminar', label: 'Eliminar' },
+  { value: 'aprobar',  label: 'Aprobar' },
+  { value: 'rechazar', label: 'Rechazar' },
+  { value: 'estado',   label: 'Cambio de estado' },
+  { value: 'login',    label: 'Inicio de sesión' },
+  { value: 'logout',   label: 'Cierre de sesión' },
+]
 
 const hayFiltros = computed(() =>
-  searchQuery.value.trim() !== '' ||
+  filterUsuario.value.trim() !== '' ||
   filterModulo.value !== 'Todos' ||
   filterEstado.value !== 'Todos' ||
   filterTipoAccion.value !== 'Todos' ||
-  filterRol.value !== 'Todos' ||
-  filterUsuario.value !== 'Todos' ||
   fechaInicio.value !== '' ||
   fechaFin.value !== ''
 )
 
 function limpiarFiltros() {
-  searchQuery.value      = ''
+  filterUsuario.value    = ''
   filterModulo.value     = 'Todos'
   filterEstado.value     = 'Todos'
   filterTipoAccion.value = 'Todos'
-  filterRol.value        = 'Todos'
-  filterUsuario.value    = 'Todos'
   fechaInicio.value      = ''
   fechaFin.value         = ''
 }
+
+// ─────────────────────────────────────────────
+// Dropdowns personalizados (solo UI, no afecta el filtrado)
+// ─────────────────────────────────────────────
+const moduloOpen = ref(false)
+const estadoOpen = ref(false)
+const tipoOpen   = ref(false)
+
+function toggleDropdown(cual) {
+  const next = { modulo: !moduloOpen.value, estado: !estadoOpen.value, tipo: !tipoOpen.value }[cual]
+  moduloOpen.value = cual === 'modulo' ? next : false
+  estadoOpen.value = cual === 'estado' ? next : false
+  tipoOpen.value   = cual === 'tipo'   ? next : false
+}
+function closeDropdowns() {
+  moduloOpen.value = false
+  estadoOpen.value = false
+  tipoOpen.value   = false
+}
+function handleClickOutside(e) {
+  if (!e.target.closest('.custom-select')) closeDropdowns()
+}
+function selectModulo(m) { filterModulo.value = m; resetPagina(); closeDropdowns() }
+function selectEstado(e) { filterEstado.value = e; resetPagina(); closeDropdowns() }
+function selectTipo(v)   { filterTipoAccion.value = v; resetPagina(); closeDropdowns() }
+
+const filterTipoAccionLabel = computed(() => {
+  if (filterTipoAccion.value === 'Todos') return 'Todos'
+  const found = TIPO_ACCION_OPTIONS.find(t => t.value === filterTipoAccion.value)
+  return found ? found.label : filterTipoAccion.value
+})
 
 // ─────────────────────────────────────────────
 // Ordenamiento
@@ -85,23 +121,16 @@ function toggleSort(campo) {
 // Lista filtrada + ordenada
 // ─────────────────────────────────────────────
 const filteredRegistros = computed(() => {
-  const q = searchQuery.value.trim().toLowerCase()
+  const usuarioQuery = filterUsuario.value.trim().toLowerCase()
 
   let lista = registros.value.filter(r => {
-    const matchModulo  = filterModulo.value === 'Todos' || r.modulo === filterModulo.value
-    const matchEstado  = filterEstado.value === 'Todos' || r.estado === filterEstado.value
-    const matchTipo    = filterTipoAccion.value === 'Todos' || r.tipoAccion === filterTipoAccion.value
-    const matchRol      = filterRol.value === 'Todos' || r.rol === filterRol.value
-    const matchUsuario  = filterUsuario.value === 'Todos' || r.usuario === filterUsuario.value
+    const matchModulo   = filterModulo.value === 'Todos' || r.modulo === filterModulo.value
+    const matchEstado   = filterEstado.value === 'Todos' || r.estado === filterEstado.value
+    const matchTipo     = filterTipoAccion.value === 'Todos' || r.tipoAccion === filterTipoAccion.value
     const matchFechaIni = !fechaInicio.value || r.fecha >= fechaInicio.value
     const matchFechaFin = !fechaFin.value || r.fecha <= fechaFin.value
-    const matchSearch = !q ||
-      r.usuario.toLowerCase().includes(q) ||
-      r.elemento.toLowerCase().includes(q) ||
-      r.accion.toLowerCase().includes(q) ||
-      r.modulo.toLowerCase().includes(q) ||
-      (r.descripcion || '').toLowerCase().includes(q)
-    return matchModulo && matchEstado && matchTipo && matchRol && matchUsuario && matchFechaIni && matchFechaFin && matchSearch
+    const matchUsuario  = !usuarioQuery || (r.usuario || '').toLowerCase().includes(usuarioQuery)
+    return matchModulo && matchEstado && matchTipo && matchFechaIni && matchFechaFin && matchUsuario
   })
 
   const dir = sortDir.value === 'asc' ? 1 : -1
@@ -167,6 +196,7 @@ const tipoAccionLabel = {
   crear: 'Creación', editar: 'Edición', eliminar: 'Eliminación',
   aprobar: 'Aprobación', rechazar: 'Rechazo', estado: 'Cambio de estado',
   asignar: 'Asignación', sesion: 'Sesión', password: 'Contraseña',
+  login: 'Inicio de sesión', logout: 'Cierre de sesión',
 }
 
 function formatCampo(v) {
@@ -335,69 +365,119 @@ function formatCampo(v) {
         </div>
       </div>
 
+      <!-- ══════════════════════════════════════
+           PANEL DE FILTROS (rediseñado — selects personalizados)
+      ══════════════════════════════════════ -->
       <div class="filtros-panel">
-        <div class="filtros-row">
-          <div class="filtro-group filtro-group--tabs">
-            <label class="filtro-label">Módulo</label>
-            <div class="tabs-wrap">
-              <button v-for="m in MODULO_TABS" :key="m" class="tab-btn" :class="{ active: filterModulo === m }" @click="filterModulo = m; resetPagina()">{{ m }}</button>
+        <div class="filtros-grid">
+
+          <div class="filtro-group">
+            <span class="filtro-label">Módulo</span>
+            <div class="custom-select" :class="{ open: moduloOpen, active: filterModulo !== 'Todos' }">
+              <button type="button" class="custom-select-trigger" @click.stop="toggleDropdown('modulo')">
+                <span>{{ filterModulo }}</span>
+                <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <ul class="custom-select-menu" v-show="moduloOpen">
+                <li
+                  v-for="m in MODULO_TABS"
+                  :key="m"
+                  class="custom-select-option"
+                  :class="{ selected: filterModulo === m }"
+                  @click="selectModulo(m)"
+                >
+                  <span>{{ m }}</span>
+                  <svg v-if="filterModulo === m" class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </li>
+              </ul>
             </div>
           </div>
-          <div class="filtro-group filtro-group--tabs">
-            <label class="filtro-label">Estado</label>
-            <div class="tabs-wrap">
-              <button v-for="e in ESTADO_TABS" :key="e" class="tab-btn" :class="{ active: filterEstado === e }" @click="filterEstado = e; resetPagina()">{{ e }}</button>
+
+          <div class="filtro-group">
+            <span class="filtro-label">Estado</span>
+            <div class="custom-select" :class="{ open: estadoOpen, active: filterEstado !== 'Todos' }">
+              <button type="button" class="custom-select-trigger" @click.stop="toggleDropdown('estado')">
+                <span>{{ filterEstado }}</span>
+                <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <ul class="custom-select-menu" v-show="estadoOpen">
+                <li
+                  v-for="e in ESTADO_TABS"
+                  :key="e"
+                  class="custom-select-option"
+                  :class="{ selected: filterEstado === e }"
+                  @click="selectEstado(e)"
+                >
+                  <span>{{ e }}</span>
+                  <svg v-if="filterEstado === e" class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </li>
+              </ul>
             </div>
           </div>
-        </div>
 
-        <div class="filtros-divider"></div>
+          <div class="filtro-group">
+            <span class="filtro-label">Tipo de acción</span>
+            <div class="custom-select" :class="{ open: tipoOpen, active: filterTipoAccion !== 'Todos' }">
+              <button type="button" class="custom-select-trigger" @click.stop="toggleDropdown('tipo')">
+                <span>{{ filterTipoAccionLabel }}</span>
+                <svg class="chevron" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+              </button>
+              <ul class="custom-select-menu" v-show="tipoOpen">
+                <li class="custom-select-option" :class="{ selected: filterTipoAccion === 'Todos' }" @click="selectTipo('Todos')">
+                  <span>Todos</span>
+                  <svg v-if="filterTipoAccion === 'Todos'" class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </li>
+                <li
+                  v-for="t in TIPO_ACCION_OPTIONS"
+                  :key="t.value"
+                  class="custom-select-option"
+                  :class="{ selected: filterTipoAccion === t.value }"
+                  @click="selectTipo(t.value)"
+                >
+                  <span>{{ t.label }}</span>
+                  <svg v-if="filterTipoAccion === t.value" class="check-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                </li>
+              </ul>
+            </div>
+          </div>
 
-        <div class="filtros-row">
           <div class="filtro-group">
-            <label class="filtro-label">Desde</label>
-            <input type="date" v-model="fechaInicio" class="filtro-input filtro-date" @change="resetPagina()" />
-          </div>
-          <div class="filtro-group">
-            <label class="filtro-label">Hasta</label>
-            <input type="date" v-model="fechaFin" class="filtro-input filtro-date" @change="resetPagina()" />
-          </div>
-          <div class="filtro-group">
-            <label class="filtro-label">Usuario</label>
-            <select v-model="filterUsuario" class="filtro-input filtro-select" @change="resetPagina()">
-              <option v-for="u in usuariosDisponibles" :key="u">{{ u }}</option>
-            </select>
-          </div>
-          <div class="filtro-group">
-            <label class="filtro-label">Rol</label>
-            <select v-model="filterRol" class="filtro-input filtro-select" @change="resetPagina()">
-              <option v-for="r in rolesDisponibles" :key="r">{{ r }}</option>
-            </select>
-          </div>
-          <div class="filtro-group">
-            <label class="filtro-label">Tipo de acción</label>
-            <select v-model="filterTipoAccion" class="filtro-input filtro-select" @change="resetPagina()">
-              <option value="Todos">Todos</option>
-              <option v-for="t in AUDIT_TIPOS_ACCION" :key="t" :value="t">{{ tipoAccionLabel[t] }}</option>
-            </select>
-          </div>
-        </div>
-
-        <div class="filtros-divider"></div>
-
-        <div class="filtros-row filtros-row--end">
-          <div class="filtro-group filtro-group--search">
-            <label class="filtro-label">Buscar</label>
+            <label class="filtro-label" for="filtroUsuario">Usuario</label>
             <div class="filtro-input-wrap">
               <span class="filtro-icon filtro-icon--left">
                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
               </span>
-              <input v-model="searchQuery" @input="resetPagina()" placeholder="Usuario, mascota, donación, rescate, adopción..." class="filtro-input filtro-input--icon-left" />
+              <input id="filtroUsuario" v-model="filterUsuario" @input="resetPagina()" placeholder="Buscar por usuario..." class="filtro-input filtro-input--icon-left" />
             </div>
           </div>
-          <div class="filtro-group filtro-group--btn">
-            <button class="btn btn--ghost" :class="{ 'btn--ghost-active': hayFiltros }" @click="limpiarFiltros(); resetPagina()">Limpiar filtros</button>
+
+          <div class="filtro-group">
+            <label class="filtro-label" for="filtroDesde">Desde</label>
+            <div class="filtro-input-wrap">
+              <span class="filtro-icon filtro-icon--left">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="4"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              </span>
+              <input id="filtroDesde" type="date" v-model="fechaInicio" class="filtro-input filtro-date filtro-input--icon-left" @change="resetPagina()" />
+            </div>
           </div>
+
+          <div class="filtro-group">
+            <label class="filtro-label" for="filtroHasta">Hasta</label>
+            <div class="filtro-input-wrap">
+              <span class="filtro-icon filtro-icon--left">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="4"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+              </span>
+              <input id="filtroHasta" type="date" v-model="fechaFin" class="filtro-input filtro-date filtro-input--icon-left" @change="resetPagina()" />
+            </div>
+          </div>
+
+          <div class="filtro-group filtro-group--btn">
+            <span class="filtro-label filtro-label--hidden" aria-hidden="true">Limpiar</span>
+            <button class="btn btn--ghost" :class="{ 'btn--ghost-active': hayFiltros }" @click="limpiarFiltros(); resetPagina()">
+              Limpiar filtros
+            </button>
+          </div>
+
         </div>
       </div>
 
@@ -518,32 +598,67 @@ function formatCampo(v) {
 .don-label { font-size:10.5px; color:var(--texto-ter); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-top:7px; }
 .don-desc { font-size:11px; color:var(--texto-sec); margin-top:2px; }
 
-/* ── Filtros ── */
-.filtros-panel { background:var(--blanco); border-radius:16px; padding:18px 20px; margin-bottom:20px; border:1px solid var(--borde); box-shadow:var(--sombra-sm); display:flex; flex-direction:column; gap:16px; }
-.filtros-row { display:flex; gap:24px; flex-wrap:wrap; }
-.filtros-row--end { align-items:flex-end; justify-content:space-between; }
-.filtros-divider { height:1px; background:var(--borde-suave); }
-.filtro-group { display:flex; flex-direction:column; gap:7px; }
-.filtro-group--tabs { flex:0 0 auto; }
-.filtro-group--btn { flex:0 0 auto; }
-.filtro-group--search { flex:1; min-width:220px; max-width:340px; }
+/* ── Filtros (rediseñado) ───────────────────────────────────────────
+   Selects personalizados (sin estilo nativo del navegador), paleta
+   100% verde/gris/blanco del sistema — sin azul. Todos los controles
+   comparten la misma altura y quedan alineados en una sola cuadrícula
+   responsiva para una apariencia unificada y ordenada.
+------------------------------------------------------------------- */
+.filtros-panel { background:var(--blanco); border-radius:16px; padding:22px 24px; margin-bottom:20px; border:1px solid var(--borde); box-shadow:var(--sombra-sm); }
 .filtro-label { font-size:10.5px; font-weight:700; color:var(--texto-ter); text-transform:uppercase; letter-spacing:0.6px; }
-.tabs-wrap { display:flex; gap:3px; background:var(--fondo); border:1px solid var(--borde-suave); border-radius:10px; padding:3px; }
-.tab-btn { padding:7px 13px; border-radius:7px; border:none; background:transparent; color:var(--texto-sec); font-size:12px; font-weight:700; cursor:pointer; transition:all 0.18s; white-space:nowrap; font-family:inherit; }
-.tab-btn:hover { color:var(--texto); }
-.tab-btn.active { background:var(--blanco); color:var(--texto); box-shadow:var(--sombra-sm); border:1px solid var(--borde); }
-.filtro-input-wrap { position:relative; display:flex; align-items:center; }
-.filtro-input { height:36px; padding:0 14px; border-radius:8px; border:1px solid var(--borde); background:var(--fondo); font-size:13px; color:var(--texto); font-family:inherit; outline:none; transition:border-color 0.18s, background 0.18s; box-sizing:border-box; }
-.filtro-input:focus { border-color:var(--verde-sec); background:var(--blanco); }
-.filtro-input--icon-left { padding-left:36px; width:100%; }
-.filtro-icon { position:absolute; display:flex; align-items:center; color:var(--texto-sec); }
-.filtro-icon--left { left:12px; }
-.filtro-date { width:150px; }
-.filtro-select {
-  width:170px; padding-right:30px;
-  background-image:var(--select-arrow); background-repeat:no-repeat; background-position:right 10px center;
-  appearance:none; -webkit-appearance:none; -moz-appearance:none;
+.filtro-label--hidden { visibility:hidden; }
+
+.filtros-grid {
+  display:grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap:24px 22px;
 }
+.filtro-group { display:flex; flex-direction:column; gap:8px; min-width:0; }
+.filtro-group--btn { justify-content:flex-end; }
+.filtro-group--btn .btn { width:100%; height:44px; }
+
+/* Controles base compartidos: mismo alto y radio para todos */
+.filtro-input-wrap { position:relative; display:flex; align-items:center; }
+.filtro-input { height:44px; padding:0 14px; border-radius:12px; border:1.5px solid var(--borde); background:var(--fondo); font-size:13px; color:var(--texto); font-family:inherit; outline:none; transition:border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease; box-sizing:border-box; width:100%; }
+.filtro-input:focus { border-color:var(--verde-sec); background:var(--blanco); box-shadow:0 0 0 3px rgba(146,168,148,.18); }
+.filtro-input--icon-left { padding-left:38px; }
+.filtro-icon { position:absolute; display:flex; align-items:center; color:var(--verde-sec); pointer-events:none; z-index:1; }
+.filtro-icon--left { left:13px; }
+.filtro-date { width:100%; }
+
+/* ── Select personalizado ── */
+.custom-select { position:relative; }
+.custom-select-trigger {
+  width:100%; height:44px; padding:0 40px 0 14px; border-radius:12px;
+  border:1.5px solid var(--borde); background:var(--fondo); color:var(--texto);
+  font-size:13px; font-weight:600; font-family:inherit; cursor:pointer;
+  display:flex; align-items:center; justify-content:flex-start;
+  transition:border-color 0.16s ease, background 0.16s ease, box-shadow 0.16s ease, color 0.16s ease;
+  text-align:left; position:relative;
+}
+.custom-select-trigger span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.custom-select-trigger:hover { border-color:var(--verde-sec); background:var(--blanco); }
+.custom-select .chevron { position:absolute; right:13px; top:50%; transform:translateY(-50%); color:var(--texto-sec); transition:transform 0.2s ease, color 0.16s ease; pointer-events:none; }
+.custom-select.open .custom-select-trigger { border-color:var(--verde-sec); background:var(--blanco); box-shadow:0 0 0 3px rgba(146,168,148,.18); }
+.custom-select.open .chevron { transform:translateY(-50%) rotate(180deg); color:var(--verde); }
+.custom-select.active .custom-select-trigger { border-color:var(--verde-sec); background:#F2F7F3; color:var(--verde); }
+.custom-select.active .chevron { color:var(--verde-sec); }
+
+.custom-select-menu {
+  position:absolute; top:calc(100% + 8px); left:0; right:0; z-index:40;
+  background:var(--blanco); border:1px solid var(--borde-suave); border-radius:14px;
+  box-shadow:0 14px 34px -14px rgba(58,71,60,.28), 0 3px 10px rgba(58,71,60,.06);
+  padding:6px; margin:0; list-style:none; max-height:280px; overflow-y:auto;
+}
+.custom-select-option {
+  display:flex; align-items:center; justify-content:space-between; gap:10px;
+  padding:9px 12px; border-radius:9px; font-size:13px; font-weight:500; color:var(--texto);
+  cursor:pointer; transition:background-color 0.12s ease; margin-bottom:1px;
+}
+.custom-select-option:last-child { margin-bottom:0; }
+.custom-select-option:hover { background:#EEF6F0; }
+.custom-select-option.selected { background:#F2F7F3; color:var(--verde); font-weight:700; }
+.custom-select-option .check-icon { width:14px; height:14px; color:var(--verde); flex-shrink:0; }
 
 /* ── Estado vacío ── */
 .empty-state { text-align:center; padding:72px 24px; background:var(--blanco); border-radius:16px; border:1px solid var(--borde); color:var(--verde-sec); display:flex; flex-direction:column; align-items:center; gap:10px; }
@@ -643,17 +758,21 @@ function formatCampo(v) {
 
 /* ── Responsive ── */
 @media (max-width:1100px) { .don-summary { grid-template-columns:repeat(2, 1fr); } }
+
+@media (max-width:980px) {
+  .filtros-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
 @media (max-width:900px) {
   .modal-box--uniform { width:94vw; height:88vh; }
   .grid-2col { grid-template-columns:1fr; }
   .fields-row { grid-template-columns:repeat(2, 1fr); }
 }
+
 @media (max-width:640px) {
-  .filtros-row { flex-direction:column; gap:14px; }
-  .filtros-row--end { align-items:stretch; }
-  .filtro-group { min-width:100%; }
-  .filtro-group--search { max-width:none; }
-  .filtro-date, .filtro-select { width:100%; }
+  .filtros-grid { grid-template-columns:1fr; }
   .don-summary { grid-template-columns:1fr 1fr; }
   .don-table th:nth-child(3), .don-table td:nth-child(3) { display:none; }
   .modal-box--uniform { width:96vw; height:92vh; border-radius:18px; }

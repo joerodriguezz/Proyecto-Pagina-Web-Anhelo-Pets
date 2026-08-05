@@ -11,6 +11,9 @@ import { useAuthStore } from '../stores/useAuthStore'
 const router = useRouter()
 const authStore = useAuthStore()
 
+
+
+
 /* ─────────────────────────────
    LOGIN
 ───────────────────────────── */
@@ -19,6 +22,12 @@ const correo   = ref('')
 const password = ref('')
 const error    = ref('')
 const loading  = ref(false)
+
+const showPassword = ref(false)
+
+function toggleShowPassword() {
+  showPassword.value = !showPassword.value
+}
 
 /* ─────────────────────────────
    RECUPERAR — ESTADO GENERAL
@@ -241,6 +250,8 @@ function cerrarModal() {
   confirmarNuevaPassword.value = ''
 }
 
+
+
 /* ─────────────────────────────
    LOGIN
 ───────────────────────────── */
@@ -281,23 +292,40 @@ async function iniciarSesion() {
 
     <div class="login-visual">
 
-      <RouterLink to="/" class="logo-link">
-        Anhelo
-        <span class="logo-green">Pets</span>
-      </RouterLink>
+      <div class="visual-inner">
 
-      <div class="visual-content">
+        <RouterLink to="/" class="logo-link">
+          Anhelo
+          <span class="logo-green">Pets</span>
+        </RouterLink>
 
-        <h1 class="visual-title">
-          Bienvenido
-          nuevamente
-        </h1>
+        <div class="visual-content">
 
-        <p class="visual-description">
-          Inicia sesión para continuar
-          con tu proceso de adopción
-          y gestionar tus solicitudes.
-        </p>
+          <h1 class="visual-title">
+            Bienvenido<br />
+            nuevamente
+          </h1>
+
+          <div class="visual-divider"></div>
+
+          <p class="visual-description">
+            Inicia sesión para continuar
+            con tu proceso de adopción
+            y gestionar tus solicitudes.
+          </p>
+
+        </div>
+
+        <div class="visual-stats">
+          <div class="visual-stat">
+            <span class="visual-stat-value">+120</span>
+            <span class="visual-stat-label">adopciones</span>
+          </div>
+          <div class="visual-stat">
+            <span class="visual-stat-value">98%</span>
+            <span class="visual-stat-label">satisfacción</span>
+          </div>
+        </div>
 
       </div>
 
@@ -311,7 +339,8 @@ async function iniciarSesion() {
 
         <div class="form-header">
           <h2>Iniciar sesión</h2>
-          <p>Ingresa tus credenciales</p>
+          <p>Ingresa tus credenciales para continuar</p>
+      
         </div>
 
         <!-- ERROR -->
@@ -326,7 +355,7 @@ async function iniciarSesion() {
 
           <!-- CORREO -->
           <div class="input-group">
-            <label>Correo electrónico</label>
+            <label>Correo electrónico <span class="req-mark">*</span></label>
             <input
               v-model="correo"
               type="email"
@@ -337,13 +366,30 @@ async function iniciarSesion() {
 
           <!-- PASSWORD -->
           <div class="input-group">
-            <label>Contraseña</label>
-            <input
-              v-model="password"
-              type="password"
-              class="custom-input"
-              placeholder="••••••••"
-            />
+            <label>Contraseña <span class="req-mark">*</span></label>
+            <div class="password-field-wrap">
+              <input
+                v-model="password"
+                :type="showPassword ? 'text' : 'password'"
+                class="custom-input"
+                placeholder="••••••••"
+              />
+              <button
+                type="button"
+                class="password-toggle-btn"
+                :aria-label="showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'"
+                @click="toggleShowPassword"
+              >
+                <svg v-if="!showPassword" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M1 12s4-7 11-7 11 7 11 7-4 7-11 7-11-7-11-7Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <circle cx="12" cy="12" r="3" stroke="currentColor" stroke-width="1.8"/>
+                </svg>
+                <svg v-else viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-7 0-11-7-11-7a20.6 20.6 0 0 1 5.06-5.94M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 7 11 7a20.6 20.6 0 0 1-3.16 4.24M14.12 14.12a3 3 0 1 1-4.24-4.24" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+                  <path d="M1 1l22 22" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+                </svg>
+              </button>
+            </div>
           </div>
 
           <!-- RECUPERAR -->
@@ -393,20 +439,34 @@ async function iniciarSesion() {
 
       <div class="recover-modal">
 
-        <!-- ── ENCABEZADO MODAL ── -->
-        <div class="modal-header">
-          <h3>Recuperar contraseña</h3>
-          <button class="close-modal" @click="cerrarModal">×</button>
-        </div>
+        <!-- CERRAR -->
+        <button class="close-modal" @click="cerrarModal" aria-label="Cerrar">
+          <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M18 6L6 18M6 6l12 12" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+          </svg>
+        </button>
 
         <!-- ════════════════════
              ETAPA 1: BUSCAR
         ════════════════════ -->
         <template v-if="etapaRecuperacion === 'buscar'">
 
-          <p class="recover-text">
-            Ingresa tu correo electrónico y te enviaremos un código para restablecer tu contraseña.
+          <div class="r-icon-wrap">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="48" height="48" rx="14" fill="rgba(58,71,60,0.08)"/>
+              <path d="M10 16a2 2 0 0 1 2-2h24a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V16Z" stroke="#2D372F" stroke-width="1.8"/>
+              <path d="M10 17l14 10 14-10" stroke="#2D372F" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </div>
+
+          <h3 class="r-modal-title">Recuperar contraseña</h3>
+
+          <p class="r-subtitle">
+            Ingresa tu correo y te enviaremos un código
+            para restablecer tu contraseña.
           </p>
+
+          <div class="r-divider-line"></div>
 
           <!-- Error -->
           <div v-if="recoverError" class="r-alert-error">
@@ -416,7 +476,7 @@ async function iniciarSesion() {
           <!-- Campo correo -->
           <div class="r-field-group">
             <label class="r-field-label">
-              Correo electrónico <span class="r-req">*</span>
+              Correo electrónico
             </label>
             <input
               v-model="recoverEmail"
@@ -427,6 +487,14 @@ async function iniciarSesion() {
             />
           </div>
 
+          <!-- Info -->
+          <div class="r-info-box">
+            <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 3l7 3v6c0 4.5-3 8-7 9-4-1-7-4.5-7-9V6l7-3z" stroke="#5F7A62" stroke-width="1.6" stroke-linejoin="round"/>
+            </svg>
+            <span>Te enviaremos un código seguro para que puedas crear una nueva contraseña.</span>
+          </div>
+
           <!-- Botón buscar -->
           <button
             type="button"
@@ -435,8 +503,19 @@ async function iniciarSesion() {
             @click="recuperarPassword"
           >
             <span v-if="enviandoCorreo">Enviando código...</span>
-            <span v-else>Buscar cuenta</span>
+            <span v-else class="r-btn-icon">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M22 2L11 13" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                <path d="M22 2l-7 20-4-9-9-4 20-7z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              </svg>
+              Enviar código
+            </span>
           </button>
+
+          <div class="r-footer-row">
+            <span>¿Recordaste tu contraseña?</span>
+            <button type="button" class="r-footer-link" @click="cerrarModal">Iniciar sesión</button>
+          </div>
 
         </template>
 
@@ -446,21 +525,23 @@ async function iniciarSesion() {
         <template v-else-if="etapaRecuperacion === 'verificar'">
 
           <!-- Ícono -->
-          <div class="r-verify-icon-box">
+          <div class="r-icon-wrap">
             <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <rect width="48" height="48" rx="14" fill="rgba(201,160,106,0.12)"/>
-              <path d="M10 16a2 2 0 0 1 2-2h24a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V16Z" stroke="#C9A06A" stroke-width="1.8"/>
-              <path d="M10 17l14 10 14-10" stroke="#C9A06A" stroke-width="1.8" stroke-linecap="round"/>
+              <rect width="48" height="48" rx="14" fill="rgba(58,71,60,0.08)"/>
+              <path d="M10 16a2 2 0 0 1 2-2h24a2 2 0 0 1 2 2v16a2 2 0 0 1-2 2H12a2 2 0 0 1-2-2V16Z" stroke="#2D372F" stroke-width="1.8"/>
+              <path d="M10 17l14 10 14-10" stroke="#2D372F" stroke-width="1.8" stroke-linecap="round"/>
             </svg>
           </div>
 
-          <p class="r-verify-subtitle">
+          <h3 class="r-modal-title">Verifica tu código</h3>
+
+          <p class="r-subtitle">
             Hemos enviado un código de verificación a
             <strong class="r-verify-email">{{ recoverEmail }}</strong>
           </p>
-          <p class="r-verify-hint">Revisa tu bandeja de entrada o la carpeta de spam.</p>
+          <p class="r-hint">Revisa tu bandeja de entrada o la carpeta de spam.</p>
 
-          <div class="r-divider"></div>
+          <div class="r-divider-line"></div>
 
           <!-- Error -->
           <div v-if="recoverError" class="r-alert-error">
@@ -470,7 +551,7 @@ async function iniciarSesion() {
           <!-- Campo código -->
           <div class="r-field-group">
             <label class="r-field-label">
-              Código de verificación <span class="r-req">*</span>
+              Código de verificación
             </label>
             <input
               v-model="codigoIngresado"
@@ -522,12 +603,22 @@ async function iniciarSesion() {
         ════════════════════════ -->
         <template v-else-if="etapaRecuperacion === 'nuevaPassword'">
 
-          <p class="recover-text">
+          <div class="r-icon-wrap">
+            <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <rect width="48" height="48" rx="14" fill="rgba(58,71,60,0.08)"/>
+              <path d="M14 22a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H16a2 2 0 0 1-2-2V22Z" stroke="#2D372F" stroke-width="1.8"/>
+              <path d="M18 20v-4a6 6 0 0 1 12 0v4" stroke="#2D372F" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </div>
+
+          <h3 class="r-modal-title">Nueva contraseña</h3>
+
+          <p class="r-subtitle">
             Crea una nueva contraseña para tu cuenta
             <strong class="r-verify-email">{{ recoverEmail }}</strong>
           </p>
 
-          <div class="r-divider"></div>
+          <div class="r-divider-line"></div>
 
           <!-- Error -->
           <div v-if="recoverError" class="r-alert-error">
@@ -537,7 +628,7 @@ async function iniciarSesion() {
           <!-- Nueva contraseña -->
           <div class="r-field-group">
             <label class="r-field-label">
-              Nueva contraseña <span class="r-req">*</span>
+              Nueva contraseña
             </label>
             <input
               v-model="nuevaPassword"
@@ -550,7 +641,7 @@ async function iniciarSesion() {
           <!-- Confirmar contraseña -->
           <div class="r-field-group">
             <label class="r-field-label">
-              Confirmar contraseña <span class="r-req">*</span>
+              Confirmar contraseña
             </label>
             <input
               v-model="confirmarNuevaPassword"
@@ -591,16 +682,16 @@ async function iniciarSesion() {
           <div class="r-success-card">
 
             <!-- Ícono check -->
-            <div class="r-success-icon">
-              <svg viewBox="0 0 52 52" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="52" height="52" rx="16" fill="rgba(58,71,60,0.10)"/>
-                <path d="M16 26l8 8 12-14" stroke="#3A473C" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
+            <div class="r-icon-wrap r-icon-wrap-success">
+              <svg viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect width="48" height="48" rx="14" fill="rgba(58,71,60,0.1)"/>
+                <path d="M14 24l7 7 12-14" stroke="#2D372F" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
               </svg>
             </div>
 
-            <h4 class="r-success-title">Contraseña actualizada</h4>
+            <h3 class="r-modal-title">Contraseña actualizada</h3>
 
-            <p class="r-success-body">
+            <p class="r-subtitle">
               Tu contraseña ha sido actualizada correctamente. Ya puedes iniciar sesión con tu nueva contraseña.
             </p>
 
@@ -622,9 +713,9 @@ async function iniciarSesion() {
 
 <style scoped>
 
-/* ═══════════════════════════════
-   LOGIN BASE — sin cambios
-═══════════════════════════════ */
+/* ═══════════════════════════════════
+   LAYOUT BASE
+═══════════════════════════════════ */
 
 .login-container {
   min-height: 100vh;
@@ -632,47 +723,105 @@ async function iniciarSesion() {
   background: #FAFAFA;
 }
 
+/* ═══════════════════════════════════
+   PANEL VISUAL IZQUIERDO
+═══════════════════════════════════ */
+
 .login-visual {
   flex: 1;
-  background: linear-gradient(135deg, #3A473C, #7C927E);
-  padding: 60px;
-  color: white;
+  background: #2D372F;
+  padding: 56px 52px;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+}
+
+.visual-inner {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  z-index: 1;
 }
 
 .logo-link {
-  font-size: 30px;
-  font-weight: 800;
-  color: white;
+  font-size: 26px;
+  font-weight: 700;
+  color: #FAFAFA;
   text-decoration: none;
+  letter-spacing: -0.4px;
 }
 
 .logo-green {
-  color: #F9C17A;
+  color: #C9A06A;
 }
 
 .visual-content {
-  margin-top: 140px;
+  margin-top: auto;
+  margin-bottom: auto;
+  padding: 48px 0;
 }
 
 .visual-title {
-  font-size: 58px;
+  font-size: 54px;
   font-weight: 800;
-  line-height: 1.1;
+  color: #FAFAFA;
+  line-height: 1.12;
+  letter-spacing: -1px;
+  margin: 0 0 22px;
+}
+
+.visual-divider {
+  width: 34px;
+  height: 3px;
+  background: #C9A06A;
+  border-radius: 2px;
+  margin-bottom: 24px;
 }
 
 .visual-description {
-  margin-top: 22px;
-  font-size: 18px;
-  line-height: 1.7;
-  max-width: 420px;
+  font-size: 15px;
+  color: #C3CDC4;
+  line-height: 1.75;
+  max-width: 340px;
 }
+
+.visual-stats {
+  display: flex;
+  gap: 40px;
+  padding-top: 8px;
+}
+
+.visual-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.visual-stat-value {
+  font-size: 26px;
+  font-weight: 800;
+  color: #FAFAFA;
+  letter-spacing: -0.4px;
+}
+
+.visual-stat-label {
+  font-size: 12px;
+  color: #9DAE9F;
+}
+
+/* ═══════════════════════════════════
+   LADO FORMULARIO
+═══════════════════════════════════ */
 
 .login-form-side {
   flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 40px;
+  padding: 48px 40px;
+  overflow-y: auto;
 }
 
 .form-container {
@@ -680,90 +829,172 @@ async function iniciarSesion() {
   max-width: 460px;
 }
 
+.form-header {
+  margin-bottom: 28px;
+}
+
 .form-header h2 {
-  font-size: 38px;
+  font-size: 36px;
   font-weight: 800;
-  color: #2F3B31;
-  margin-bottom: 6px;
+  color: #2D372F;
+  letter-spacing: -0.6px;
+  margin: 0 0 6px;
 }
 
 .form-header p {
-  color: #667085;
-  margin-bottom: 26px;
+  font-size: 14px;
+  color: #7A876B;
+  margin: 0;
 }
 
-.input-group {
+/* ═══════════════════════════════════
+   ACCESO RÁPIDO ADMIN
+═══════════════════════════════════ */
+
+.admin-box {
+  background: #F4F6F4;
+  border: 1px solid rgba(45,55,47,0.08);
+  padding: 20px;
+  border-radius: 16px;
+  margin-bottom: 24px;
+}
+
+.admin-box-title {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+  color: #2D372F;
+}
+
+.admin-box-desc {
+  margin: 0 0 14px;
+  color: #7A876B;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.admin-box-btn {
+  width: 100%;
+  height: 46px;
+  border: none;
+  border-radius: 12px;
+  background: #2D372F;
+  color: white;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.admin-box-btn:hover {
+  background: #232B25;
+  transform: translateY(-1px);
+}
+
+/* ═══════════════════════════════════
+   ALERTAS
+═══════════════════════════════════ */
+
+.error-box {
+  background: rgba(196,82,82,0.09);
+  color: #B04040;
+  padding: 14px 18px;
+  border-radius: 14px;
   margin-bottom: 20px;
+  font-weight: 600;
+  font-size: 13px;
+}
+
+/* ═══════════════════════════════════
+   CAMPOS
+═══════════════════════════════════ */
+
+.input-group {
+  margin-bottom: 18px;
 }
 
 .input-group label {
   display: block;
   margin-bottom: 8px;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 700;
-  color: #2F3B31;
+  color: #2D372F;
+}
+
+.req-mark {
+  color: #C9A06A;
+  font-weight: 700;
 }
 
 .custom-input {
   width: 100%;
-  height: 56px;
-  border-radius: 16px;
-  border: 2px solid #EEF2EE;
+  height: 52px;
+  border-radius: 14px;
+  border: 1.5px solid #DCE4DD;
   background: #F8FAF8;
-  padding: 0 18px;
+  padding: 0 16px;
   font-size: 14px;
+  color: #2D372F;
   outline: none;
-  transition: 0.25s ease;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
   box-sizing: border-box;
 }
 
+.custom-input::placeholder { color: #9AA89B; }
+
+.custom-input:hover {
+  border-color: #B0C4B2;
+  background: #FDFEFE;
+}
+
 .custom-input:focus {
-  border-color: #3A473C;
-  background: white;
+  border-color: #2D372F;
+  background: #fff;
+  box-shadow: 0 0 0 3px rgba(45,55,47,0.08);
 }
 
-.btn-login {
-  width: 100%;
-  height: 58px;
+/* ─────────────────────────────
+   CAMPO CONTRASEÑA — mostrar/ocultar
+───────────────────────────── */
+
+.password-field-wrap {
+  position: relative;
+}
+
+.password-field-wrap .custom-input {
+  padding-right: 48px;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  top: 50%;
+  right: 14px;
+  transform: translateY(-50%);
+  width: 28px;
+  height: 28px;
   border: none;
-  border-radius: 18px;
-  background: linear-gradient(135deg, #3A473C, #7C927E);
-  color: white;
-  font-size: 15px;
-  font-weight: 800;
+  background: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #9AA89B;
   cursor: pointer;
-  transition: 0.25s ease;
+  transition: color 0.18s ease;
 }
 
-.btn-login:hover {
-  transform: translateY(-2px);
+.password-toggle-btn:hover {
+  color: #2D372F;
 }
 
-.btn-login:disabled {
-  opacity: 0.7;
-  cursor: not-allowed;
+.password-toggle-btn svg {
+  width: 19px;
+  height: 19px;
 }
 
-.error-box {
-  background: rgba(235,119,119,0.12);
-  color: #C45252;
-  padding: 16px;
-  border-radius: 16px;
-  margin-bottom: 20px;
-  font-weight: 700;
-}
-
-.form-footer {
-  margin-top: 28px;
-  text-align: center;
-  color: #667085;
-}
-
-.register-link {
-  color: #6F8572;
-  font-weight: 800;
-  text-decoration: none;
-}
+/* ═══════════════════════════════════
+   RECUPERAR CONTRASEÑA — link
+═══════════════════════════════════ */
 
 .forgot-password-wrap {
   display: flex;
@@ -775,24 +1006,86 @@ async function iniciarSesion() {
 .forgot-password-btn {
   border: none;
   background: none;
-  color: #6F8572;
-  font-size: 13px;
-  font-weight: 700;
+  color: #2D372F;
+  font-size: 12.5px;
+  font-weight: 600;
   cursor: pointer;
+  padding: 0;
+  border-bottom: 1.5px solid rgba(45,55,47,0.25);
+  padding-bottom: 1px;
+  transition: color 0.18s, border-color 0.18s;
 }
 
 .forgot-password-btn:hover {
-  text-decoration: underline;
+  color: #C9A06A;
+  border-bottom-color: #C9A06A;
 }
 
-/* ═══════════════════════════════
-   MODAL OVERLAY — sin cambios
-═══════════════════════════════ */
+/* ═══════════════════════════════════
+   BOTÓN PRINCIPAL
+═══════════════════════════════════ */
+
+.btn-login {
+  width: 100%;
+  height: 56px;
+  border: none;
+  border-radius: 16px;
+  background: #2D372F;
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  margin-top: 4px;
+  letter-spacing: 0.2px;
+  transition: background 0.2s ease, transform 0.15s ease;
+}
+
+.btn-login:hover:not(:disabled) {
+  background: #232B25;
+  transform: translateY(-1px);
+}
+
+.btn-login:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-login:disabled {
+  background: #B0BAB2;
+  cursor: not-allowed;
+}
+
+/* ═══════════════════════════════════
+   FOOTER
+═══════════════════════════════════ */
+
+.form-footer {
+  margin-top: 24px;
+  text-align: center;
+  color: #7A876B;
+  font-size: 13px;
+}
+
+.register-link {
+  color: #2D372F;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1.5px solid rgba(45,55,47,0.25);
+  padding-bottom: 1px;
+}
+
+.register-link:hover {
+  color: #C9A06A;
+  border-bottom-color: #C9A06A;
+}
+
+/* ═══════════════════════════════════
+   MODAL OVERLAY
+═══════════════════════════════════ */
 
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.45);
+  background: rgba(20,24,20,0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -801,87 +1094,131 @@ async function iniciarSesion() {
 }
 
 /* ═══════════════════════════════════════
-   MODAL RECUPERAR — estilo RegistroView
+   MODAL RECUPERAR
 ═══════════════════════════════════════ */
 
 .recover-modal {
+  position: relative;
   width: 100%;
-  max-width: 480px;
-  background: #fff;
-  border: 1.5px solid rgba(201,160,106,0.28);
-  border-radius: 22px;
-  padding: 32px;
-  box-shadow: 0 12px 48px rgba(45,55,47,0.14);
+  max-width: 440px;
+  background: #FFFFFF;
+  border-radius: 24px;
+  padding: 40px 32px 32px;
   max-height: 90vh;
   overflow-y: auto;
-}
-
-.modal-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 20px;
-}
-
-.modal-header h3 {
-  font-size: 22px;
-  font-weight: 800;
-  color: #2D372F;
-  letter-spacing: -0.4px;
-  margin: 0;
+  box-shadow: 0 24px 64px rgba(20,24,20,0.22);
+  text-align: center;
 }
 
 .close-modal {
-  width: 36px;
-  height: 36px;
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  width: 34px;
+  height: 34px;
   border-radius: 10px;
-  border: 1.5px solid #DCE4DD;
+  border: 1px solid #DCE4DD;
   background: #F4F6F4;
-  font-size: 20px;
   cursor: pointer;
   color: #7A876B;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: background 0.18s, border-color 0.18s;
-  line-height: 1;
+  transition: background 0.18s, border-color 0.18s, color 0.18s;
+}
+
+.close-modal svg {
+  width: 13px;
+  height: 13px;
 }
 
 .close-modal:hover {
   background: #DCE4DD;
   border-color: #B0C4B2;
-}
-
-.recover-text {
-  font-size: 14px;
-  color: #7A876B;
-  margin: 0 0 20px;
-  line-height: 1.65;
+  color: #2D372F;
 }
 
 /* ─────────────────────────────
-   ALERTA ERROR — igual a RegistroView
+   ÍCONO SUPERIOR
+───────────────────────────── */
+
+.r-icon-wrap {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 18px;
+}
+
+.r-icon-wrap svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* ─────────────────────────────
+   TÍTULO / SUBTÍTULO
+───────────────────────────── */
+
+.r-modal-title {
+  font-size: 22px;
+  font-weight: 800;
+  color: #2D372F;
+  letter-spacing: -0.4px;
+  margin: 0 0 10px;
+}
+
+.r-subtitle {
+  font-size: 14px;
+  color: #5F6A61;
+  margin: 0 auto 4px;
+  line-height: 1.6;
+  max-width: 320px;
+}
+
+.r-verify-email {
+  color: #2D372F;
+  font-weight: 700;
+}
+
+.r-hint {
+  font-size: 12px;
+  color: #9AA89B;
+  margin: 6px 0 0;
+}
+
+/* ─────────────────────────────
+   SEPARADOR
+───────────────────────────── */
+
+.r-divider-line {
+  width: 100%;
+  height: 1px;
+  background: #E5E9E5;
+  margin: 22px 0;
+}
+
+/* ─────────────────────────────
+   ALERTA ERROR
 ───────────────────────────── */
 
 .r-alert-error {
-  padding: 14px 18px;
+  padding: 13px 16px;
   border-radius: 12px;
   font-size: 13px;
   font-weight: 600;
-  margin-bottom: 18px;
+  margin-bottom: 16px;
   line-height: 1.5;
   background: rgba(196,82,82,0.09);
-  color: #b04040;
+  color: #B04040;
   border: 1px solid rgba(196,82,82,0.18);
+  text-align: left;
 }
 
 /* ─────────────────────────────
-   CAMPOS — igual a RegistroView
+   CAMPOS
 ───────────────────────────── */
 
 .r-field-group {
-  margin-bottom: 18px;
-  position: relative;
+  margin-bottom: 16px;
+  text-align: left;
 }
 
 .r-field-label {
@@ -901,9 +1238,9 @@ async function iniciarSesion() {
 .r-field-input {
   width: 100%;
   height: 50px;
-  border-radius: 12px;
+  border-radius: 14px;
   border: 1.5px solid #DCE4DD;
-  background: #FAFAFA;
+  background: #F8FAF8;
   padding: 0 16px;
   font-size: 14px;
   color: #2D372F;
@@ -913,7 +1250,7 @@ async function iniciarSesion() {
 }
 
 .r-field-input::placeholder {
-  color: #B0BAB2;
+  color: #9AA89B;
 }
 
 .r-field-input:hover {
@@ -922,43 +1259,68 @@ async function iniciarSesion() {
 }
 
 .r-field-input:focus {
-  border-color: #3A473C;
+  border-color: #2D372F;
   background: #fff;
-  box-shadow: 0 0 0 3px rgba(58,71,60,0.08);
+  box-shadow: 0 0 0 3px rgba(45,55,47,0.08);
 }
 
 .r-code-input {
   text-align: center;
-  font-size: 22px;
+  font-size: 20px;
   font-weight: 700;
   letter-spacing: 8px;
   color: #2D372F;
 }
 
 /* ─────────────────────────────
-   BOTÓN PRINCIPAL — igual a RegistroView
+   CAJA INFORMATIVA
+───────────────────────────── */
+
+.r-info-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  background: #EDF1EC;
+  border-radius: 12px;
+  padding: 13px 14px;
+  margin: 2px 0 20px;
+  text-align: left;
+}
+
+.r-info-box svg {
+  width: 16px;
+  height: 16px;
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+
+.r-info-box span {
+  font-size: 12.5px;
+  color: #5F6A61;
+  line-height: 1.55;
+}
+
+/* ─────────────────────────────
+   BOTÓN PRINCIPAL
 ───────────────────────────── */
 
 .r-btn {
   width: 100%;
-  height: 52px;
+  height: 54px;
   border: none;
-  border-radius: 14px;
-  background: #3A473C;
+  border-radius: 16px;
+  background: #2D372F;
   color: white;
   font-size: 15px;
   font-weight: 700;
   cursor: pointer;
   letter-spacing: 0.2px;
-  box-shadow: 0 4px 14px rgba(58,71,60,0.22);
-  transition: background 0.2s ease, transform 0.15s ease, box-shadow 0.2s ease;
-  margin-top: 4px;
+  transition: background 0.2s ease, transform 0.15s ease;
 }
 
 .r-btn:hover:not(:disabled) {
-  background: #2D372F;
+  background: #232B25;
   transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(58,71,60,0.28);
 }
 
 .r-btn:active:not(:disabled) {
@@ -967,56 +1329,51 @@ async function iniciarSesion() {
 
 .r-btn:disabled {
   background: #B0BAB2;
-  box-shadow: none;
   cursor: not-allowed;
 }
 
-/* ─────────────────────────────
-   SEPARADOR DORADO
-───────────────────────────── */
+.r-btn-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 9px;
+}
 
-.r-divider {
-  width: 36px;
-  height: 2px;
-  background: #C9A06A;
-  border-radius: 2px;
-  margin: 0 auto 20px;
+.r-btn-icon svg {
+  width: 15px;
+  height: 15px;
+  flex-shrink: 0;
 }
 
 /* ─────────────────────────────
-   VERIFICACIÓN — ícono y textos
+   FOOTER DEL MODAL
 ───────────────────────────── */
 
-.r-verify-icon-box {
-  width: 56px;
-  height: 56px;
-  margin: 0 auto 16px;
-  display: block;
+.r-footer-row {
+  margin-top: 20px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #7A876B;
 }
 
-.r-verify-icon-box svg {
-  width: 100%;
-  height: 100%;
-}
-
-.r-verify-subtitle {
-  font-size: 14px;
-  color: #5F6A61;
-  text-align: center;
-  margin: 0 0 6px;
-  line-height: 1.55;
-}
-
-.r-verify-email {
-  color: #2D372F;
+.r-footer-link {
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+  font-size: 13px;
   font-weight: 700;
+  color: #2D372F;
+  border-bottom: 1.5px solid rgba(45,55,47,0.25);
+  padding-bottom: 1px;
 }
 
-.r-verify-hint {
-  font-size: 12px;
-  color: #9AA89B;
-  text-align: center;
-  margin: 0 0 16px;
+.r-footer-link:hover {
+  color: #C9A06A;
+  border-bottom-color: #C9A06A;
 }
 
 /* ─────────────────────────────
@@ -1029,7 +1386,7 @@ async function iniciarSesion() {
   justify-content: center;
   gap: 8px;
   margin-top: 16px;
-  font-size: 13px;
+  font-size: 12.5px;
 }
 
 .r-resend-label {
@@ -1039,23 +1396,23 @@ async function iniciarSesion() {
 .r-resend-btn {
   background: none;
   border: none;
-  font-size: 13px;
+  font-size: 12.5px;
   font-weight: 700;
-  color: #3A473C;
+  color: #2D372F;
   cursor: pointer;
   padding: 0;
-  border-bottom: 1.5px solid rgba(58,71,60,0.25);
+  border-bottom: 1.5px solid rgba(45,55,47,0.25);
   padding-bottom: 1px;
   transition: color 0.18s, border-color 0.18s;
 }
 
 .r-resend-btn:hover:not(:disabled) {
-  color: #2D372F;
-  border-bottom-color: #2D372F;
+  color: #C9A06A;
+  border-bottom-color: #C9A06A;
 }
 
 .r-resend-btn:disabled {
-  color: #B0BAB2;
+  color: #9AA89B;
   border-bottom-color: transparent;
   cursor: default;
 }
@@ -1072,7 +1429,7 @@ async function iniciarSesion() {
 .r-back-btn {
   background: none;
   border: none;
-  font-size: 12px;
+  font-size: 11.5px;
   color: #9AA89B;
   cursor: pointer;
   padding: 0;
@@ -1084,63 +1441,31 @@ async function iniciarSesion() {
 }
 
 /* ─────────────────────────────
-   TARJETA ÉXITO — igual a RegistroView verify-card
+   TARJETA ÉXITO
 ───────────────────────────── */
 
 .r-success-card {
-  background: #F4F6F4;
-  border: 1.5px solid rgba(58,71,60,0.12);
-  border-radius: 18px;
-  padding: 28px 24px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  text-align: center;
-}
-
-.r-success-icon {
-  width: 56px;
-  height: 56px;
-  margin-bottom: 18px;
-}
-
-.r-success-icon svg {
-  width: 100%;
-  height: 100%;
-}
-
-.r-success-title {
-  font-size: 20px;
-  font-weight: 800;
-  color: #2D372F;
-  letter-spacing: -0.4px;
-  margin: 0 0 10px;
-}
-
-.r-success-body {
-  font-size: 13px;
-  color: #5F6A61;
-  line-height: 1.65;
-  margin: 0 0 16px;
 }
 
 .r-success-closing {
   font-size: 11px;
   color: #9AA89B;
   font-style: italic;
+  margin-top: 14px;
 }
 
-/* ═══════════════════════════════
-   RESPONSIVE — sin cambios
-═══════════════════════════════ */
+/* ═══════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════ */
 
 @media (max-width: 900px) {
   .login-visual    { display: none; }
-  .login-form-side { flex: 1; }
+  .login-form-side { padding: 40px 24px; }
 }
 
-
-/* ── MOBILE RESPONSIVE ── */
 @media (max-width: 768px) {
   .login-container {
     flex-direction: column;
@@ -1151,8 +1476,7 @@ async function iniciarSesion() {
   }
 
   .login-form-side {
-    flex: 1;
-    padding: 36px 20px 48px;
+    padding: 36px 20px 56px;
     align-items: flex-start;
   }
 
@@ -1161,20 +1485,19 @@ async function iniciarSesion() {
   }
 
   .form-header h2 {
-    font-size: 30px;
+    font-size: 28px;
   }
 
   .custom-input {
-    height: 52px;
-    font-size: 14px;
+    height: 48px;
+    font-size: 13px;
   }
 
   .btn-login {
-    height: 52px;
+    height: 50px;
     font-size: 14px;
   }
 
-  /* Modal recuperar */
   .modal-overlay {
     padding: 12px;
     align-items: flex-end;
@@ -1182,13 +1505,13 @@ async function iniciarSesion() {
 
   .recover-modal {
     max-width: 100%;
-    border-radius: 20px 20px 16px 16px;
-    padding: 24px 20px;
+    border-radius: 22px 22px 16px 16px;
+    padding: 32px 20px 24px;
     max-height: 92vh;
   }
 
-  .modal-header h3 {
-    font-size: 18px;
+  .r-modal-title {
+    font-size: 20px;
   }
 
   .r-field-input {
@@ -1201,14 +1524,9 @@ async function iniciarSesion() {
     font-size: 14px;
   }
 
-  .r-verify-subtitle {
-    font-size: 13px;
-  }
-
   .r-code-input {
-    font-size: 20px;
+    font-size: 18px;
     letter-spacing: 6px;
-    text-align: center;
   }
 
   .r-resend-row {
@@ -1218,15 +1536,23 @@ async function iniciarSesion() {
   }
 }
 
+@media (max-width: 480px) {
+  .login-form-side { padding: 28px 16px; align-items: flex-start; }
+  .form-header h2 { font-size: 25px; }
+}
+
 @media (max-width: 380px) {
   .login-form-side {
     padding: 24px 14px 40px;
   }
 
   .form-header h2 {
-    font-size: 26px;
+    font-size: 22px;
+  }
+
+  .admin-box {
+    padding: 16px;
   }
 }
-
 
 </style>

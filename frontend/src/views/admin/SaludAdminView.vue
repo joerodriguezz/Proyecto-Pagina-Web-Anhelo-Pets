@@ -1,93 +1,93 @@
 ﻿<script setup>
-import { ref, computed, onMounted } from 'vue'
-import { getAnimals, createAnimals } from '../../services/petServices'
-import { getVeterinarians, createVeterinarian } from '../../services/veterinarianServices'
-import { getHealthRecords, createHealthRecord } from '../../services/healthServices'
- 
-const animales = ref([])
-const animalesLoading = ref(false)
+import { ref, computed, watch, onMounted } from 'vue'
+import { usePetsStore } from '../../stores/usePetsStore'
+import {
+  getHealthRecords,
+  createHealthRecord,
+} from '../../services/healthServices'
+import { registrarAuditoria } from '../../composables/useAuditLog'
 
-async function loadAnimales() {
-  animalesLoading.value = true
+const store = usePetsStore()
+
+/* ─── Usuario actual (misma fuente que usa useAuditLog.js) ────────
+     useAuditLog toma el usuario desde 'anhelo_usuario_actual' en
+     localStorage; usamos la misma clave para poder completar
+     `createdBy` al crear un registro médico. ───────────────────── */
+const USUARIO_ACTUAL_KEY = 'anhelo_usuario_actual'
+function getUsuarioActual() {
   try {
-    const { data } = await getAnimals()
-    animales.value = (data || []).map(a => ({
-      id: a.animalId,
-      name: a.animalName,
-      species: a.species || '',
-      active: a.animalStatus !== 'Inactivo',
-      image: null,
-    }))
+    return JSON.parse(localStorage.getItem(USUARIO_ACTUAL_KEY)) || null
   } catch {
-    animales.value = []
-  } finally {
-    animalesLoading.value = false
+    return null
   }
 }
 
-// ── Veterinarios (API) ──
-
+/* ─── Veterinarios ────────────────────────────────────────── */
 const veterinarios = ref([])
-const veterinariosLoading = ref(false)
+function cargarVeterinarios() {
+  const usuarios = JSON.parse(localStorage.getItem('anhelo_usuarios')) || []
+  veterinarios.value = usuarios.filter(
+    u =>
+      u.rol === 'Voluntario' &&
+      u.solicitudVoluntario?.estado === 'Aprobada' &&
+      (u.tipoVoluntario === 'Veterinaria' || u.solicitudVoluntario?.tipo === 'Veterinaria')
+  )
+}
+cargarVeterinarios()
 
-async function cargarVeterinarios() {
-  veterinariosLoading.value = true
-  try {
-    const { data } = await getVeterinarians()
-    veterinarios.value = (data || [])
-      .filter(v => v.active !== false)
-      .map(v => ({
-        id: v.veterinarianId,
-        nombre: v.fullName || `${v.firstName || ''} ${v.lastName || ''}`.trim(),
-        especialidad: v.specialty || '',
-      }))
-  } catch {
-    veterinarios.value = []
-  } finally {
-    veterinariosLoading.value = false
-  }
+/* Resuelve el veterinarianId (formato requerido por el backend) a
+   partir del nombre seleccionado en el formulario. No existe un
+   servicio de Voluntarios/Usuarios provisto para esta integración,
+   por lo que se usa el mismo listado de `veterinarios` (localStorage)
+   que ya alimentaba los selectores, tomando `veterinarianId` si el
+   registro lo trae, o `id` como respaldo. */
+function resolverVeterinarianId(nombre) {
+  if (!nombre) return null
+  const vet = veterinarios.value.find(v => v.nombre === nombre)
+  if (!vet) return null
+  return vet.veterinarianId || vet.id || null
 }
 
-onMounted(() => {
-  loadAnimales()
-  cargarVeterinarios()
-  cargarExpedientes()
+/* ─── Casas cuna (mismo patrón de Mascotas.vue, para poder
+     mostrar la asignación de casa cuna en el expediente "Ver",
+     igual que hace Mascotas.vue) ───────────────────────────── */
+const casasCuna = computed(() => {
+  const usuarios = JSON.parse(localStorage.getItem('anhelo_usuarios')) || []
+  return usuarios.filter(u =>
+    (u.rol === 'Voluntario' || u.tipoVoluntario === 'Casa cuna' || u.solicitudVoluntario?.tipo === 'Casa cuna') &&
+    (u.activo === true || u.activo === 'true' || u.estado === 'Activo' || u.solicitudVoluntario?.estado === 'Aprobada') &&
+    (u.tipoVoluntario === 'Casa cuna' || u.solicitudVoluntario?.tipo === 'Casa cuna')
+  )
 })
- 
-// ── Tabs ──
-const TABS = [
-  { id: 'historial',    titulo: 'Historial' },
-  { id: 'vacunas',      titulo: 'Vacunas' },
-  { id: 'tratamientos', titulo: 'Tratamientos' }
+function getNombreCasaCuna(pet) {
+  if (!pet) return 'Sin asignar'
+  if (pet.casaCunaNombre) return pet.casaCunaNombre
+  if (pet.casaCunaId) {
+    const cc = casasCuna.value.find(u => String(u.id) === String(pet.casaCunaId))
+    return cc ? (cc.nombre || cc.name || '—') : '—'
+  }
+  return 'Sin asignar'
+}
+
+/* ─── Tabs de la tabla principal ──────────────────────────── */
+const activeTab = ref('historial')
+const SECCION_TABS = [
+  { v: 'historial', l: 'Historial' },
+  { v: 'vacunas', l: 'Vacunas' },
+  { v: 'tratamientos', l: 'Tratamientos' },
 ]
 
-const activeTab = ref('historial')
+/* ─── Modales ─────────────────────────────────────────────── */
+const showModalRegistrar    = ref(false)
+const showModalVer          = ref(false)
+const showModalConfirm      = ref(false)
+const showPetDropdown       = ref(false)
+const showVetDropdown       = ref(false)
+const showVetDropdownVacuna = ref(false)
+const registroVer           = ref(null)   // mascota completa (igual que viewTarget en Mascotas)
+const expedienteTab         = ref('general')
 
-// Filtro de refuerzos, solo aplicable en la pestaña de vacunas
-const filtroRefuerzo = ref('todas')   // 'todas' | 'vencidas' | 'porVencer'
-
-function cambiarTab(id) {
-  activeTab.value = id
-  if (id !== 'vacunas') filtroRefuerzo.value = 'todas'
-}
-
-// Atajo desde los KPI: salta a vacunas ya filtrado
-function verVacunas(filtro) {
-  activeTab.value = 'vacunas'
-  filtroRefuerzo.value = filtro
-}
- 
-// ── Modales ──
-const showModalRegistrar = ref(false)
-const showModalVer       = ref(false)
-const showModalConfirm   = ref(false)
- 
-const showPetDropdown = ref(false)
-const showVetDropdown = ref(false)
- 
-const registroVer = ref(null)
- 
-// ── Toast ──
+/* ─── Toast ───────────────────────────────────────────────── */
 const toast = ref({ show: false, type: 'success', message: '' })
 let toastTimer = null
 function showToast(type, message) {
@@ -95,282 +95,151 @@ function showToast(type, message) {
   toast.value = { show: true, type, message }
   toastTimer = setTimeout(() => { toast.value.show = false }, 3500)
 }
- 
-// ── Mascota seleccionada ──
+
+/* ─── Mascota seleccionada / errores (form de registro) ──── */
 const petSeleccionada = ref(null)
- 
-// ── Errores ──
 const errores = ref({})
 
-// ── Wizard paso a paso ──
-// Cada expediente es de un solo tipo: historial, vacuna o tratamiento.
-const TIPOS_REGISTRO = [
-  { id: 'historial',    titulo: 'Historial médico', desc: 'Consulta, diagnóstico y peso' },
-  { id: 'vacunas',      titulo: 'Vacuna',           desc: 'Dosis aplicada y refuerzo' },
-  { id: 'tratamientos', titulo: 'Tratamiento',      desc: 'Medicación y dosis' }
-]
+/* ─── Datos del expediente médico (ahora respaldados por el
+     backend a través de HealthService, en lugar de localStorage).
+     Se mantiene la misma forma en memoria
+     { [petId]: { medicalHistory: [], vaccines: [], treatments: [] } }
+     para no tener que tocar ningún computed ni el template. ────── */
+const datos = ref({})
 
-const tipoRegistro = ref('')
-
-const tipoInfo = computed(() =>
-  TIPOS_REGISTRO.find(t => t.id === tipoRegistro.value) || null
-)
-
-const PASOS = [
-  { n: 1, titulo: 'Tipo',     desc: 'Qué vas a registrar' },
-  { n: 2, titulo: 'Mascota',  desc: 'Selecciona el paciente' },
-  { n: 3, titulo: 'Datos',    desc: 'Completa el registro' },
-  { n: 4, titulo: 'Resumen',  desc: 'Revisa y confirma' }
-]
-const TOTAL_PASOS = PASOS.length
-
-const pasoActual = ref(1)
-const pasoMaximo = ref(1)
-
-const pasoInfo = computed(() => PASOS[pasoActual.value - 1])
-const esUltimoPaso = computed(() => pasoActual.value === TOTAL_PASOS)
-const progreso = computed(() => ((pasoActual.value - 1) / (TOTAL_PASOS - 1)) * 100)
-
-// Campos obligatorios del paso de datos, según el tipo elegido.
-// El veterinario es obligatorio siempre: veterinarian_id es NOT NULL.
-const CAMPOS_POR_TIPO = {
-  historial: [
-    { key: 'vet',             test: () => !!form.value.vetId },
-    { key: 'fecha',           test: () => !!form.value.fecha },
-    { key: 'diagnostico',     test: () => !!form.value.diagnostico?.trim() }
-  ],
-  vacunas: [
-    { key: 'vet',             test: () => !!form.value.vetId },
-    { key: 'tipoVacuna',      test: () => !!form.value.tipoVacuna?.trim() },
-    { key: 'fechaAplicacion', test: () => !!form.value.fechaAplicacion }
-  ],
-  tratamientos: [
-    { key: 'vet',             test: () => !!form.value.vetId },
-    { key: 'tipoTratamiento', test: () => !!form.value.tipoTratamiento?.trim() },
-    { key: 'fechaTrat',       test: () => !!form.value.fechaTrat }
-  ]
+/* El backend expone un único recurso genérico "MedicalRecords"
+   (diagnosis, treatment, notes, visitDate, veterinarianId, createdBy).
+   No existen columnas específicas para vacunas/tratamientos, así que
+   la información propia de cada sección (tipo de vacuna, próxima
+   dosis, dosis, peso, etc.) se serializa en `notes` como JSON con un
+   campo `tipo` que permite reconstruir las 3 categorías al leer. */
+function serializarNotas(extra) {
+  try {
+    return JSON.stringify(extra)
+  } catch {
+    return '{}'
+  }
+}
+function parsearNotas(notes) {
+  if (!notes) return {}
+  try {
+    return JSON.parse(notes) || {}
+  } catch {
+    return {}
+  }
 }
 
-function camposDePaso(n) {
-  if (n === 1) return [{ key: 'tipo', test: () => !!tipoRegistro.value }]
-  if (n === 2) return [{ key: 'pet',  test: () => !!petSeleccionada.value }]
-  if (n === 3) return CAMPOS_POR_TIPO[tipoRegistro.value] || []
-  return []
-}
-
-function pasoCompleto(n) {
-  return camposDePaso(n).every(c => c.test())
-}
-
-const MENSAJES_ERROR = {
-  tipo: 'Elige qué vas a registrar',
-  pet:  'Selecciona una mascota',
-  vet:  'Selecciona un veterinario'
-}
-
-function validarPaso(n) {
-  const e = { ...errores.value }
-  let ok = true
-
-  camposDePaso(n).forEach(c => {
-    if (c.test()) {
-      delete e[c.key]
-      return
-    }
-    e[c.key] = MENSAJES_ERROR[c.key] || 'Obligatorio'
-    ok = false
+async function cargarDatosBackend() {
+  const agrupado = {}
+  store.pets.forEach(pet => {
+    agrupado[pet.id] = { medicalHistory: [], vaccines: [], treatments: [] }
   })
 
-  errores.value = e
-  return ok
-}
-
-function irAPaso(n) {
-  if (n < 1 || n > TOTAL_PASOS) return
-  // Solo se permite saltar a pasos ya visitados
-  if (n > pasoMaximo.value) return
-  pasoActual.value = n
-}
-
-function pasoSiguiente() {
-  if (!validarPaso(pasoActual.value)) return
-  if (esUltimoPaso.value) return
-  pasoActual.value += 1
-  pasoMaximo.value = Math.max(pasoMaximo.value, pasoActual.value)
-}
-
-function pasoAnterior() {
-  if (pasoActual.value > 1) pasoActual.value -= 1
-}
-
-// ── Expedientes (API) ──
-//
-// animal_medical_records no tiene columna de tipo de registro, así que el tipo
-// viaja como prefijo [H]/[V]/[T] al inicio de `treatment`, seguido de los campos
-// que tampoco tienen columna propia, separados por '|'. Toda esa (frágil)
-// convención vive aquí y en `serializarTratamiento`, en ningún otro sitio.
-const expedientes = ref([])
-const expedientesLoading = ref(false)
-
-const PREFIJO_POR_TAB    = { historial: 'H', vacunas: 'V', tratamientos: 'T' }
-const ID_POR_PREFIJO     = { H: 'SAL', V: 'VAC', T: 'TRA' }
-const TITULO_POR_PREFIJO = { H: 'Historial', V: 'Vacuna', T: 'Tratamiento' }
-
-// '|' es el separador: se neutraliza en los valores para no romper el parseo
-function limpiarCampo(valor) {
-  return String(valor ?? '').replace(/\|/g, '/')
-}
-
-function serializarTratamiento(prefijo, extras) {
-  return [`[${prefijo}]`, ...extras.map(limpiarCampo)].join('|')
-}
-
-function parseExpediente(dto) {
-  const bruto = dto.treatment || ''
-  const match = bruto.match(/^\[([HVT])\]/)
-  const prefijo = match ? match[1] : 'H'
-  const [a = '', b = ''] = bruto.split('|').slice(1)
-
-  const base = {
-    recordId:      dto.animalMedicalRecordId,
-    id:            `${ID_POR_PREFIJO[prefijo]}-${dto.animalMedicalRecordId}`,
-    prefijo,
-    petId:         dto.animalId,
-    vet:           dto.veterinarianName || '',
-    vetId:         dto.veterinarianId,
-    observaciones: dto.notes || '',
-  }
-
-  if (prefijo === 'V') {
-    return { ...base, tipo: dto.diagnosis, fechaAplicacion: dto.visitDate, clinica: a, proximaDosis: b }
-  }
-  if (prefijo === 'T') {
-    return { ...base, tipo: dto.diagnosis, fecha: dto.visitDate, medicamento: a, dosis: b }
-  }
-  return { ...base, diagnostico: dto.diagnosis, fecha: dto.visitDate, clinica: a, peso: b }
-}
-
-async function cargarExpedientes() {
-  expedientesLoading.value = true
   try {
-    const { data } = await getHealthRecords()
-    expedientes.value = (data || []).map(parseExpediente)
-  } catch {
-    expedientes.value = []
-    showToast('error', 'No se pudieron cargar los expedientes')
-  } finally {
-    expedientesLoading.value = false
+    const registrosBackend = await getHealthRecords()
+    ;(registrosBackend || []).forEach(rec => {
+      const extra = parsearNotas(rec.notes)
+      const pid = rec.animalId
+      if (!agrupado[pid]) agrupado[pid] = { medicalHistory: [], vaccines: [], treatments: [] }
+
+      if (extra.tipo === 'vacuna') {
+        agrupado[pid].vaccines.push({
+          id: rec.id,
+          tipo: extra.tipoVacuna || '',
+          fechaAplicacion: rec.visitDate || '',
+          proximaDosis: extra.proximaDosis || '',
+          vet: extra.vet || '',
+          observaciones: extra.observaciones || '',
+          creadoEn: rec.createdAt || rec.creadoEn || '',
+        })
+      } else if (extra.tipo === 'tratamiento') {
+        agrupado[pid].treatments.push({
+          id: rec.id,
+          tipo: extra.tipoTratamiento || '',
+          medicamento: rec.treatment || '',
+          dosis: extra.dosis || '',
+          fecha: rec.visitDate || '',
+          observaciones: extra.observaciones || '',
+          creadoEn: rec.createdAt || rec.creadoEn || '',
+        })
+      } else {
+        agrupado[pid].medicalHistory.push({
+          id: rec.id,
+          fecha: rec.visitDate || '',
+          vet: extra.vet || '',
+          peso: extra.peso || '',
+          diagnostico: rec.diagnosis || '',
+          observaciones: extra.observaciones || '',
+          creadoEn: rec.createdAt || rec.creadoEn || '',
+        })
+      }
+    })
+    datos.value = agrupado
+  } catch (e) {
+    showToast('error', 'No se pudieron cargar los expedientes médicos.')
   }
 }
- 
-// ── Formularios (único formulario unificado) ──
-const form = ref({
-  fecha: '',
-  vet: '',
-  clinica: '',
-  peso: '',
-  diagnostico: '',
-  observaciones_h: '',
- 
-  tipoVacuna: '',
-  fechaAplicacion: '',
-  proximaDosis: '',
-  clinicaVacuna: '',
-  observaciones_v: '',
- 
-  tipoTratamiento: '',
-  medicamento: '',
-  dosis: '',
-  fechaTrat: '',
-  observaciones_t: ''
+
+onMounted(cargarDatosBackend)
+
+// Si cambia la lista de mascotas (carga asíncrona del store), se
+// vuelve a consultar el backend para incluir/mantener sus expedientes.
+watch(() => store.pets.length, () => {
+  cargarDatosBackend()
 })
- 
-function resetForm() {
-  form.value = {
-    fecha: '',
-    vet: '',
-    vetId: '',
-    clinica: '',
-    peso: '',
-    diagnostico: '',
-    observaciones_h: '',
 
-    tipoVacuna: '',
-    fechaAplicacion: '',
-    proximaDosis: '',
-    clinicaVacuna: '',
-    observaciones_v: '',
- 
-    tipoTratamiento: '',
-    medicamento: '',
-    dosis: '',
-    fechaTrat: '',
-    observaciones_t: ''
+/* ─── Formulario unificado (Historial + Vacuna + Tratamiento) ── */
+function formDataInicial() {
+  return {
+    fecha: '', vet: '', clinica: '', peso: '', diagnostico: '', observaciones_h: '',
+    tipoVacuna: '', fechaAplicacion: '', proximaDosis: '', vetVacuna: '', clinicaVacuna: '', observaciones_v: '',
+    tipoTratamiento: '', medicamento: '', dosis: '', fechaTrat: '', observaciones_t: '',
   }
- 
-  petSeleccionada.value = null
-  tipoRegistro.value = ''
+}
+const form = ref(formDataInicial())
 
+function resetForm() {
+  form.value = formDataInicial()
+  petSeleccionada.value = null
   showPetDropdown.value = false
   showVetDropdown.value = false
-  showInlineAddPet.value = false
-  showInlineAddVet.value = false
-
+  showVetDropdownVacuna.value = false
   errores.value = {}
-
-  pasoActual.value = 1
-  pasoMaximo.value = 1
 }
 
-// El paso 1 es de selección única: al elegir el tipo se avanza solo.
-function seleccionarTipo(id) {
-  tipoRegistro.value = id
-  clearErr('tipo')
-
-  if (pasoActual.value !== 1) return
-  setTimeout(() => {
-    if (pasoActual.value === 1 && tipoRegistro.value) pasoSiguiente()
-  }, 280)
-}
- 
-// ── Filtros ──
+/* ─── Filtros de la tabla ─────────────────────────────────── */
 const search     = ref('')
 const filterFrom = ref('')
 const filterTo   = ref('')
- 
-// ── Registros por tab ──
-const petsPorId = computed(() =>
-  Object.fromEntries(animales.value.map(p => [p.id, p]))
-)
 
 const registros = computed(() => {
-  const prefijo = PREFIJO_POR_TAB[activeTab.value]
-
-  const todos = expedientes.value
-    .filter(r => r.prefijo === prefijo)
-    .map(r => {
-      const pet = petsPorId.value[r.petId]
-      return {
-        ...r,
-        petNombre:  pet?.name || r.petId,
-        petEspecie: pet?.species || '',
-        petFoto:
-          pet?.images?.[0]?.preview ||
-          pet?.foto ||
-          pet?.image ||
-          pet?.photo ||
-          pet?.avatar ||
-          null,
-        petActiva:  pet ? pet.active !== false : true
-      }
-    })
+  const todos = []
+  store.pets.forEach(pet => {
+    const d = datos.value[pet.id]
+    if (!d) return
+    const lista =
+      activeTab.value === 'historial'   ? d.medicalHistory :
+      activeTab.value === 'vacunas'     ? d.vaccines       :
+                                          d.treatments
+    lista.forEach(r => todos.push({
+      ...r,
+      petId:      pet.id,
+      petNombre:  pet.name,
+      petEspecie: pet.species || pet.especie || pet.tipo || pet.type || '',
+      petRaza:    pet.raza || pet.breed || pet.raza_mascota || '',
+      petFoto:
+        pet.images?.[0]?.preview ||
+        pet.foto || pet.image || pet.photo || pet.avatar || null,
+      petActiva:  pet.active !== false
+    }))
+  })
 
   let result = todos.sort((a, b) => {
     const fa = a.fecha || a.fechaAplicacion || ''
     const fb = b.fecha || b.fechaAplicacion || ''
     return fb.localeCompare(fa)
   })
- 
+
   const q = search.value.trim().toLowerCase()
   if (q) {
     result = result.filter(r =>
@@ -378,7 +247,7 @@ const registros = computed(() => {
       r.petId?.toString().toLowerCase().includes(q)
     )
   }
- 
+
   if (filterFrom.value || filterTo.value) {
     result = result.filter(r => {
       const fecha = r.fecha || r.fechaAplicacion || ''
@@ -389,96 +258,32 @@ const registros = computed(() => {
     })
   }
 
-  if (activeTab.value === 'vacunas' && filtroRefuerzo.value !== 'todas') {
-    const clase = filtroRefuerzo.value === 'vencidas' ? 'badge-rechazada' : 'badge-pendiente'
-    result = result.filter(r => estadoRefuerzo(r.proximaDosis)?.clase === clase)
-  }
-
   return result
 })
 
-const ETIQUETA_REFUERZO = {
-  vencidas:  'Refuerzos vencidos',
-  porVencer: 'Refuerzos por vencer'
-}
-
+const hayFiltros = computed(() =>
+  search.value.trim() !== '' || filterFrom.value !== '' || filterTo.value !== ''
+)
 function limpiarFiltros() {
   search.value = ''
   filterFrom.value = ''
   filterTo.value = ''
-  filtroRefuerzo.value = 'todas'
-}
- 
-const hayFiltros = computed(() =>
-  search.value.trim() !== '' ||
-  filterFrom.value !== '' ||
-  filterTo.value !== '' ||
-  filtroRefuerzo.value !== 'todas'
-)
-
-const ETIQUETA_TAB = {
-  historial:    'Sin registros de historial médico',
-  vacunas:      'Sin registros de vacunas',
-  tratamientos: 'Sin registros de tratamientos'
 }
 
-// ── Columnas de la tabla, por pestaña ──
-// `valor` devuelve el texto ya formateado; `tipo` decide cómo se pinta.
-const COLUMNAS_POR_TAB = {
-  historial: [
-    { key: 'fecha',       titulo: 'Fecha',       tipo: 'fecha',    valor: r => r.fecha },
-    { key: 'diagnostico', titulo: 'Diagnóstico', tipo: 'destacado', valor: r => r.diagnostico },
-    { key: 'vet',         titulo: 'Veterinario', tipo: 'texto',    valor: r => r.vet },
-    { key: 'peso',        titulo: 'Peso',        tipo: 'texto',    valor: r => r.peso ? `${r.peso} kg` : '' },
-  ],
-  vacunas: [
-    { key: 'tipo',            titulo: 'Vacuna',        tipo: 'destacado', valor: r => r.tipo },
-    { key: 'fechaAplicacion', titulo: 'Aplicación',    tipo: 'fecha',     valor: r => r.fechaAplicacion },
-    { key: 'proximaDosis',    titulo: 'Próxima dosis', tipo: 'refuerzo',  valor: r => r.proximaDosis },
-    { key: 'vet',             titulo: 'Veterinario',   tipo: 'texto',     valor: r => r.vet },
-  ],
-  tratamientos: [
-    { key: 'tipo',        titulo: 'Tratamiento', tipo: 'destacado', valor: r => r.tipo },
-    { key: 'fecha',       titulo: 'Fecha',       tipo: 'fecha',     valor: r => r.fecha },
-    { key: 'medicamento', titulo: 'Medicamento', tipo: 'texto',     valor: r => r.medicamento },
-    { key: 'dosis',       titulo: 'Dosis',       tipo: 'texto',     valor: r => r.dosis },
-  ]
-}
-
-const columnas = computed(() => COLUMNAS_POR_TAB[activeTab.value] || [])
-
-// Estado del refuerzo: vencido / próximo (30 días) / al día
-function estadoRefuerzo(fecha) {
-  if (!fecha) return null
-
-  const hoy = new Date()
-  hoy.setHours(0, 0, 0, 0)
-  const objetivo = new Date(`${fecha}T00:00:00`)
-  const dias = Math.round((objetivo - hoy) / 86400000)
-
-  if (dias < 0)  return { clase: 'badge-rechazada', titulo: `Vencida hace ${Math.abs(dias)} día${Math.abs(dias) !== 1 ? 's' : ''}` }
-  if (dias <= 30) return { clase: 'badge-pendiente', titulo: dias === 0 ? 'Vence hoy' : `Faltan ${dias} día${dias !== 1 ? 's' : ''}` }
-  return { clase: 'badge-aprobada', titulo: `Faltan ${dias} días` }
-}
-
-const mensajeVacio = computed(() => {
-  if (expedientesLoading.value) return 'Cargando expedientes...'
-  if (hayFiltros.value) return 'Sin resultados para los filtros aplicados'
-  return ETIQUETA_TAB[activeTab.value]
-})
- 
-// ── Validación ──
-// Revalida todos los pasos y, si alguno falla, lleva al usuario al primero incompleto.
+/* ─── Validación del formulario de registro ──────────────── */
 function validar() {
-  for (let n = 1; n <= TOTAL_PASOS; n++) {
-    if (validarPaso(n)) continue
-    pasoActual.value = n
-    pasoMaximo.value = Math.max(pasoMaximo.value, n)
-    return false
-  }
-  return true
+  const e = {}
+  if (!petSeleccionada.value)               e.pet             = 'Selecciona una mascota'
+  if (!form.value.fecha)                    e.fecha           = 'Obligatorio'
+  if (!form.value.vet?.trim())              e.vet             = 'Obligatorio'
+  if (!form.value.diagnostico?.trim())      e.diagnostico     = 'Obligatorio'
+  if (!form.value.tipoVacuna?.trim())       e.tipoVacuna      = 'Obligatorio'
+  if (!form.value.fechaAplicacion)          e.fechaAplicacion = 'Obligatorio'
+  if (!form.value.tipoTratamiento?.trim())  e.tipoTratamiento = 'Obligatorio'
+  if (!form.value.fechaTrat)                e.fechaTrat       = 'Obligatorio'
+  errores.value = e
+  return Object.keys(e).length === 0
 }
- 
 function clearErr(campo) {
   if (errores.value[campo]) {
     const e = { ...errores.value }
@@ -486,2441 +291,1274 @@ function clearErr(campo) {
     errores.value = e
   }
 }
- 
+
 function intentarGuardar() {
   if (!validar()) return
   showModalConfirm.value = true
 }
- 
-const guardandoExpediente = ref(false)
-
-// Traduce el formulario del tipo elegido a las columnas de animal_medical_records
-function cuerpoSegunTipo() {
-  if (tipoRegistro.value === 'vacunas') {
-    return {
-      diagnosis: form.value.tipoVacuna,
-      treatment: serializarTratamiento('V', [form.value.clinicaVacuna, form.value.proximaDosis]),
-      notes: form.value.observaciones_v || null,
-      visitDate: form.value.fechaAplicacion,
-    }
-  }
-
-  if (tipoRegistro.value === 'tratamientos') {
-    return {
-      diagnosis: form.value.tipoTratamiento,
-      treatment: serializarTratamiento('T', [form.value.medicamento, form.value.dosis]),
-      notes: form.value.observaciones_t || null,
-      visitDate: form.value.fechaTrat,
-    }
-  }
-
-  return {
-    diagnosis: form.value.diagnostico,
-    treatment: serializarTratamiento('H', [form.value.clinica, form.value.peso]),
-    notes: form.value.observaciones_h || null,
-    visitDate: form.value.fecha,
-  }
-}
 
 async function confirmarGuardar() {
   showModalConfirm.value = false
+  const pid = petSeleccionada.value?.id
+  if (!pid) return
 
-  const animalId = petSeleccionada.value?.id
-  if (!animalId) return
+  const usuarioActual = getUsuarioActual()
+  const creadoPor = usuarioActual?.id ?? usuarioActual?._id ?? null
 
-  guardandoExpediente.value = true
+  // Veterinario responsable del historial (obligatorio en el form).
+  const vetIdHistorial = resolverVeterinarianId(form.value.vet)
+  // La vacuna puede tener su propio veterinario; si no se indicó,
+  // se usa el mismo de historial.
+  const vetIdVacuna = resolverVeterinarianId(form.value.vetVacuna) || vetIdHistorial
+  // El tratamiento no tiene selector propio de veterinario en el
+  // formulario, así que se asocia al veterinario responsable general.
+  const vetIdTratamiento = vetIdHistorial
+
+  const payloadHistorial = {
+    animalId: pid,
+    veterinarianId: vetIdHistorial,
+    diagnosis: form.value.diagnostico,
+    treatment: '',
+    notes: serializarNotas({
+      tipo: 'historial',
+      vet: form.value.vet,
+      peso: form.value.peso,
+      observaciones: form.value.observaciones_h,
+    }),
+    visitDate: form.value.fecha,
+    createdBy: creadoPor,
+  }
+  const payloadVacuna = {
+    animalId: pid,
+    veterinarianId: vetIdVacuna,
+    diagnosis: `Vacuna: ${form.value.tipoVacuna}`,
+    treatment: '',
+    notes: serializarNotas({
+      tipo: 'vacuna',
+      tipoVacuna: form.value.tipoVacuna,
+      vet: form.value.vetVacuna,
+      proximaDosis: form.value.proximaDosis,
+      observaciones: form.value.observaciones_v,
+    }),
+    visitDate: form.value.fechaAplicacion,
+    createdBy: creadoPor,
+  }
+  const payloadTratamiento = {
+    animalId: pid,
+    veterinarianId: vetIdTratamiento,
+    diagnosis: `Tratamiento: ${form.value.tipoTratamiento}`,
+    treatment: form.value.medicamento || '',
+    notes: serializarNotas({
+      tipo: 'tratamiento',
+      tipoTratamiento: form.value.tipoTratamiento,
+      dosis: form.value.dosis,
+      observaciones: form.value.observaciones_t,
+    }),
+    visitDate: form.value.fechaTrat,
+    createdBy: creadoPor,
+  }
+
   try {
-    await createHealthRecord({
-      animalId,
-      veterinarianId: form.value.vetId,
-      createdBy: 'admin',
-      ...cuerpoSegunTipo(),
+    await Promise.all([
+      createHealthRecord(payloadHistorial),
+      createHealthRecord(payloadVacuna),
+      createHealthRecord(payloadTratamiento),
+    ])
+
+    registrarAuditoria({
+      modulo: 'Salud',
+      accion: `Registró expediente médico de ${petSeleccionada.value?.name || 'una mascota'}`,
+      tipoAccion: 'crear',
+      elemento: petSeleccionada.value?.name || '',
+      elementoId: pid,
+      descripcion: `Se registró historial médico, vacuna (${form.value.tipoVacuna}) y tratamiento (${form.value.tipoTratamiento}) para ${petSeleccionada.value?.name || 'la mascota'}.`,
+      estado: 'Exitoso',
     })
 
-    await cargarExpedientes()
-
+    await cargarDatosBackend()
     resetForm()
     showModalRegistrar.value = false
     showToast('success', 'Expediente médico guardado correctamente')
   } catch (e) {
-    const msg = e?.response?.data?.message
-    showToast('error', msg || 'Error al guardar. Intenta de nuevo.')
-  } finally {
-    guardandoExpediente.value = false
+    registrarAuditoria({
+      modulo: 'Salud',
+      accion: `Intentó registrar expediente médico de ${petSeleccionada.value?.name || 'una mascota'}`,
+      tipoAccion: 'crear',
+      elemento: petSeleccionada.value?.name || '',
+      elementoId: pid,
+      descripcion: 'Ocurrió un error al guardar el expediente médico en el servidor.',
+      estado: 'Fallido',
+    })
+    showToast('error', 'Error al guardar. Intenta de nuevo.')
   }
 }
- 
+
 function abrirModal() {
   resetForm()
   showModalRegistrar.value = true
 }
-
-// Abre el wizard en el paso 1 con el formulario de alta de mascota desplegado
-function abrirModalAgregarMascota() {
-  abrirModal()
-  abrirInlineAddPet()
-}
-
 function cerrarModalRegistrar() {
   showModalRegistrar.value = false
+  resetForm()
 }
- 
-function seleccionarPet(pet, avanzar = false) {
+function seleccionarPet(pet) {
   petSeleccionada.value = pet
   showPetDropdown.value = false
   clearErr('pet')
-
-  // El paso de mascota es de selección única: al elegir se avanza solo.
-  // El retardo deja ver la selección antes de cambiar de paso.
-  if (!avanzar || pasoActual.value !== 2) return
-  setTimeout(() => {
-    if (pasoActual.value === 2 && petSeleccionada.value) pasoSiguiente()
-  }, 280)
 }
- 
+
+/* ─── Ver expediente (abre la mascota completa, igual que
+     openView(pet) en Mascotas.vue) ─────────────────────────── */
 function verRegistro(r) {
-  registroVer.value = r
+  const pet = store.pets.find(p => p.id === r.petId)
+  registroVer.value = pet || null
+  expedienteTab.value = 'general'
   showModalVer.value = true
 }
- 
+
 function formatFecha(f) {
   if (!f) return '—'
   const [y, m, d] = f.split('-')
   const meses = ['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic']
   return `${d} ${meses[parseInt(m)-1]} ${y}`
 }
- 
-const mascotasActivas = computed(() => animales.value.filter(p => p.active !== false))
- 
-// ── Contadores por pestaña ──
-const totalHistorial     = computed(() => expedientes.value.filter(r => r.prefijo === 'H').length)
-const totalVacunas       = computed(() => expedientes.value.filter(r => r.prefijo === 'V').length)
-const totalTratamientos  = computed(() => expedientes.value.filter(r => r.prefijo === 'T').length)
 
-const conteoPorTab = computed(() => ({
-  historial:    totalHistorial.value,
-  vacunas:      totalVacunas.value,
-  tratamientos: totalTratamientos.value
-}))
+const mascotasActivas = computed(() => store.pets.filter(p => p.active !== false))
 
-// ── KPIs accionables ──
-// Los contadores por tipo ya viven en las pestañas; aquí interesa lo que
-// requiere acción: refuerzos vencidos y los que vencen dentro de 30 días.
-const totalExpedientes = computed(() => expedientes.value.length)
+/* ─── Badge de estado (idéntico a statusBadgeClass de Mascotas.vue) ── */
+const statusBadgeClass = s => ({
+  'Disponible':  'badge-aprobada',
+  'En proceso':  'badge-pendiente',
+  'Adoptada':    'badge-adoptada',
+  'Inactiva':    'badge-inactiva',
+  'En rescate':  'badge-rescate',
+}[s] || 'badge-inactiva')
 
-const vacunasVencidas = computed(() =>
-  expedientes.value.filter(r =>
-    r.prefijo === 'V' && estadoRefuerzo(r.proximaDosis)?.clase === 'badge-rechazada'
-  ).length
-)
+/* ─── Expediente médico completo de la mascota abierta en "Ver" ──
+     Mismo patrón que expedienteHistorialMedico / expedienteVacunas /
+     expedienteTratamientos de Mascotas.vue: se consulta el mismo
+     `datos` que alimenta toda la vista, no se crea ninguna fuente
+     de datos nueva. ─────────────────────────────────────────── */
+const registroVerHistorial = computed(() => {
+  if (!registroVer.value) return []
+  const d = datos.value[registroVer.value.id]
+  if (!d) return []
+  return [...d.medicalHistory].sort((a, b) =>
+    String(b.fecha || '').localeCompare(String(a.fecha || ''))
+  )
+})
+const registroVerVacunas = computed(() => {
+  if (!registroVer.value) return []
+  const d = datos.value[registroVer.value.id]
+  if (!d) return []
+  return [...d.vaccines].sort((a, b) =>
+    String(b.fechaAplicacion || '').localeCompare(String(a.fechaAplicacion || ''))
+  )
+})
+const registroVerTratamientos = computed(() => {
+  if (!registroVer.value) return []
+  const d = datos.value[registroVer.value.id]
+  if (!d) return []
+  return [...d.treatments].sort((a, b) =>
+    String(b.fecha || '').localeCompare(String(a.fecha || ''))
+  )
+})
 
-const vacunasPorVencer = computed(() =>
-  expedientes.value.filter(r =>
-    r.prefijo === 'V' && estadoRefuerzo(r.proximaDosis)?.clase === 'badge-pendiente'
-  ).length
-)
-const totalMascotas = computed(() => animales.value.filter(p => p.active !== false).length)
+/* ─── Línea de tiempo (mismo patrón que expedienteTimeline de
+     Mascotas.vue, restringida a eventos médicos) ─────────────── */
+const registroVerTimeline = computed(() => {
+  if (!registroVer.value) return []
+  const eventos = []
+  registroVerHistorial.value.forEach(h => {
+    eventos.push({ fecha: h.fecha || '', icono: '🩺', titulo: 'Revisión médica', detalle: h.diagnostico || '' })
+  })
+  registroVerVacunas.value.forEach(v => {
+    eventos.push({ fecha: v.fechaAplicacion || '', icono: '💉', titulo: `Vacunación${v.tipo ? ': ' + v.tipo : ''}`, detalle: v.vet || '' })
+  })
+  registroVerTratamientos.value.forEach(t => {
+    eventos.push({ fecha: t.fecha || '', icono: '💊', titulo: `Tratamiento${t.tipo ? ': ' + t.tipo : ''}`, detalle: t.medicamento || '' })
+  })
+  return eventos
+    .filter(e => e.fecha)
+    .sort((a, b) => String(a.fecha).localeCompare(String(b.fecha)))
+})
 
-const showInlineAddPet = ref(false)
-const nuevaMascota = ref({ name: '', type: '', sex: '' })
-const agregandoMascota = ref(false)
-const errorMascota = ref('')
-
-
-async function agregarMascota() {
-  errorMascota.value = ''
-  if (!nuevaMascota.value.name.trim()) { errorMascota.value = 'El nombre es obligatorio'; return }
-  if (!nuevaMascota.value.type.trim()) { errorMascota.value = 'La especie es obligatoria'; return }
-  if (!nuevaMascota.value.sex) { errorMascota.value = 'El sexo es obligatorio'; return }
-  agregandoMascota.value = true
-  try {
-    const { data } = await createAnimals({ ...nuevaMascota.value })
-    await loadAnimales()
-    const added = animales.value.find(p => p.name.toLowerCase() === nuevaMascota.value.name.trim().toLowerCase())
-    if (added) seleccionarPet(added)
-    showInlineAddPet.value = false
-    nuevaMascota.value = { name: '', type: '', sex: '' }
-    showToast('success', 'Mascota agregada correctamente')
-  } catch {
-    errorMascota.value = 'Error al crear la mascota'
-  } finally {
-    agregandoMascota.value = false
+/* ─── KPIs ────────────────────────────────────────────────── */
+const stats = computed(() => {
+  let historial = 0, vacunas = 0, tratamientos = 0
+  store.pets.forEach(pet => {
+    historial    += datos.value[pet.id]?.medicalHistory?.length || 0
+    vacunas      += datos.value[pet.id]?.vaccines?.length || 0
+    tratamientos += datos.value[pet.id]?.treatments?.length || 0
+  })
+  return {
+    historial, vacunas, tratamientos,
+    mascotas: store.pets.filter(p => p.active !== false).length,
   }
-}
+})
 
-function abrirInlineAddPet() {
-  errorMascota.value = ''
-  nuevaMascota.value = { name: '', type: '', sex: '' }
-  showPetDropdown.value = false
-  showInlineAddPet.value = true
-}
-
-// ── Alta rápida de veterinario ──
-// Los veterinarios viven en `anhelo_usuarios` (voluntarios de tipo
-// Veterinaria aprobados), igual que en VoluntariosAdminView.
-const showInlineAddVet = ref(false)
-const nuevoVet = ref({ nombre: '', apellido: '', especialidad: '', correo: '', cedula: '' })
-const guardandoVet = ref(false)
-const errorVet = ref('')
-
-function abrirInlineAddVet() {
-  errorVet.value = ''
-  nuevoVet.value = { nombre: '', apellido: '', especialidad: '', correo: '', cedula: '' }
-  showVetDropdown.value = false
-  showInlineAddVet.value = true
-}
-
-function seleccionarVet(vet) {
-  form.value.vet = vet.nombre
-  form.value.vetId = vet.id
-  showVetDropdown.value = false
-  clearErr('vet')
-}
-
-async function guardarVeterinario() {
-  errorVet.value = ''
-
-  const nombre = nuevoVet.value.nombre.trim()
-  const apellido = nuevoVet.value.apellido.trim()
-  const especialidad = nuevoVet.value.especialidad.trim()
-
-  if (!nombre)       { errorVet.value = 'El nombre es obligatorio'; return }
-  if (!apellido)     { errorVet.value = 'El apellido es obligatorio'; return }
-  if (!especialidad) { errorVet.value = 'La especialidad es obligatoria'; return }
-
-  guardandoVet.value = true
-  try {
-    const { data } = await createVeterinarian({
-      firstName: nombre,
-      lastName: apellido,
-      specialty: especialidad,
-      email: nuevoVet.value.correo.trim() || null,
-      nationalId: nuevoVet.value.cedula.trim() || null,
-      createdBy: 'admin',
-    })
-
-    await cargarVeterinarios()
-
-    const creado = {
-      id: data.veterinarianId,
-      nombre: data.fullName || `${nombre} ${apellido}`,
-      especialidad: data.specialty || especialidad,
-    }
-
-    seleccionarVet(creado)
-
-    showInlineAddVet.value = false
-    showToast('success', 'Veterinario agregado correctamente')
-  } catch (e) {
-    errorVet.value = e?.response?.data?.message || 'Error al guardar el veterinario'
-  } finally {
-    guardandoVet.value = false
-  }
+function iniciales(nombre) {
+  if (!nombre) return '?'
+  return nombre.trim().split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()
 }
 </script>
 
-
- 
 <template>
   <div class="view-container">
- 
+
     <!-- ── Toast ── -->
     <Teleport to="body">
-      <Transition name="toast-anim">
-        <div v-if="toast.show" class="sal-toast" :class="toast.type">
+      <Transition name="toast-fade">
+        <div v-if="toast.show" class="don-toast" :class="toast.type">
+          <span class="don-toast-dot"></span>
           {{ toast.message }}
         </div>
       </Transition>
     </Teleport>
- 
-    <!-- ── ENCABEZADO ── -->
-    <header class="page-header">
-      <div>
-        <h1 class="admin-page-title">Control de Salud</h1>
-        <p class="admin-page-sub">Historial médico, vacunas y tratamientos</p>
-      </div>
-      <div class="page-actions">
-        <button class="btn-secondary" @click="abrirModalAgregarMascota">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-          Agregar mascota
-        </button>
-        <button class="btn-primary" @click="abrirModal">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Nuevo expediente
-        </button>
-      </div>
-    </header>
-
-    <!-- ── KPIs ── -->
-    <div class="don-summary">
-      <div class="don-card kpi-historial">
-        <span class="don-label">Expedientes</span>
-        <strong class="don-value">{{ totalExpedientes }}</strong>
-        <span class="don-nota">registros clínicos</span>
-      </div>
-
-      <button
-        type="button"
-        class="don-card kpi-vencidas"
-        :class="{ 'don-card--alerta': vacunasVencidas > 0 }"
-        @click="verVacunas('vencidas')"
-      >
-        <span class="don-label">Refuerzos vencidos</span>
-        <strong class="don-value">{{ vacunasVencidas }}</strong>
-        <span class="don-nota">{{ vacunasVencidas ? 'Requieren atención' : 'Nada pendiente' }}</span>
-      </button>
-
-      <button
-        type="button"
-        class="don-card kpi-porvencer"
-        @click="verVacunas('porVencer')"
-      >
-        <span class="don-label">Vencen en 30 días</span>
-        <strong class="don-value">{{ vacunasPorVencer }}</strong>
-        <span class="don-nota">Próximos refuerzos</span>
-      </button>
-
-      <div class="don-card kpi-mascotas">
-        <span class="don-label">Mascotas activas</span>
-        <strong class="don-value">{{ totalMascotas }}</strong>
-        <span class="don-nota">en el refugio</span>
-      </div>
-    </div>
-
-    <!-- ── PANEL DE REGISTROS ── -->
-    <div class="table-wrapper">
-
-      <!-- Pestañas: navegación principal, pegada a la tabla -->
-      <nav class="panel-tabs">
-        <button
-          v-for="t in TABS"
-          :key="t.id"
-          class="panel-tab"
-          :class="{ 'panel-tab--active': activeTab === t.id }"
-          @click="cambiarTab(t.id)"
-        >
-          <svg v-if="t.id === 'historial'" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-          <svg v-else-if="t.id === 'vacunas'" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-          <svg v-else xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-          {{ t.titulo }}
-          <span class="panel-tab-count">{{ conteoPorTab[t.id] }}</span>
-        </button>
-      </nav>
-
-      <!-- Filtros, dentro del mismo panel -->
-      <div class="panel-filtros">
-        <div class="filtro-input-wrap panel-buscar">
-          <input v-model="search" placeholder="Buscar por nombre o ID..." class="filtro-input filtro-input--icon" />
-          <span class="filtro-icon filtro-icon--right">
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          </span>
-        </div>
-
-        <div class="panel-fechas">
-          <label class="panel-fechas-label">Del</label>
-          <input type="date" class="filtro-input" v-model="filterFrom" />
-          <label class="panel-fechas-label">al</label>
-          <input type="date" class="filtro-input" v-model="filterTo" />
-        </div>
-
-        <span v-if="filtroRefuerzo !== 'todas'" class="filtro-chip">
-          {{ ETIQUETA_REFUERZO[filtroRefuerzo] }}
-          <button type="button" @click="filtroRefuerzo = 'todas'" aria-label="Quitar filtro">✕</button>
-        </span>
-
-        <button
-          v-if="hayFiltros"
-          type="button"
-          class="btn-limpiar btn-limpiar--activo"
-          @click="limpiarFiltros"
-        >
-          Limpiar filtros
-        </button>
-      </div>
-
-      <div class="table-scroll">
-        <table class="don-table">
-          <thead>
-            <tr>
-              <th>ID Registro</th>
-              <th>Mascota</th>
-              <th v-for="c in columnas" :key="c.key">{{ c.titulo }}</th>
-              <th>Acción</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr
-              v-for="r in registros"
-              :key="r.id"
-              class="don-row don-row--click"
-              @click="verRegistro(r)"
-            >
-              <td><span class="id-pill">{{ r.id }}</span></td>
-              <td>
-                <div class="pet-cell">
-                  <div class="pet-avatar">
-                    <img v-if="r.petFoto" :src="r.petFoto" class="pet-avatar-img" />
-                    <span v-else class="pet-avatar-ini">{{ r.petNombre?.charAt(0) }}</span>
-                  </div>
-                  <div>
-                    <span class="donor-name">{{ r.petNombre }}</span>
-                    <span class="donor-mail">{{ r.petId }}</span>
-                  </div>
-                </div>
-              </td>
-
-              <td v-for="c in columnas" :key="c.key">
-                <template v-if="c.tipo === 'refuerzo'">
-                  <span
-                    v-if="c.valor(r)"
-                    class="estado-badge"
-                    :class="estadoRefuerzo(c.valor(r))?.clase"
-                    :title="estadoRefuerzo(c.valor(r))?.titulo"
-                  >{{ formatFecha(c.valor(r)) }}</span>
-                  <span v-else class="metodo-text">—</span>
-                </template>
-                <span v-else-if="c.tipo === 'fecha'" class="fecha-text">{{ formatFecha(c.valor(r)) }}</span>
-                <span v-else-if="c.tipo === 'destacado'" class="monto-text">{{ c.valor(r) || '—' }}</span>
-                <span v-else class="metodo-text">{{ c.valor(r) || '—' }}</span>
-              </td>
-
-              <td>
-                <button class="btn-ver" @click.stop="verRegistro(r)">Ver detalle</button>
-              </td>
-            </tr>
-
-            <tr v-if="registros.length === 0">
-              <td :colspan="columnas.length + 3" class="empty-cell">
-                <div class="empty-state-inner">
-                  <svg v-if="activeTab === 'historial'" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                  <svg v-else-if="activeTab === 'vacunas'" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                  <svg v-else xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                  <p>{{ mensajeVacio }}</p>
-                </div>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <!-- Tarjetas: sustituyen a la tabla en móvil -->
-      <div class="rec-cards">
-        <button
-          v-for="r in registros"
-          :key="r.id"
-          type="button"
-          class="rec-card"
-          @click="verRegistro(r)"
-        >
-          <div class="rec-card-head">
-            <div class="pet-cell">
-              <div class="pet-avatar">
-                <img v-if="r.petFoto" :src="r.petFoto" class="pet-avatar-img" />
-                <span v-else class="pet-avatar-ini">{{ r.petNombre?.charAt(0) }}</span>
-              </div>
-              <div>
-                <span class="donor-name">{{ r.petNombre }}</span>
-                <span class="donor-mail">{{ r.petId }}</span>
-              </div>
-            </div>
-            <span class="id-pill">{{ r.id }}</span>
-          </div>
-
-          <dl class="rec-card-list">
-            <div v-for="c in columnas" :key="c.key">
-              <dt>{{ c.titulo }}</dt>
-              <dd>
-                <span
-                  v-if="c.tipo === 'refuerzo' && c.valor(r)"
-                  class="estado-badge"
-                  :class="estadoRefuerzo(c.valor(r))?.clase"
-                >{{ formatFecha(c.valor(r)) }}</span>
-                <template v-else-if="c.tipo === 'fecha' || c.tipo === 'refuerzo'">{{ formatFecha(c.valor(r)) }}</template>
-                <template v-else>{{ c.valor(r) || '—' }}</template>
-              </dd>
-            </div>
-          </dl>
-        </button>
-
-        <div v-if="registros.length === 0" class="empty-state-inner">
-          <p>{{ mensajeVacio }}</p>
-        </div>
-      </div>
-
-      <div class="table-footer">
-        {{ registros.length }} registro{{ registros.length !== 1 ? 's' : '' }} encontrado{{ registros.length !== 1 ? 's' : '' }}
-      </div>
-    </div>
 
     <!-- ══════════════════════════════════════
-         MODAL REGISTRAR — wizard paso a paso
+         MODAL 1/3 — NUEVO EXPEDIENTE
+         Misma arquitectura EXACTA que el formulario "Nueva mascota" de
+         Mascotas.vue: modal-box--uniform, close-btn, form-header,
+         uniform-scroll, form-body con form-section numeradas, form-grid,
+         form-footer con btn-cancel / btn-save.
     ══════════════════════════════════════ -->
     <Teleport to="body">
       <Transition name="modal-fade">
         <div v-if="showModalRegistrar" class="modal-overlay" @click.self="cerrarModalRegistrar">
-          <div class="modal-box modal-box--lg modal-box--wizard">
+          <div class="modal-box modal-box--uniform">
+            <button class="close-btn" @click="cerrarModalRegistrar">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
 
-            <button class="modal-close" @click="cerrarModalRegistrar">✕</button>
-
-            <!-- ── Cabecera del wizard ── -->
-            <div class="wiz-header">
-              <p class="modal-eyebrow">Expediente médico</p>
-              <h2 class="modal-title">Nuevo registro completo</h2>
-
-              <!-- Stepper -->
-              <div class="wiz-steps" role="list">
-                <div class="wiz-track">
-                  <div class="wiz-track-fill" :style="{ width: progreso + '%' }"></div>
-                </div>
-
-                <button
-                  v-for="p in PASOS"
-                  :key="p.n"
-                  type="button"
-                  role="listitem"
-                  class="wiz-step"
-                  :class="{
-                    'is-active': pasoActual === p.n,
-                    'is-done':   p.n < pasoActual && pasoCompleto(p.n),
-                    'is-locked': p.n > pasoMaximo
-                  }"
-                  :disabled="p.n > pasoMaximo"
-                  :aria-current="pasoActual === p.n ? 'step' : undefined"
-                  @click="irAPaso(p.n)"
-                >
-                  <span class="wiz-bullet">
-                    <svg v-if="p.n < pasoActual && pasoCompleto(p.n)" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                    <template v-else>{{ p.n }}</template>
-                  </span>
-                  <span class="wiz-step-label">{{ p.titulo }}</span>
-                </button>
-              </div>
-
-              <div class="wiz-context">
-                <span class="wiz-context-count">Paso {{ pasoActual }} de {{ TOTAL_PASOS }}</span>
-                <span class="wiz-context-sep">·</span>
-                <span class="wiz-context-desc">{{ pasoInfo.desc }}</span>
-                <span v-if="petSeleccionada && pasoActual > 1" class="wiz-context-pet">
-                  <span class="pet-avatar pet-avatar--xs">
-                    <span class="pet-avatar-ini">{{ petSeleccionada.name?.charAt(0) }}</span>
-                  </span>
-                  {{ petSeleccionada.name }}
-                </span>
-              </div>
+            <div class="form-header">
+              <p class="form-eyebrow">Expediente médico</p>
+              <h2 class="form-title">Nuevo registro completo</h2>
+              <p class="form-sub">Registra historial, vacuna y tratamiento en un mismo expediente</p>
             </div>
 
-            <div class="modal-body wiz-body">
+            <div class="uniform-scroll">
+              <div class="form-body">
 
-              <!-- ══ PASO 1 — Tipo de registro ══ -->
-              <section v-show="pasoActual === 1" class="wiz-pane">
-                <h4 class="modal-section-title">¿Qué vas a registrar?</h4>
-
-                <div class="tipo-grid">
-                  <button
-                    v-for="t in TIPOS_REGISTRO"
-                    :key="t.id"
-                    type="button"
-                    class="tipo-card"
-                    :class="{ 'is-selected': tipoRegistro === t.id }"
-                    @click="seleccionarTipo(t.id)"
-                  >
-                    <span class="tipo-card-icon">
-                      <svg v-if="t.id === 'historial'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                      <svg v-else-if="t.id === 'vacunas'" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
-                      <svg v-else xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
-                    </span>
-                    <span class="tipo-card-title">{{ t.titulo }}</span>
-                    <span class="tipo-card-desc">{{ t.desc }}</span>
-                    <svg v-if="tipoRegistro === t.id" class="tipo-card-check" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  </button>
-                </div>
-
-                <p v-if="errores.tipo" class="field-error" style="margin-top:10px">{{ errores.tipo }}</p>
-              </section>
-
-              <!-- ══ PASO 2 — Mascota ══ -->
-              <section v-show="pasoActual === 2" class="wiz-pane">
-                <h4 class="modal-section-title">Selecciona la mascota</h4>
-
-                <div class="pet-selector-wrap">
-                  <button
-                    type="button"
-                    class="pet-selector-btn"
-                    :class="{ 'is-error': errores.pet }"
-                    @click="showPetDropdown = !showPetDropdown"
-                  >
-                    <template v-if="petSeleccionada">
-                      <div class="pet-avatar pet-avatar--sm">
-                        <img v-if="petSeleccionada.foto || petSeleccionada.image || petSeleccionada.photo || petSeleccionada.avatar" :src="petSeleccionada.foto || petSeleccionada.image || petSeleccionada.photo || petSeleccionada.avatar" class="pet-avatar-img" />
-                        <span v-else class="pet-avatar-ini">{{ petSeleccionada.name?.charAt(0) }}</span>
-                      </div>
-                      <span class="psel-name">{{ petSeleccionada.name }}</span>
-                      <span class="psel-species">{{ petSeleccionada.species }}</span>
-                    </template>
-                    <template v-else>
-                      <span class="psel-placeholder">Seleccionar mascota...</span>
-                    </template>
-                    <svg class="psel-chevron" :class="{ open: showPetDropdown }" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                  </button>
-                  <p v-if="errores.pet" class="field-error">{{ errores.pet }}</p>
-                  <div v-if="showPetDropdown" class="pet-dropdown">
-                    <div v-if="mascotasActivas.length === 0" class="dropdown-empty">No hay mascotas activas registradas</div>
-                    <div
-                      v-for="pet in mascotasActivas"
-                      :key="pet.id"
-                      class="dropdown-item"
-                      :class="{ selected: petSeleccionada?.id === pet.id }"
-                      @click="seleccionarPet(pet, true)"
-                    >
-                      <div class="pet-avatar pet-avatar--sm">
-                        <img v-if="pet.foto || pet.image || pet.photo || pet.avatar" :src="pet.foto || pet.image || pet.photo || pet.avatar" class="pet-avatar-img" />
-                        <span v-else class="pet-avatar-ini">{{ pet.name?.charAt(0) }}</span>
-                      </div>
-                      <div class="dropdown-info">
-                        <span class="dropdown-name">{{ pet.name }}</span>
-                        <span class="dropdown-sub">{{ pet.species }}</span>
-                      </div>
-                      <svg v-if="petSeleccionada?.id === pet.id" xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" style="color:#6C756D;flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>
-                    </div>
-                  </div>
-                </div>
-
-                <!-- Alta rápida de mascota -->
-                <button
-                  v-if="!showInlineAddPet"
-                  type="button"
-                  class="wiz-add-pet-toggle"
-                  @click="abrirInlineAddPet"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                  ¿No está en la lista? Agregar mascota
-                </button>
-
-                <div v-if="showInlineAddPet" class="wiz-add-pet">
-                  <div class="wiz-add-pet-head">
-                    <h5 class="wiz-add-pet-title">Nueva mascota</h5>
-                    <button type="button" class="wiz-add-pet-close" @click="showInlineAddPet = false">✕</button>
-                  </div>
-                  <div class="form-grid form-grid--3">
-                    <div class="fg">
-                      <label class="fg-label">Nombre <span class="req">*</span></label>
-                      <input type="text" class="fg-input" placeholder="Ej. Luna" v-model="nuevaMascota.name" />
-                    </div>
-                    <div class="fg">
-                      <label class="fg-label">Especie <span class="req">*</span></label>
-                      <select class="fg-input" v-model="nuevaMascota.type">
-                        <option value="">Seleccionar...</option>
-                        <option value="Perro">Perro</option>
-                        <option value="Gato">Gato</option>
-                        <option value="Otro">Otro</option>
-                      </select>
-                    </div>
-                    <div class="fg">
-                      <label class="fg-label">Sexo <span class="req">*</span></label>
-                      <select class="fg-input" v-model="nuevaMascota.sex">
-                        <option value="">Seleccionar...</option>
-                        <option value="Macho">Macho</option>
-                        <option value="Hembra">Hembra</option>
-                      </select>
-                    </div>
-                  </div>
-                  <p v-if="errorMascota" class="field-error">{{ errorMascota }}</p>
-                  <div class="wiz-add-pet-actions">
-                    <button type="button" class="btn-cancel" @click="showInlineAddPet = false">Cancelar</button>
-                    <button type="button" class="btn-save" :disabled="agregandoMascota" @click="agregarMascota">
-                      {{ agregandoMascota ? 'Guardando...' : 'Agregar mascota' }}
-                    </button>
-                  </div>
-                </div>
-
-                <p v-if="animalesLoading" class="wiz-hint">Cargando mascotas...</p>
-              </section>
-
-              <!-- ══ PASO 3 — Datos del registro (según el tipo) ══ -->
-              <section v-show="pasoActual === 3" class="wiz-pane">
-                <h4 class="modal-section-title">{{ tipoInfo?.titulo || 'Datos del registro' }}</h4>
-
-                <!-- Veterinario: común a los tres tipos (veterinarian_id es NOT NULL) -->
-                <div class="form-grid form-grid--4">
-                  <div class="fg fg--span2">
-                    <label class="fg-label">Veterinario responsable <span class="req">*</span></label>
-                    <div class="pet-selector-wrap">
-                      <button type="button" class="pet-selector-btn" :class="{ 'is-error': errores.vet }" @click="showVetDropdown = !showVetDropdown">
-                        <template v-if="form.vet">
-                          <div class="pet-avatar pet-avatar--sm"><span class="pet-avatar-ini">{{ form.vet.charAt(0) }}</span></div>
-                          <span class="psel-name">{{ form.vet }}</span>
-                        </template>
-                        <template v-else><span class="psel-placeholder">Seleccionar veterinario...</span></template>
-                        <svg class="psel-chevron" :class="{ open: showVetDropdown }" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                      </button>
-                      <div v-if="showVetDropdown" class="pet-dropdown">
-                        <div v-if="veterinariosLoading" class="dropdown-empty">Cargando veterinarios...</div>
-                        <div v-else-if="veterinarios.length === 0" class="dropdown-empty">No hay veterinarios registrados</div>
-                        <div v-for="vet in veterinarios" :key="vet.id" class="dropdown-item" :class="{ selected: form.vetId === vet.id }" @click="seleccionarVet(vet)">
-                          <div class="pet-avatar pet-avatar--sm"><span class="pet-avatar-ini">{{ vet.nombre?.charAt(0) }}</span></div>
-                          <div class="dropdown-info">
-                            <span class="dropdown-name">Dr. {{ vet.nombre }}</span>
-                            <span class="dropdown-sub">{{ vet.especialidad || 'Veterinario' }}</span>
+                <!-- Sección 1: Mascota -->
+                <div class="form-section">
+                  <div class="form-section-label"><span class="form-num">1</span> Mascota</div>
+                  <div class="form-grid">
+                    <div class="fg fg--full">
+                      <div class="pet-select-wrap">
+                        <button type="button" class="pet-select-btn" :class="{ 'is-error': errores.pet }" @click="showPetDropdown = !showPetDropdown">
+                          <template v-if="petSeleccionada">
+                            <div class="pet-avatar pet-avatar--sm">
+                              <img v-if="petSeleccionada.images?.[0]?.preview" :src="petSeleccionada.images[0].preview" class="pet-avatar-img" />
+                              <span v-else class="pet-avatar-ini">{{ iniciales(petSeleccionada.name) }}</span>
+                            </div>
+                            <span class="psel-name">{{ petSeleccionada.name }}</span>
+                            <span class="psel-species">{{ petSeleccionada.type }}</span>
+                          </template>
+                          <template v-else>
+                            <span class="psel-placeholder">Seleccionar mascota...</span>
+                          </template>
+                          <svg class="psel-chevron" :class="{ open: showPetDropdown }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                        </button>
+                        <p v-if="errores.pet" class="err-msg">{{ errores.pet }}</p>
+                        <div v-if="showPetDropdown" class="pet-dropdown">
+                          <div v-if="mascotasActivas.length === 0" class="dropdown-empty">No hay mascotas activas registradas</div>
+                          <div v-for="pet in mascotasActivas" :key="pet.id" class="dropdown-item" :class="{ selected: petSeleccionada?.id === pet.id }" @click="seleccionarPet(pet)">
+                            <div class="pet-avatar pet-avatar--sm">
+                              <img v-if="pet.images?.[0]?.preview" :src="pet.images[0].preview" class="pet-avatar-img" />
+                              <span v-else class="pet-avatar-ini">{{ iniciales(pet.name) }}</span>
+                            </div>
+                            <div class="dropdown-info">
+                              <span class="dropdown-name">{{ pet.name }}</span>
+                              <span class="dropdown-sub">{{ pet.type }}</span>
+                            </div>
+                            <svg v-if="petSeleccionada?.id === pet.id" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color:#92A894;flex-shrink:0"><polyline points="20 6 9 17 4 12"/></svg>
                           </div>
                         </div>
-                        <button type="button" class="dropdown-add" @click="abrirInlineAddVet()">
-                          <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
-                          Agregar veterinario
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Sección 2: Historial médico -->
+                <div class="form-section">
+                  <div class="form-section-label"><span class="form-num">2</span> Historial médico</div>
+                  <div class="form-grid">
+                    <div class="fg">
+                      <label>Fecha <span class="req">*</span></label>
+                      <input type="date" class="input" :class="{ 'is-error': errores.fecha }" v-model="form.fecha" @change="clearErr('fecha')" />
+                      <p v-if="errores.fecha" class="err-msg">{{ errores.fecha }}</p>
+                    </div>
+                    <div class="fg">
+                      <label>Peso (kg)</label>
+                      <input type="number" class="input" placeholder="Ej. 12.5" step="0.1" min="0" v-model="form.peso" />
+                    </div>
+                    <div class="fg">
+                      <label>Veterinario responsable <span class="req">*</span></label>
+                      <div class="pet-select-wrap">
+                        <button type="button" class="pet-select-btn" :class="{ 'is-error': errores.vet }" @click="showVetDropdown = !showVetDropdown">
+                          <template v-if="form.vet">
+                            <div class="pet-avatar pet-avatar--sm"><span class="pet-avatar-ini">{{ form.vet.charAt(0) }}</span></div>
+                            <span class="psel-name">{{ form.vet }}</span>
+                          </template>
+                          <template v-else><span class="psel-placeholder">Seleccionar veterinario...</span></template>
+                          <svg class="psel-chevron" :class="{ open: showVetDropdown }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                         </button>
+                        <div v-if="showVetDropdown" class="pet-dropdown">
+                          <div v-for="vet in veterinarios" :key="vet.id" class="dropdown-item" @click="form.vet = vet.nombre; showVetDropdown = false; clearErr('vet')">
+                            <div class="pet-avatar pet-avatar--sm"><span class="pet-avatar-ini">{{ vet.nombre?.charAt(0) }}</span></div>
+                            <div class="dropdown-info">
+                              <span class="dropdown-name">Dr. {{ vet.nombre }}</span>
+                              <span class="dropdown-sub">Veterinario</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
+                      <p v-if="errores.vet" class="err-msg">{{ errores.vet }}</p>
                     </div>
-                    <p v-if="errores.vet" class="field-error">{{ errores.vet }}</p>
+                    <div class="fg">
+                      <label>Clínica veterinaria</label>
+                      <input type="text" class="input" placeholder="Ej. Hospital Veterinario San José" v-model="form.clinica" />
+                    </div>
+                    <div class="fg fg--full">
+                      <label>Diagnóstico <span class="req">*</span></label>
+                      <input type="text" class="input" :class="{ 'is-error': errores.diagnostico }" placeholder="Ej. Control preventivo, otitis externa..." v-model="form.diagnostico" @input="clearErr('diagnostico')" />
+                      <p v-if="errores.diagnostico" class="err-msg">{{ errores.diagnostico }}</p>
+                    </div>
+                    <div class="fg fg--full">
+                      <label>Observaciones</label>
+                      <textarea class="textarea" placeholder="Indicaciones, seguimiento, notas clínicas..." v-model="form.observaciones_h"></textarea>
+                    </div>
                   </div>
+                </div>
 
-                  <!-- Alta rápida de veterinario -->
-                  <div v-if="showInlineAddVet" class="fg fg--full">
-                    <div class="wiz-add-pet">
-                      <div class="wiz-add-pet-head">
-                        <h5 class="wiz-add-pet-title">Nuevo veterinario</h5>
-                        <button type="button" class="wiz-add-pet-close" @click="showInlineAddVet = false">✕</button>
-                      </div>
-                      <div class="form-grid form-grid--3">
-                        <div class="fg">
-                          <label class="fg-label">Nombre <span class="req">*</span></label>
-                          <input type="text" class="fg-input" placeholder="Ej. Ana" v-model="nuevoVet.nombre" />
-                        </div>
-                        <div class="fg">
-                          <label class="fg-label">Apellido <span class="req">*</span></label>
-                          <input type="text" class="fg-input" placeholder="Ej. Rojas" v-model="nuevoVet.apellido" />
-                        </div>
-                        <div class="fg">
-                          <label class="fg-label">Especialidad <span class="req">*</span></label>
-                          <input type="text" class="fg-input" placeholder="Ej. Cirugía" v-model="nuevoVet.especialidad" />
-                        </div>
-                        <div class="fg">
-                          <label class="fg-label">Cédula</label>
-                          <input type="text" class="fg-input" placeholder="Opcional" v-model="nuevoVet.cedula" />
-                        </div>
-                        <div class="fg">
-                          <label class="fg-label">Correo</label>
-                          <input type="email" class="fg-input" placeholder="Opcional" v-model="nuevoVet.correo" />
-                        </div>
-                      </div>
-                      <p v-if="errorVet" class="field-error">{{ errorVet }}</p>
-                      <div class="wiz-add-pet-actions">
-                        <button type="button" class="btn-cancel" @click="showInlineAddVet = false">Cancelar</button>
-                        <button type="button" class="btn-save" :disabled="guardandoVet" @click="guardarVeterinario">
-                          {{ guardandoVet ? 'Guardando...' : 'Agregar veterinario' }}
+                <!-- Sección 3: Vacuna -->
+                <div class="form-section">
+                  <div class="form-section-label"><span class="form-num">3</span> Vacuna</div>
+                  <div class="form-grid">
+                    <div class="fg fg--span2">
+                      <label>Tipo de vacuna <span class="req">*</span></label>
+                      <input type="text" class="input" :class="{ 'is-error': errores.tipoVacuna }" placeholder="Ej. Antirrábica, Parvovirus..." v-model="form.tipoVacuna" @input="clearErr('tipoVacuna')" />
+                      <p v-if="errores.tipoVacuna" class="err-msg">{{ errores.tipoVacuna }}</p>
+                    </div>
+                    <div class="fg">
+                      <label>Fecha de aplicación <span class="req">*</span></label>
+                      <input type="date" class="input" :class="{ 'is-error': errores.fechaAplicacion }" v-model="form.fechaAplicacion" @change="clearErr('fechaAplicacion')" />
+                      <p v-if="errores.fechaAplicacion" class="err-msg">{{ errores.fechaAplicacion }}</p>
+                    </div>
+                    <div class="fg">
+                      <label>Próxima dosis</label>
+                      <input type="date" class="input" v-model="form.proximaDosis" />
+                    </div>
+                    <div class="fg fg--span2">
+                      <label>Veterinario responsable</label>
+                      <div class="pet-select-wrap">
+                        <button type="button" class="pet-select-btn" @click="showVetDropdownVacuna = !showVetDropdownVacuna">
+                          <template v-if="form.vetVacuna">
+                            <div class="pet-avatar pet-avatar--sm"><span class="pet-avatar-ini">{{ form.vetVacuna.charAt(0) }}</span></div>
+                            <span class="psel-name">{{ form.vetVacuna }}</span>
+                          </template>
+                          <template v-else><span class="psel-placeholder">Seleccionar veterinario...</span></template>
+                          <svg class="psel-chevron" :class="{ open: showVetDropdownVacuna }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
                         </button>
+                        <div v-if="showVetDropdownVacuna" class="pet-dropdown">
+                          <div v-for="vet in veterinarios" :key="vet.id" class="dropdown-item" @click="form.vetVacuna = vet.nombre; showVetDropdownVacuna = false">
+                            <div class="pet-avatar pet-avatar--sm"><span class="pet-avatar-ini">{{ vet.nombre?.charAt(0) }}</span></div>
+                            <div class="dropdown-info">
+                              <span class="dropdown-name">Dr. {{ vet.nombre }}</span>
+                              <span class="dropdown-sub">Veterinario</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
                     </div>
-                  </div>
-
-                </div>
-
-                <!-- ── Campos de Historial médico ── -->
-                <div v-if="tipoRegistro === 'historial'" class="form-grid form-grid--4">
-                  <div class="fg">
-                    <label class="fg-label">Fecha <span class="req">*</span></label>
-                    <input type="date" class="fg-input" :class="{ 'is-error': errores.fecha }" v-model="form.fecha" @change="clearErr('fecha')" />
-                    <p v-if="errores.fecha" class="field-error">{{ errores.fecha }}</p>
-                  </div>
-                  <div class="fg">
-                    <label class="fg-label">Peso (kg)</label>
-                    <input type="number" class="fg-input" placeholder="Ej. 12.5" step="0.1" min="0" v-model="form.peso" />
-                  </div>
-                  <div class="fg fg--span2">
-                    <label class="fg-label">Clínica veterinaria</label>
-                    <input type="text" class="fg-input" placeholder="Ej. Hospital Veterinario San José" v-model="form.clinica" />
-                  </div>
-
-                  <div class="fg fg--full">
-                    <label class="fg-label">Diagnóstico <span class="req">*</span></label>
-                    <input type="text" class="fg-input" :class="{ 'is-error': errores.diagnostico }" placeholder="Ej. Control preventivo, otitis externa..." v-model="form.diagnostico" @input="clearErr('diagnostico')" />
-                    <p v-if="errores.diagnostico" class="field-error">{{ errores.diagnostico }}</p>
-                  </div>
-                  <div class="fg fg--full">
-                    <label class="fg-label">Observaciones</label>
-                    <textarea class="fg-textarea" placeholder="Indicaciones, seguimiento, notas clínicas..." v-model="form.observaciones_h"></textarea>
-                  </div>
-                </div>
-
-                <!-- ── Campos de Vacuna ── -->
-                <div v-else-if="tipoRegistro === 'vacunas'" class="form-grid form-grid--4">
-                  <div class="fg fg--span2">
-                    <label class="fg-label">Tipo de vacuna <span class="req">*</span></label>
-                    <input type="text" class="fg-input" :class="{ 'is-error': errores.tipoVacuna }" placeholder="Ej. Antirrábica, Parvovirus..." v-model="form.tipoVacuna" @input="clearErr('tipoVacuna')" />
-                    <p v-if="errores.tipoVacuna" class="field-error">{{ errores.tipoVacuna }}</p>
-                  </div>
-                  <div class="fg">
-                    <label class="fg-label">Fecha de aplicación <span class="req">*</span></label>
-                    <input type="date" class="fg-input" :class="{ 'is-error': errores.fechaAplicacion }" v-model="form.fechaAplicacion" @change="clearErr('fechaAplicacion')" />
-                    <p v-if="errores.fechaAplicacion" class="field-error">{{ errores.fechaAplicacion }}</p>
-                  </div>
-                  <div class="fg">
-                    <label class="fg-label">Próxima dosis</label>
-                    <input type="date" class="fg-input" v-model="form.proximaDosis" />
-                  </div>
-                  <div class="fg fg--span2">
-                    <label class="fg-label">Clínica veterinaria</label>
-                    <input type="text" class="fg-input" placeholder="Ej. Hospital Veterinario San José" v-model="form.clinicaVacuna" />
-                  </div>
-
-                  <div class="fg fg--full">
-                    <label class="fg-label">Observaciones</label>
-                    <textarea class="fg-textarea" placeholder="Notas sobre la vacuna, lote, reacciones..." v-model="form.observaciones_v"></textarea>
-                  </div>
-                </div>
-
-                <!-- ── Campos de Tratamiento ── -->
-                <div v-else class="form-grid form-grid--4">
-                  <div class="fg fg--span2">
-                    <label class="fg-label">Tipo de tratamiento <span class="req">*</span></label>
-                    <input type="text" class="fg-input" :class="{ 'is-error': errores.tipoTratamiento }" placeholder="Ej. Desparasitación, antibiótico..." v-model="form.tipoTratamiento" @input="clearErr('tipoTratamiento')" />
-                    <p v-if="errores.tipoTratamiento" class="field-error">{{ errores.tipoTratamiento }}</p>
-                  </div>
-                  <div class="fg">
-                    <label class="fg-label">Fecha <span class="req">*</span></label>
-                    <input type="date" class="fg-input" :class="{ 'is-error': errores.fechaTrat }" v-model="form.fechaTrat" @change="clearErr('fechaTrat')" />
-                    <p v-if="errores.fechaTrat" class="field-error">{{ errores.fechaTrat }}</p>
-                  </div>
-                  <div class="fg">
-                    <label class="fg-label">Dosis</label>
-                    <input type="text" class="fg-input" placeholder="Ej. 5mg/kg" v-model="form.dosis" />
-                  </div>
-                  <div class="fg fg--span2">
-                    <label class="fg-label">Medicamento</label>
-                    <input type="text" class="fg-input" placeholder="Nombre del medicamento" v-model="form.medicamento" />
-                  </div>
-                  <div class="fg fg--full">
-                    <label class="fg-label">Observaciones</label>
-                    <textarea class="fg-textarea" placeholder="Duración, respuesta al tratamiento, seguimiento..." v-model="form.observaciones_t"></textarea>
-                  </div>
-                </div>
-              </section>
-
-              <!-- ══ PASO 4 — Resumen ══ -->
-              <section v-show="pasoActual === 4" class="wiz-pane">
-                <h4 class="modal-section-title">Revisa antes de guardar</h4>
-
-                <div class="wiz-resumen">
-                  <!-- Tipo -->
-                  <article class="wiz-res-card">
-                    <header class="wiz-res-head">
-                      <span class="wiz-res-title">Tipo de registro</span>
-                      <button type="button" class="wiz-res-edit" @click="irAPaso(1)">Editar</button>
-                    </header>
-                    <strong class="wiz-res-value">{{ tipoInfo?.titulo || '—' }}</strong>
-                    <span class="wiz-res-sub">{{ tipoInfo?.desc }}</span>
-                  </article>
-
-                  <!-- Mascota -->
-                  <article class="wiz-res-card">
-                    <header class="wiz-res-head">
-                      <span class="wiz-res-title">Mascota</span>
-                      <button type="button" class="wiz-res-edit" @click="irAPaso(2)">Editar</button>
-                    </header>
-                    <div class="wiz-res-pet">
-                      <div class="pet-avatar pet-avatar--sm">
-                        <span class="pet-avatar-ini">{{ petSeleccionada?.name?.charAt(0) }}</span>
-                      </div>
-                      <div>
-                        <strong class="wiz-res-value">{{ petSeleccionada?.name || '—' }}</strong>
-                        <span class="wiz-res-sub">{{ petSeleccionada?.species || 'Sin especie' }} · {{ petSeleccionada?.id }}</span>
-                      </div>
+                    <div class="fg fg--full">
+                      <label>Observaciones</label>
+                      <textarea class="textarea" placeholder="Notas sobre la vacuna, lote, reacciones..." v-model="form.observaciones_v"></textarea>
                     </div>
-                  </article>
-
-                  <!-- Datos del tipo elegido -->
-                  <article class="wiz-res-card wiz-res-card--full">
-                    <header class="wiz-res-head">
-                      <span class="wiz-res-title">{{ tipoInfo?.titulo }}</span>
-                      <button type="button" class="wiz-res-edit" @click="irAPaso(3)">Editar</button>
-                    </header>
-
-                    <dl v-if="tipoRegistro === 'historial'" class="wiz-res-list">
-                      <div><dt>Veterinario</dt><dd>{{ form.vet || '—' }}</dd></div>
-                      <div><dt>Fecha</dt><dd>{{ formatFecha(form.fecha) }}</dd></div>
-                      <div><dt>Clínica</dt><dd>{{ form.clinica || '—' }}</dd></div>
-                      <div><dt>Peso</dt><dd>{{ form.peso ? form.peso + ' kg' : '—' }}</dd></div>
-                      <div class="wiz-res-full"><dt>Diagnóstico</dt><dd>{{ form.diagnostico || '—' }}</dd></div>
-                      <div v-if="form.observaciones_h" class="wiz-res-full"><dt>Observaciones</dt><dd>{{ form.observaciones_h }}</dd></div>
-                    </dl>
-
-                    <dl v-else-if="tipoRegistro === 'vacunas'" class="wiz-res-list">
-                      <div><dt>Veterinario</dt><dd>{{ form.vet || '—' }}</dd></div>
-                      <div class="wiz-res-full"><dt>Tipo de vacuna</dt><dd>{{ form.tipoVacuna || '—' }}</dd></div>
-                      <div><dt>Aplicación</dt><dd>{{ formatFecha(form.fechaAplicacion) }}</dd></div>
-                      <div><dt>Próxima dosis</dt><dd>{{ form.proximaDosis ? formatFecha(form.proximaDosis) : '—' }}</dd></div>
-                      <div><dt>Clínica</dt><dd>{{ form.clinicaVacuna || '—' }}</dd></div>
-                      <div v-if="form.observaciones_v" class="wiz-res-full"><dt>Observaciones</dt><dd>{{ form.observaciones_v }}</dd></div>
-                    </dl>
-
-                    <dl v-else class="wiz-res-list">
-                      <div><dt>Veterinario</dt><dd>{{ form.vet || '—' }}</dd></div>
-                      <div class="wiz-res-full"><dt>Tipo de tratamiento</dt><dd>{{ form.tipoTratamiento || '—' }}</dd></div>
-                      <div><dt>Fecha</dt><dd>{{ formatFecha(form.fechaTrat) }}</dd></div>
-                      <div><dt>Medicamento</dt><dd>{{ form.medicamento || '—' }}</dd></div>
-                      <div><dt>Dosis</dt><dd>{{ form.dosis || '—' }}</dd></div>
-                      <div v-if="form.observaciones_t" class="wiz-res-full"><dt>Observaciones</dt><dd>{{ form.observaciones_t }}</dd></div>
-                    </dl>
-                  </article>
+                  </div>
                 </div>
 
-                <!-- Nota inmutable -->
+                <!-- Sección 4: Tratamiento -->
+                <div class="form-section">
+                  <div class="form-section-label"><span class="form-num">4</span> Tratamiento</div>
+                  <div class="form-grid">
+                    <div class="fg fg--span2">
+                      <label>Tipo de tratamiento <span class="req">*</span></label>
+                      <input type="text" class="input" :class="{ 'is-error': errores.tipoTratamiento }" placeholder="Ej. Desparasitación, antibiótico..." v-model="form.tipoTratamiento" @input="clearErr('tipoTratamiento')" />
+                      <p v-if="errores.tipoTratamiento" class="err-msg">{{ errores.tipoTratamiento }}</p>
+                    </div>
+                    <div class="fg">
+                      <label>Fecha <span class="req">*</span></label>
+                      <input type="date" class="input" :class="{ 'is-error': errores.fechaTrat }" v-model="form.fechaTrat" @change="clearErr('fechaTrat')" />
+                      <p v-if="errores.fechaTrat" class="err-msg">{{ errores.fechaTrat }}</p>
+                    </div>
+                    <div class="fg">
+                      <label>Dosis</label>
+                      <input type="text" class="input" placeholder="Ej. 5mg/kg" v-model="form.dosis" />
+                    </div>
+                    <div class="fg fg--span2">
+                      <label>Medicamento</label>
+                      <input type="text" class="input" placeholder="Nombre del medicamento" v-model="form.medicamento" />
+                    </div>
+                    <div class="fg fg--full">
+                      <label>Observaciones</label>
+                      <textarea class="textarea" placeholder="Duración, respuesta al tratamiento, seguimiento..." v-model="form.observaciones_t"></textarea>
+                    </div>
+                  </div>
+                </div>
+
                 <div class="immutable-note">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                  Los registros médicos son permanentes y no pueden editarse ni eliminarse una vez guardados
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                  Los registros médicos son permanentes y no pueden editarse ni eliminarse una vez guardados.
                 </div>
-              </section>
 
+              </div>
             </div>
 
-            <!-- ── Navegación del wizard ── -->
-            <div class="modal-footer wiz-footer">
+            <div class="form-footer">
               <button class="btn-cancel" @click="cerrarModalRegistrar">Cancelar</button>
-
-              <div class="wiz-nav">
-                <button
-                  v-if="pasoActual > 1"
-                  class="btn-cancel btn-back"
-                  @click="pasoAnterior"
-                >
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                  Atrás
-                </button>
-
-                <button v-if="!esUltimoPaso" class="btn-save" @click="pasoSiguiente">
-                  Siguiente
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                </button>
-
-                <button v-else class="btn-save" @click="intentarGuardar">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  Guardar expediente
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
- 
-    <!-- ── Modal Confirmación ── -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div v-if="showModalConfirm" class="modal-overlay modal-overlay--top" @click.self="showModalConfirm = false">
-          <div class="modal-box modal-box--sm">
-            <button class="modal-close" @click="showModalConfirm = false">✕</button>
-            <div class="confirm-body">
-              <div class="confirm-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              </div>
-              <h3 class="confirm-title">¿Guardar este registro?</h3>
-              <p class="confirm-text">Se registrará <strong>{{ tipoInfo?.titulo?.toLowerCase() }}</strong> para <strong>{{ petSeleccionada?.name }}</strong>. Esta acción es permanente y no podrá modificarse.</p>
-            </div>
-            <div class="modal-footer">
-              <button class="btn-cancel" @click="showModalConfirm = false">Cancelar</button>
-              <button class="btn-save" :disabled="guardandoExpediente" @click="confirmarGuardar">
-                {{ guardandoExpediente ? 'Guardando...' : 'Confirmar y guardar' }}
+              <button class="btn-save" @click="intentarGuardar">
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>Guardar expediente</span>
               </button>
             </div>
           </div>
         </div>
       </Transition>
     </Teleport>
- 
-    <!-- ── Modal Ver ── -->
+
+    <!-- ══════════════════════════════════════
+         VISTA PRINCIPAL — misma estructura EXACTA que Mascotas.vue:
+         page-header (brand-row + botón primario), don-summary (tarjetas
+         KPI), filtros-panel (tabs + búsqueda + limpiar), table-wrapper
+         (don-table con columnas dinámicas, pet-avatar, id-pill,
+         estado-badge, action-group con icon-only).
+    ══════════════════════════════════════ -->
+    <div>
+      <header class="page-header">
+        <div class="brand-row">
+          <div class="brand-mark">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <div>
+            <h1 class="admin-page-title">Control de salud</h1>
+            <p class="admin-page-sub">Historial médico, vacunas y tratamientos</p>
+          </div>
+        </div>
+        <button class="btn btn--primary" @click="abrirModal">
+          <svg class="btn-ico" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Nuevo expediente</span>
+        </button>
+      </header>
+
+      <div class="don-summary">
+        <div class="don-card">
+          <div class="don-icon historial-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </div>
+          <strong class="don-value">{{ stats.historial }}</strong>
+          <span class="don-label">Historial</span>
+          <span class="don-desc">Consultas registradas</span>
+        </div>
+        <div class="don-card">
+          <div class="don-icon vacunas-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+          </div>
+          <strong class="don-value">{{ stats.vacunas }}</strong>
+          <span class="don-label">Vacunas</span>
+          <span class="don-desc">Dosis administradas</span>
+        </div>
+        <div class="don-card">
+          <div class="don-icon tratamientos-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+          </div>
+          <strong class="don-value">{{ stats.tratamientos }}</strong>
+          <span class="don-label">Tratamientos</span>
+          <span class="don-desc">En seguimiento</span>
+        </div>
+        <div class="don-card">
+          <div class="don-icon mascotas-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          </div>
+          <strong class="don-value">{{ stats.mascotas }}</strong>
+          <span class="don-label">Mascotas activas</span>
+          <span class="don-desc">Con expediente</span>
+        </div>
+      </div>
+
+      <div class="filtros-panel">
+        <div class="filtros-row">
+          <div class="filtro-group filtro-group--tabs">
+            <label class="filtro-label">Sección</label>
+            <div class="tabs-wrap">
+              <button v-for="t in SECCION_TABS" :key="t.v" class="tab-btn" :class="{ active: activeTab === t.v }" @click="activeTab = t.v">{{ t.l }}</button>
+            </div>
+          </div>
+        </div>
+        <div class="filtros-divider"></div>
+        <div class="filtros-row filtros-row--end">
+          <div class="filtro-group filtro-group--search">
+            <label class="filtro-label">Buscar mascota</label>
+            <div class="filtro-input-wrap">
+              <span class="filtro-icon filtro-icon--left">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              </span>
+              <input v-model="search" placeholder="Nombre o ID..." class="filtro-input filtro-input--icon-left" />
+            </div>
+          </div>
+          <div class="filtro-group">
+            <label class="filtro-label">Desde</label>
+            <input type="date" class="filtro-input" v-model="filterFrom" />
+          </div>
+          <div class="filtro-group">
+            <label class="filtro-label">Hasta</label>
+            <input type="date" class="filtro-input" v-model="filterTo" />
+          </div>
+          <div class="filtro-group filtro-group--btn">
+            <button class="btn btn--ghost" :class="{ 'btn--ghost-active': hayFiltros }" @click="limpiarFiltros">Limpiar filtros</button>
+          </div>
+        </div>
+      </div>
+
+      <div v-if="registros.length === 0" class="empty-state">
+        <svg v-if="activeTab === 'historial'" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+        <svg v-else-if="activeTab === 'vacunas'" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+        <svg v-else width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>
+        <p class="empty-title">{{ hayFiltros ? 'Sin resultados para los filtros aplicados' : 'Sin registros en esta sección' }}</p>
+        <p class="empty-sub">{{ hayFiltros ? 'Ajusta los filtros para ver más resultados.' : 'Registra el primer expediente con el botón superior.' }}</p>
+      </div>
+
+      <div v-else class="table-wrapper">
+        <div class="table-scroll">
+          <table class="don-table">
+            <thead>
+              <tr v-if="activeTab === 'historial'"><th>ID</th><th>Mascota</th><th>Fecha</th><th>Veterinario</th><th>Diagnóstico</th><th>Peso</th><th>Acciones</th></tr>
+              <tr v-else-if="activeTab === 'vacunas'"><th>ID</th><th>Mascota</th><th>Vacuna</th><th>Aplicación</th><th>Próxima dosis</th><th>Veterinario</th><th>Acciones</th></tr>
+              <tr v-else><th>ID</th><th>Mascota</th><th>Tratamiento</th><th>Fecha</th><th>Medicamento</th><th>Dosis</th><th>Acciones</th></tr>
+            </thead>
+            <tbody>
+              <tr v-for="r in registros" :key="r.id" class="don-row" :class="{ 'row-inactive': !r.petActiva }">
+                <td><span class="id-pill">{{ r.id }}</span></td>
+                <td>
+                  <div class="pet-cell">
+                    <div class="pet-avatar">
+                      <img v-if="r.petFoto" :src="r.petFoto" class="pet-avatar-img" />
+                      <span v-else class="pet-avatar-ini">{{ iniciales(r.petNombre) }}</span>
+                    </div>
+                    <div>
+                      <span class="donor-name">{{ r.petNombre }}</span>
+                      <span class="donor-mail">{{ r.petId }}</span>
+                    </div>
+                  </div>
+                </td>
+
+                <template v-if="activeTab === 'historial'">
+                  <td><span class="fecha-text">{{ formatFecha(r.fecha) }}</span></td>
+                  <td><span class="fecha-text">{{ r.vet || '—' }}</span></td>
+                  <td><span class="donor-name">{{ r.diagnostico }}</span></td>
+                  <td><span class="fecha-text">{{ r.peso ? r.peso + ' kg' : '—' }}</span></td>
+                </template>
+
+                <template v-else-if="activeTab === 'vacunas'">
+                  <td><span class="donor-name">{{ r.tipo }}</span></td>
+                  <td><span class="fecha-text">{{ formatFecha(r.fechaAplicacion) }}</span></td>
+                  <td>
+                    <span v-if="r.proximaDosis" class="estado-badge badge-aprobada">{{ formatFecha(r.proximaDosis) }}</span>
+                    <span v-else class="fecha-text">—</span>
+                  </td>
+                  <td><span class="fecha-text">{{ r.vet || '—' }}</span></td>
+                </template>
+
+                <template v-else>
+                  <td><span class="donor-name">{{ r.tipo }}</span></td>
+                  <td><span class="fecha-text">{{ formatFecha(r.fecha) }}</span></td>
+                  <td><span class="fecha-text">{{ r.medicamento || '—' }}</span></td>
+                  <td><span class="fecha-text">{{ r.dosis || '—' }}</span></td>
+                </template>
+
+                <td>
+                  <div class="action-group">
+                    <button class="icon-only icon-only--ver" @click="verRegistro(r)" data-tooltip="Ver expediente">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="table-footer">
+          {{ registros.length }} registro{{ registros.length !== 1 ? 's' : '' }} encontrado{{ registros.length !== 1 ? 's' : '' }}
+        </div>
+      </div>
+    </div>
+
+    <!-- ══════════════════════════════════════
+         MODAL 2/3 — VER EXPEDIENTE (mascota completa)
+         Arquitectura EXACTA de "Ver mascota" en Mascotas.vue:
+         close-btn--hero → hero (foto/inicial + nombre + badge + chips)
+         → tabs → uniform-scroll → body (grid-2col con blocks / list-col
+         en General; expediente-list en cada sección médica; timeline-list
+         en Línea de tiempo) → footer con "Cerrar expediente".
+    ══════════════════════════════════════ -->
     <Teleport to="body">
       <Transition name="modal-fade">
         <div v-if="showModalVer && registroVer" class="modal-overlay" @click.self="showModalVer = false">
-          <div class="modal-box modal-box--md">
- 
-            <button class="modal-close" @click="showModalVer = false">✕</button>
- 
-            <div class="modal-header">
-              <span class="rec-tipo-badge" :class="`rec-tipo-badge--${registroVer.prefijo}`">
-                {{ TITULO_POR_PREFIJO[registroVer.prefijo] }}
-              </span>
-              <span class="id-pill">{{ registroVer.id }}</span>
-              <span v-if="!registroVer.petActiva" class="estado-badge badge-pendiente">Inactiva</span>
+          <div class="modal-box modal-box--uniform">
+            <button class="close-btn close-btn--hero" @click="showModalVer = false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+
+            <div class="hero">
+              <div class="hero-photo">
+                <img v-if="registroVer.images?.length > 0" :src="registroVer.images[0].preview" :alt="registroVer.name" />
+                <span v-else class="hero-photo-ini">{{ iniciales(registroVer.name) }}</span>
+              </div>
+              <div class="hero-info">
+                <div class="hero-name-row">
+                  <h2 class="hero-name">{{ registroVer.name }}</h2>
+                  <span class="estado-badge badge-status-hero" :class="statusBadgeClass(registroVer.status)">{{ registroVer.status }}</span>
+                </div>
+                <div class="hero-meta">
+                  <span class="hero-meta-chip">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                    {{ registroVer.type }}
+                  </span>
+                  <span class="hero-meta-chip">{{ registroVer.breed }}</span>
+                  <span class="hero-meta-chip">{{ registroVer.age }}</span>
+                  <span class="hero-meta-chip">{{ registroVer.sex }}</span>
+                </div>
+              </div>
             </div>
- 
-            <div class="modal-body">
-              <!-- Mascota -->
-              <div class="modal-section">
-                <h4 class="modal-section-title">Mascota</h4>
-                <div class="modal-grid">
-                  <div class="modal-field">
-                    <span class="modal-field-label">Nombre</span>
-                    <div style="display:flex;align-items:center;gap:10px;margin-top:4px">
-                      <div class="pet-avatar pet-avatar--sm">
-                        <img v-if="registroVer.petFoto" :src="registroVer.petFoto" class="pet-avatar-img" />
-                        <span v-else class="pet-avatar-ini">{{ registroVer.petNombre?.charAt(0) }}</span>
+
+            <div class="tabs">
+              <button class="tab" :class="{ active: expedienteTab === 'general' }" @click="expedienteTab = 'general'">General</button>
+              <button class="tab" :class="{ active: expedienteTab === 'historial' }" @click="expedienteTab = 'historial'">
+                Historial médico
+                <span v-if="registroVerHistorial.length" class="tab-count">{{ registroVerHistorial.length }}</span>
+              </button>
+              <button class="tab" :class="{ active: expedienteTab === 'vacunas' }" @click="expedienteTab = 'vacunas'">
+                Vacunas
+                <span v-if="registroVerVacunas.length" class="tab-count">{{ registroVerVacunas.length }}</span>
+              </button>
+              <button class="tab" :class="{ active: expedienteTab === 'tratamientos' }" @click="expedienteTab = 'tratamientos'">
+                Tratamientos
+                <span v-if="registroVerTratamientos.length" class="tab-count">{{ registroVerTratamientos.length }}</span>
+              </button>
+              <button class="tab" :class="{ active: expedienteTab === 'linea' }" @click="expedienteTab = 'linea'">Línea de tiempo</button>
+            </div>
+
+            <div class="uniform-scroll">
+              <div class="body">
+
+                <!-- TAB: General — idéntico al tab General de Mascotas.vue -->
+                <template v-if="expedienteTab === 'general'">
+                  <div class="grid-2col">
+                    <div>
+                      <div class="block">
+                        <h4 class="block-title">
+                          <span class="block-title-icon">
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                          </span>
+                          Información de la mascota
+                        </h4>
+                        <div class="fields-row">
+                          <div class="field-col"><span class="field-label-row">Tipo</span><span class="field-value">{{ registroVer.type }}</span></div>
+                          <div class="field-col"><span class="field-label-row">Tamaño</span><span class="field-value">{{ registroVer.size }}</span></div>
+                          <div class="field-col"><span class="field-label-row">Salud básica</span><span class="field-value">{{ registroVer.healthBasic }}</span></div>
+                        </div>
+                        <div class="info-subsection" v-if="registroVer.personality">
+                          <span class="field-label-row">Personalidad</span>
+                          <p class="info-subsection-text">{{ registroVer.personality }}</p>
+                        </div>
+                        <div class="info-subsection" v-if="registroVer.description">
+                          <span class="field-label-row">Descripción pública</span>
+                          <p class="info-subsection-text">{{ registroVer.description }}</p>
+                        </div>
                       </div>
-                      <strong class="modal-field-value">{{ registroVer.petNombre }}</strong>
+                    </div>
+                    <div class="block" style="margin-bottom:0;">
+                      <h4 class="block-title">
+                        <span class="block-title-icon">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                        </span>
+                        Asignaciones
+                      </h4>
+                      <div class="list-col">
+                        <div class="list-item">
+                          <div class="list-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+                          <div class="list-text"><span class="list-label">Casa cuna</span><span class="list-value">{{ getNombreCasaCuna(registroVer) }}</span></div>
+                        </div>
+                        <div class="list-item">
+                          <div class="list-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+                          <div class="list-text"><span class="list-label">Estado</span><span class="list-value">{{ registroVer.status }}</span></div>
+                        </div>
+                        <div class="list-item">
+                          <div class="list-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/></svg></div>
+                          <div class="list-text"><span class="list-label">Sexo</span><span class="list-value">{{ registroVer.sex }}</span></div>
+                        </div>
+                        <div class="list-item">
+                          <div class="list-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg></div>
+                          <div class="list-text"><span class="list-label">Edad</span><span class="list-value">{{ registroVer.age }}</span></div>
+                        </div>
+                      </div>
                     </div>
                   </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Especie</span>
-                    <strong class="modal-field-value">{{ registroVer.petEspecie || '—' }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">ID</span>
-                    <strong class="modal-field-value"><span class="id-pill">{{ registroVer.petId }}</span></strong>
-                  </div>
-                </div>
-              </div>
- 
-              <!-- Historial -->
-              <div v-if="registroVer.prefijo === 'H'" class="modal-section">
-                <h4 class="modal-section-title">Historial médico</h4>
-                <div class="modal-grid">
-                  <div class="modal-field modal-field--full">
-                    <span class="modal-field-label">Diagnóstico</span>
-                    <strong class="modal-field-value monto-highlight">{{ registroVer.diagnostico }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Fecha</span>
-                    <strong class="modal-field-value">{{ formatFecha(registroVer.fecha) }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Peso</span>
-                    <strong class="modal-field-value">{{ registroVer.peso ? registroVer.peso + ' kg' : '—' }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Veterinario</span>
-                    <strong class="modal-field-value">{{ registroVer.vet || '—' }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Clínica</span>
-                    <strong class="modal-field-value">{{ registroVer.clinica || '—' }}</strong>
-                  </div>
-                  <div v-if="registroVer.observaciones" class="modal-field modal-field--full">
-                    <span class="modal-field-label">Observaciones</span>
-                    <p class="modal-mensaje">{{ registroVer.observaciones }}</p>
-                  </div>
-                </div>
-              </div>
+                </template>
 
-              <!-- Vacuna -->
-              <div v-else-if="registroVer.prefijo === 'V'" class="modal-section">
-                <h4 class="modal-section-title">Vacuna</h4>
-                <div class="modal-grid">
-                  <div class="modal-field modal-field--full">
-                    <span class="modal-field-label">Tipo</span>
-                    <strong class="modal-field-value monto-highlight">{{ registroVer.tipo }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Aplicación</span>
-                    <strong class="modal-field-value">{{ formatFecha(registroVer.fechaAplicacion) }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Próxima dosis</span>
-                    <strong v-if="registroVer.proximaDosis" class="modal-field-value">
-                      {{ formatFecha(registroVer.proximaDosis) }}
-                      <span class="estado-badge" :class="estadoRefuerzo(registroVer.proximaDosis)?.clase" style="margin-left:6px">
-                        {{ estadoRefuerzo(registroVer.proximaDosis)?.titulo }}
+                <!-- TAB: Historial médico -->
+                <template v-if="expedienteTab === 'historial'">
+                  <div class="block">
+                    <h4 class="block-title">
+                      <span class="block-title-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
                       </span>
-                    </strong>
-                    <strong v-else class="modal-field-value">—</strong>
+                      Historial médico
+                    </h4>
+                    <div v-if="registroVerHistorial.length" class="expediente-list">
+                      <div v-for="h in registroVerHistorial" :key="h.id" class="expediente-item expediente-item--medico">
+                        <div class="expediente-item-header">
+                          <span class="expediente-fecha">{{ formatFecha(h.fecha) }}</span>
+                          <span class="id-pill">{{ h.id }}</span>
+                        </div>
+                        <p class="expediente-diag"><strong>Diagnóstico:</strong> {{ h.diagnostico || '—' }}</p>
+                        <p class="expediente-detalle" v-if="h.vet">Veterinario: {{ h.vet }}</p>
+                        <p class="expediente-detalle" v-if="h.peso">Peso registrado: {{ h.peso }} kg</p>
+                        <p class="expediente-detalle" v-if="h.observaciones">{{ h.observaciones }}</p>
+                      </div>
+                    </div>
+                    <p v-else class="modal-empty-text">No existen registros médicos para esta mascota.</p>
                   </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Veterinario</span>
-                    <strong class="modal-field-value">{{ registroVer.vet || '—' }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Clínica</span>
-                    <strong class="modal-field-value">{{ registroVer.clinica || '—' }}</strong>
-                  </div>
-                  <div v-if="registroVer.observaciones" class="modal-field modal-field--full">
-                    <span class="modal-field-label">Observaciones</span>
-                    <p class="modal-mensaje">{{ registroVer.observaciones }}</p>
-                  </div>
-                </div>
-              </div>
+                </template>
 
-              <!-- Tratamiento -->
-              <div v-else class="modal-section">
-                <h4 class="modal-section-title">Tratamiento</h4>
-                <div class="modal-grid">
-                  <div class="modal-field modal-field--full">
-                    <span class="modal-field-label">Tipo</span>
-                    <strong class="modal-field-value monto-highlight">{{ registroVer.tipo }}</strong>
+                <!-- TAB: Vacunas -->
+                <template v-if="expedienteTab === 'vacunas'">
+                  <div class="block">
+                    <h4 class="block-title">
+                      <span class="block-title-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                      </span>
+                      Vacunas aplicadas
+                    </h4>
+                    <div v-if="registroVerVacunas.length" class="expediente-list">
+                      <div v-for="v in registroVerVacunas" :key="v.id" class="expediente-item expediente-item--vacuna">
+                        <div class="expediente-item-header">
+                          <span class="expediente-fecha">{{ formatFecha(v.fechaAplicacion) }}</span>
+                          <span class="id-pill">{{ v.id }}</span>
+                        </div>
+                        <p class="expediente-diag"><strong>{{ v.tipo }}</strong></p>
+                        <p class="expediente-detalle" v-if="v.vet">Veterinario: {{ v.vet }}</p>
+                        <p class="expediente-detalle" v-if="v.proximaDosis">Próxima dosis: {{ formatFecha(v.proximaDosis) }}</p>
+                        <p class="expediente-detalle" v-if="v.observaciones">{{ v.observaciones }}</p>
+                      </div>
+                    </div>
+                    <p v-else class="modal-empty-text">No existen vacunas registradas para esta mascota.</p>
                   </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Fecha</span>
-                    <strong class="modal-field-value">{{ formatFecha(registroVer.fecha) }}</strong>
+                </template>
+
+                <!-- TAB: Tratamientos -->
+                <template v-if="expedienteTab === 'tratamientos'">
+                  <div class="block">
+                    <h4 class="block-title">
+                      <span class="block-title-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+                      </span>
+                      Tratamientos
+                    </h4>
+                    <div v-if="registroVerTratamientos.length" class="expediente-list">
+                      <div v-for="t in registroVerTratamientos" :key="t.id" class="expediente-item expediente-item--tratamiento">
+                        <div class="expediente-item-header">
+                          <span class="expediente-fecha">{{ formatFecha(t.fecha) }}</span>
+                          <span class="id-pill">{{ t.id }}</span>
+                        </div>
+                        <p class="expediente-diag"><strong>{{ t.tipo }}</strong></p>
+                        <p class="expediente-detalle" v-if="t.medicamento">Medicamento: {{ t.medicamento }} {{ t.dosis ? '· ' + t.dosis : '' }}</p>
+                        <p class="expediente-detalle" v-if="t.observaciones">{{ t.observaciones }}</p>
+                      </div>
+                    </div>
+                    <p v-else class="modal-empty-text">No existen tratamientos registrados para esta mascota.</p>
                   </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Veterinario</span>
-                    <strong class="modal-field-value">{{ registroVer.vet || '—' }}</strong>
+                </template>
+
+                <!-- TAB: Línea de tiempo -->
+                <template v-if="expedienteTab === 'linea'">
+                  <div class="block">
+                    <h4 class="block-title">
+                      <span class="block-title-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg>
+                      </span>
+                      Línea de tiempo
+                    </h4>
+                    <div v-if="registroVerTimeline.length" class="timeline-list">
+                      <div v-for="(e, i) in registroVerTimeline" :key="i" class="timeline-item">
+                        <span class="timeline-icon">
+                          <svg v-if="e.icono === '🩺'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                          <svg v-else-if="e.icono === '💉'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                          <svg v-else-if="e.icono === '💊'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
+                          <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="9" y1="9" x2="15" y2="15"/><line x1="15" y1="9" x2="9" y2="15"/></svg>
+                        </span>
+                        <div class="timeline-content">
+                          <span class="timeline-fecha">{{ e.fecha }}</span>
+                          <strong class="timeline-titulo">{{ e.titulo }}</strong>
+                          <span v-if="e.detalle" class="timeline-detalle">{{ e.detalle }}</span>
+                        </div>
+                      </div>
+                    </div>
+                    <p v-else class="modal-empty-text">Aún no hay eventos médicos suficientes para construir una línea de tiempo.</p>
                   </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Medicamento</span>
-                    <strong class="modal-field-value">{{ registroVer.medicamento || '—' }}</strong>
-                  </div>
-                  <div class="modal-field">
-                    <span class="modal-field-label">Dosis</span>
-                    <strong class="modal-field-value">{{ registroVer.dosis || '—' }}</strong>
-                  </div>
-                  <div v-if="registroVer.observaciones" class="modal-field modal-field--full">
-                    <span class="modal-field-label">Observaciones</span>
-                    <p class="modal-mensaje">{{ registroVer.observaciones }}</p>
-                  </div>
-                </div>
+                </template>
+
               </div>
             </div>
- 
-            <div class="modal-footer">
-              <button class="btn-cancel" style="flex:1" @click="showModalVer = false">Cerrar</button>
+
+            <div class="footer">
+              <button class="btn-ghost-red" @click="showModalVer = false">
+                Cerrar expediente
+              </button>
             </div>
           </div>
         </div>
       </Transition>
     </Teleport>
- 
+
+    <!-- ══════════════════════════════════════
+         MODAL 3/3 — CONFIRMAR GUARDADO
+         Misma arquitectura que "Cambiar estado" en Mascotas.vue
+         (.modal-box--sm, modal-header, modal-section, modal-acciones)
+    ══════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showModalConfirm" class="modal-overlay modal-overlay--top" @click.self="showModalConfirm = false">
+          <div class="modal-box modal-box--sm">
+            <button class="btn btn--icon btn--icon-close" @click="showModalConfirm = false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div class="modal-header">
+              <div class="modal-header-info">
+                <p class="modal-eyebrow">Confirmar guardado</p>
+                <h2 class="modal-title">{{ petSeleccionada?.name }}</h2>
+              </div>
+            </div>
+            <div class="modal-section">
+              <p class="confirm-desc">Se registrará el historial médico, la vacuna y el tratamiento para <strong>{{ petSeleccionada?.name }}</strong>. Esta acción es permanente y no podrá modificarse.</p>
+            </div>
+            <div class="modal-acciones">
+              <button class="btn btn--ghost" @click="showModalConfirm = false">Cancelar</button>
+              <button class="btn btn--primary" @click="confirmarGuardar">
+                <svg class="btn-ico" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>Confirmar y guardar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
   </div>
 </template>
- 
+
 <style scoped>
-/* ══════════════════════════════════════════
-   VARIABLES — definidas en :root para que
-   los Teleport (modales) también las hereden.
-   :global() es obligatorio: en <style scoped> Vue le añade
-   el atributo de scope a ":root", que nunca coincide con <html>
-   y deja estas variables sin definir en todo el componente.
-══════════════════════════════════════════ */
-:global(:root) {
-  --sal-verde:     #3A473C;
-  --sal-verde-sec: #92A894;
-  --sal-fondo:     #F7F8F7;
-  --sal-blanco:    #FFFFFF;
-  --sal-texto:     #2F352F;
-  --sal-texto-sec: #6C756D;
-  --sal-borde:     #E8ECE8;
-  --sal-amarillo:  #F5B942;
-  --sal-verde-ok:  #4CAF6A;
-}
- 
+/* ══════════════════════════════════════════════
+   CSS COPIADO DIRECTAMENTE DE MASCOTAS.VUE
+   (variables, botones, toast, header, tarjetas, filtros, tabla,
+   modal base, hero, tabs, bloques, listas, timeline, formulario,
+   modal de confirmación, responsive). Solo se ajustan cantidades
+   de columnas/tarjetas donde la cantidad de datos de Salud difiere.
+   ══════════════════════════════════════════════ */
 .view-container {
-  /* alias locales para compatibilidad con el resto del CSS */
-  --verde:     var(--sal-verde);
-  --verde-sec: var(--sal-verde-sec);
-  --fondo:     var(--sal-fondo);
-  --blanco:    var(--sal-blanco);
-  --texto:     var(--sal-texto);
-  --texto-sec: var(--sal-texto-sec);
-  --borde:     var(--sal-borde);
-  --amarillo:  var(--sal-amarillo);
-  --verde-ok:  var(--sal-verde-ok);
-  background: transparent;
+  --verde:       #3A473C;
+  --verde-sec:   #92A894;
+  --fondo:       #F7F8F7;
+  --blanco:      #FFFFFF;
+  --texto:       #2B322C;
+  --texto-sec:   #7A827B;
+  --texto-ter:   #A2A9A3;
+  --borde:       #E9ECE9;
+  --borde-suave: #EFF2EF;
+  --amarillo:    #F5B942;
+  --verde-ok:    #4CAF6A;
+  --rojo:        #C0392B;
+  --rojo-bg:     #FBEDEC;
+  --sombra-sm:   0 1px 2px rgba(58,71,60,.03);
+  --sombra-md:   0 2px 4px rgba(58,71,60,.05), 0 14px 32px -14px rgba(58,71,60,.18);
+  --btn-height:      33px;
+  --btn-radius:      9px;
+  --btn-pad-x:       13px;
+  --btn-icon-size:   14px;
+  --btn-icon-gap:    6px;
+  --btn-font-size:   12.5px;
+  --btn-font-weight: 600;
+  --btn-transition:  0.16s ease;
+
+  background:
+    radial-gradient(ellipse 800px 420px at 12% 0%, rgba(146,168,148,.07), transparent),
+    var(--fondo);
   padding-bottom: 40px;
 }
- 
-/* Las clases de modal usan directamente los tokens :root
-   para garantizar visibilidad aunque estén en Teleport */
-.modal-overlay,
-.modal-box,
-.modal-body,
-.form-section,
-.form-grid,
-.fg,
-.fg-input,
-.fg-textarea,
-.fg-label,
-.pet-selector-btn,
-.pet-dropdown,
-.modal-section-title,
-.modal-field-label,
-.modal-field-value,
-.modal-close,
-.modal-title,
-.modal-eyebrow,
-.immutable-note,
-.confirm-body,
-.confirm-title,
-.confirm-text,
-.btn-cancel,
-.btn-save {
-  --verde:     var(--sal-verde);
-  --verde-sec: var(--sal-verde-sec);
-  --fondo:     var(--sal-fondo);
-  --blanco:    var(--sal-blanco);
-  --texto:     var(--sal-texto);
-  --texto-sec: var(--sal-texto-sec);
-  --borde:     var(--sal-borde);
-  --amarillo:  var(--sal-amarillo);
-  --verde-ok:  var(--sal-verde-ok);
-}
- 
-/* ── Toast ─────────────────────────────── */
-.sal-toast {
-  position: fixed;
-  bottom: 32px;
-  right: 32px;
-  z-index: 9999;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 20px;
-  border-radius: 14px;
-  font-size: 14px;
-  font-weight: 600;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.16);
-  pointer-events: none;
-}
-.sal-toast.success { background: var(--verde); color: #fff; }
-.sal-toast.error   { background: #c0392b; color: #fff; }
-.toast-anim-enter-active, .toast-anim-leave-active { transition: all 0.25s ease; }
-.toast-anim-enter-from, .toast-anim-leave-to { opacity: 0; transform: translateY(10px); }
- 
-/* ── Encabezado ────────────────────────── */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 28px;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.admin-page-title {
-  font-size: 28px;
-  font-weight: 800;
-  color: var(--verde);
-  letter-spacing: -0.5px;
-  line-height: 1.1;
-}
-.admin-page-sub {
-  font-size: 14px;
-  color: var(--texto-sec);
-  margin-top: 4px;
-  font-weight: 500;
-}
-.btn-primary {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  height: 38px;
-  padding: 0 18px;
-  background: var(--verde);
-  color: #ffffff;
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: background 0.18s;
-  white-space: nowrap;
-  flex-shrink: 0;
-  font-family: inherit;
-}
-.btn-primary:hover { background: #2d3730; }
 
-.page-actions { display: flex; gap: 8px; align-items: center; }
+/* ── Sistema de botones ── */
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:var(--btn-icon-gap); height:var(--btn-height); padding:0 var(--btn-pad-x); border-radius:var(--btn-radius); border:1px solid transparent; font-family:inherit; font-size:var(--btn-font-size); font-weight:var(--btn-font-weight); line-height:1; white-space:nowrap; cursor:pointer; user-select:none; transition:background-color var(--btn-transition), border-color var(--btn-transition), color var(--btn-transition), box-shadow var(--btn-transition); }
+.btn-ico, .btn :deep(svg) { width:var(--btn-icon-size); height:var(--btn-icon-size); flex-shrink:0; }
+.btn:active:not(:disabled) { transform:translateY(1px); }
+.btn:focus-visible { outline:none; box-shadow:0 0 0 3px rgba(58,71,60,.16); }
+.btn--primary { background:var(--verde); color:#fff; box-shadow:0 1px 2px rgba(58,71,60,.12), 0 4px 10px -4px rgba(58,71,60,.35); }
+.btn--primary:hover:not(:disabled) { background:#465747; box-shadow:0 1px 2px rgba(58,71,60,.14), 0 6px 14px -4px rgba(58,71,60,.4); }
+.btn--ghost { background:var(--blanco); color:var(--texto-sec); border-color:var(--borde); }
+.btn--ghost:hover:not(:disabled) { background:#FAFBFA; color:var(--texto); border-color:#D3D8D3; }
+.btn--ghost-active { border-color:var(--verde-sec); color:var(--verde); }
+.btn--ghost-active:hover:not(:disabled) { background:#F3F6F3; color:var(--verde); border-color:var(--verde-sec); }
+.btn--icon { width:34px; height:34px; padding:0; border-radius:9px; background:var(--blanco); color:var(--texto-sec); border-color:var(--borde); position:relative; border-width:1px; border-style:solid; }
+.btn--icon :deep(svg) { width:15px; height:15px; }
+.btn--icon-close { position:absolute; top:18px; right:18px; width:30px; height:30px; border-radius:8px; background:var(--fondo); border-color:var(--borde); color:var(--texto); }
+.btn--icon-close :deep(svg) { width:14px; height:14px; stroke-width:2.5; }
+.btn--icon-close:hover:not(:disabled) { background:var(--verde); color:var(--blanco); border-color:var(--verde); }
 
-/* Secundario real: hasta ahora se reusaba btn-cancel (gris de "cancelar") */
-.btn-secondary {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  height: 38px;
-  padding: 0 16px;
-  background: transparent;
-  color: var(--verde);
-  border: 1.5px solid var(--borde);
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: border-color 0.18s, background 0.18s;
-  white-space: nowrap;
-  flex-shrink: 0;
-  font-family: inherit;
-}
-.btn-secondary:hover {
-  border-color: var(--verde);
-  background: var(--fondo);
-}
- 
-/* ── KPI Cards ─────────────────────────── */
-.don-summary {
-  display: flex;
-  gap: 14px;
-  margin-bottom: 20px;
-  flex-wrap: wrap;
-}
-.don-card {
-  flex: 1;
-  min-width: 150px;
-  background: var(--blanco);
-  border-radius: 14px;
-  padding: 20px;
-  border: 1px solid var(--borde);
-  border-top: 3px solid var(--borde);
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-.kpi-historial  { border-top: 3px solid var(--verde-sec); }
-.kpi-vencidas   { border-top: 3px solid #C0392B; }
-.kpi-porvencer  { border-top: 3px solid var(--amarillo); }
-.kpi-mascotas   { border-top: 3px solid var(--verde); }
+/* ── Toast ── */
+.don-toast { position:fixed; bottom:32px; right:32px; z-index:9999; display:flex; align-items:center; gap:10px; padding:14px 20px; border-radius:14px; font-size:14px; font-weight:600; box-shadow:0 8px 32px rgba(0,0,0,0.16); pointer-events:none; }
+.don-toast.success { background:var(--verde); color:#fff; }
+.don-toast.error { background:#c0392b; color:#fff; }
+.don-toast-dot { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.5); flex-shrink:0; }
+.toast-fade-enter-active, .toast-fade-leave-active { transition:all 0.25s ease; }
+.toast-fade-enter-from, .toast-fade-leave-to { opacity:0; transform:translateY(10px); }
 
-/* Los KPI de refuerzos son botones: saltan a vacunas ya filtrado */
-button.don-card {
-  text-align: left;
-  font-family: inherit;
-  cursor: pointer;
-  transition: border-color 0.18s, box-shadow 0.18s, transform 0.12s;
-}
-button.don-card:hover {
-  border-color: var(--verde-sec);
-  box-shadow: 0 4px 14px rgba(58,71,60,0.10);
-  transform: translateY(-1px);
-}
-.don-card--alerta .don-value { color: #C0392B; }
+/* ── Encabezado ── */
+.page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; gap:16px; flex-wrap:wrap; }
+.brand-row { display:flex; align-items:center; gap:12px; }
+.brand-mark { width:38px; height:38px; min-width:38px; border-radius:11px; background:linear-gradient(150deg, var(--verde) 0%, #6E8870 100%); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 10px -3px rgba(58,71,60,.45); }
+.admin-page-title { font-size:22px; font-weight:700; color:var(--texto); letter-spacing:-0.4px; line-height:1.15; margin:0 0 2px; }
+.admin-page-sub { font-size:12.5px; color:var(--texto-sec); font-weight:500; margin:0; }
 
-.don-nota {
-  font-size: 11px;
-  color: var(--texto-sec);
-  font-weight: 500;
-  margin-top: -2px;
-}
- 
-.don-label {
-  font-size: 11px;
-  color: var(--texto-sec);
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.don-value {
-  font-size: 24px;
-  font-weight: 800;
-  color: var(--verde);
-  line-height: 1;
-}
- 
-/* ── Controles de filtro ───────────────── */
-.filtro-input-wrap {
-  position: relative;
-  display: flex;
-  align-items: center;
-}
-.filtro-input {
-  width: 100%; height: 38px; padding: 0 36px 0 12px;
-  border-radius: 8px; border: 1.5px solid var(--borde);
-  background: var(--fondo); font-size: 13px; color: var(--texto);
-  font-family: inherit; outline: none;
-  transition: border-color 0.18s, background 0.18s; box-sizing: border-box;
-}
-.filtro-input--icon { padding-left: 34px; }
-.filtro-input:focus { border-color: var(--verde-sec); background: var(--blanco); }
-.filtro-input::placeholder { color: #9CA8A0; }
-.filtro-icon { position: absolute; display: flex; align-items: center; color: var(--texto-sec); }
-.filtro-icon--right { right: 11px; }
- 
-.btn-limpiar {
-  height: 38px;
-  padding: 0 16px;
-  border-radius: 8px;
-  border: 1.5px solid var(--borde);
-  background: transparent;
-  color: var(--texto-sec);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  white-space: nowrap;
-  transition: all 0.18s;
-  font-family: inherit;
-}
-.btn-limpiar--activo { border-color: var(--verde); color: var(--verde); }
-.btn-limpiar:hover   { background: var(--verde); color: var(--blanco); border-color: var(--verde); }
- 
-/* ── Panel de registros ────────────────── */
-.table-wrapper {
-  background: var(--blanco);
-  border-radius: 14px;
-  border: 1px solid var(--borde);
-  overflow: hidden;
-}
+/* ── Tarjetas resumen (4 tarjetas: cantidad de datos de Salud) ── */
+.don-summary { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:20px; }
+.don-card { background:var(--blanco); border-radius:16px; padding:16px 15px; border:1px solid var(--borde); box-shadow:var(--sombra-sm); display:flex; flex-direction:column; transition:box-shadow .18s ease, border-color .18s ease; }
+.don-card:hover { border-color:#D7DED8; box-shadow:var(--sombra-md); }
+.don-icon { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:12px; border:1px solid transparent; }
+.historial-icon    { background:#F2F3F2; border-color:#DFE2DF; color:#616861; }
+.vacunas-icon       { background:#EAF2F6; border-color:#C7DCE6; color:#3C6E85; }
+.tratamientos-icon  { background:#FDF6E8; border-color:#F2E1B8; color:#A97A0C; }
+.mascotas-icon      { background:#EDF6EF; border-color:#C9E4CE; color:#2E7D45; }
+.don-value { font-size:21px; font-weight:700; color:var(--texto); line-height:1; letter-spacing:-0.4px; font-variant-numeric:tabular-nums; }
+.don-label { font-size:10.5px; color:var(--texto-ter); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-top:7px; }
+.don-desc { font-size:11px; color:var(--texto-sec); margin-top:2px; }
 
-/* Pestañas: navegación principal del panel */
-.panel-tabs {
-  display: flex;
-  gap: 2px;
-  padding: 0 8px;
-  border-bottom: 1px solid var(--borde);
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
-}
-.panel-tab {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  padding: 15px 16px 13px;
-  border: none;
-  border-bottom: 2.5px solid transparent;
-  background: transparent;
-  color: var(--texto-sec);
-  font-size: 13px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-  white-space: nowrap;
-  transition: color 0.18s, border-color 0.18s;
-  margin-bottom: -1px;
-}
-.panel-tab:hover { color: var(--verde); }
-.panel-tab--active {
-  color: var(--verde);
-  border-bottom-color: var(--verde);
-}
-.panel-tab-count {
-  min-width: 20px;
-  padding: 2px 7px;
-  border-radius: 20px;
-  background: var(--fondo);
-  color: var(--texto-sec);
-  font-size: 11px;
-  font-weight: 800;
-  text-align: center;
-}
-.panel-tab--active .panel-tab-count {
-  background: var(--verde);
-  color: var(--blanco);
-}
+/* ── Panel de filtros ── */
+.filtros-panel { background:var(--blanco); border-radius:16px; padding:18px 20px; margin-bottom:20px; border:1px solid var(--borde); box-shadow:var(--sombra-sm); display:flex; flex-direction:column; gap:16px; }
+.filtros-row { display:flex; gap:24px; flex-wrap:wrap; }
+.filtros-row--end { align-items:flex-end; justify-content:space-between; }
+.filtros-divider { height:1px; background:var(--borde-suave); }
+.filtro-group { display:flex; flex-direction:column; gap:7px; }
+.filtro-group--tabs { flex:0 0 auto; }
+.filtro-group--btn { flex:0 0 auto; }
+.filtro-group--search { flex:1; min-width:220px; max-width:340px; }
+.filtro-label { font-size:10.5px; font-weight:700; color:var(--texto-ter); text-transform:uppercase; letter-spacing:0.6px; }
+.tabs-wrap { display:flex; gap:3px; background:var(--fondo); border:1px solid var(--borde-suave); border-radius:10px; padding:3px; }
+.tab-btn { padding:7px 13px; border-radius:7px; border:none; background:transparent; color:var(--texto-sec); font-size:12px; font-weight:700; cursor:pointer; transition:all 0.18s; white-space:nowrap; font-family:inherit; }
+.tab-btn:hover { color:var(--texto); }
+.tab-btn.active { background:var(--blanco); color:var(--texto); box-shadow:var(--sombra-sm); border:1px solid var(--borde); }
+.filtro-input-wrap { position:relative; display:flex; align-items:center; }
+.filtro-input { width:100%; height:36px; padding:0 14px; border-radius:8px; border:1px solid var(--borde); background:var(--fondo); font-size:13px; color:var(--texto); font-family:inherit; outline:none; transition:border-color 0.18s, background 0.18s; box-sizing:border-box; }
+.filtro-input:focus { border-color:var(--verde-sec); background:var(--blanco); }
+.filtro-input--icon-left { padding-left:36px; }
+.filtro-icon { position:absolute; display:flex; align-items:center; color:var(--texto-sec); }
+.filtro-icon--left { left:12px; }
 
-/* Filtros dentro del panel */
-.panel-filtros {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 14px 16px;
-  border-bottom: 1px solid var(--borde);
-  flex-wrap: wrap;
-}
-.panel-buscar { flex: 1; min-width: 200px; max-width: 360px; }
+/* ── Estado vacío ── */
+.empty-state { text-align:center; padding:72px 24px; background:var(--blanco); border-radius:16px; border:1px solid var(--borde); color:var(--verde-sec); display:flex; flex-direction:column; align-items:center; gap:10px; }
+.empty-state svg { opacity:0.4; }
+.empty-title { font-size:16px; font-weight:700; color:var(--texto); margin:0; }
+.empty-sub { font-size:13px; color:var(--texto-sec); margin:0; }
 
-.panel-fechas {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-}
-.panel-fechas .filtro-input { width: auto; min-width: 132px; }
-.panel-fechas-label {
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--texto-sec);
-}
+/* ── Tabla ── */
+.table-wrapper { background:var(--blanco); border-radius:16px; border:1px solid var(--borde); overflow:hidden; box-shadow:var(--sombra-sm); }
+.table-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.don-table { width:100%; border-collapse:collapse; min-width:700px; }
+.don-table thead th { padding:12px 16px; text-align:left; color:var(--texto-ter); font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; white-space:nowrap; }
+.don-table tbody tr { border-top:1px solid var(--borde-suave); transition:background 0.15s; }
+.don-table tbody tr:hover { background:#FAFBFA; }
+.don-table tbody td { padding:12px 16px; vertical-align:middle; }
+.row-inactive { opacity:0.5; }
+.pet-cell { display:flex; align-items:center; gap:10px; }
+.pet-avatar { width:38px; height:38px; border-radius:50%; overflow:hidden; flex-shrink:0; background:#F1F5F1; display:flex; align-items:center; justify-content:center; border:1px solid var(--borde); }
+.pet-avatar--sm { width:32px; height:32px; }
+.pet-avatar-img { width:100%; height:100%; object-fit:cover; display:block; }
+.pet-avatar-ini { font-size:14px; font-weight:700; color:#4E6E51; text-transform:uppercase; line-height:1; }
+.pet-avatar--sm .pet-avatar-ini { font-size:11px; }
+.id-pill { font-size:11px; font-family:ui-monospace, Menlo, Consolas, monospace; background:var(--fondo); border:1px solid var(--borde); padding:3px 9px; border-radius:6px; color:var(--texto); font-weight:700; white-space:nowrap; }
+.donor-name { display:block; font-size:12.5px; font-weight:700; color:var(--texto); line-height:1.3; }
+.donor-mail { display:block; font-size:11px; color:var(--texto-sec); margin-top:2px; }
+.fecha-text { font-size:12.5px; color:var(--texto-sec); white-space:nowrap; }
+.estado-badge { display:inline-block; font-size:10.5px; font-weight:700; padding:4px 11px; border-radius:20px; white-space:nowrap; }
+.badge-pendiente { background:#FDF6E8; color:#96650A; }
+.badge-aprobada { background:#EDF6EF; color:#2E7D32; }
+.badge-rechazada { background:#FBEDEC; color:#B71C1C; }
+.badge-adoptada { background:#EAF2F6; color:#3C6E85; }
+.badge-inactiva { background:#F2F3F2; color:#7A827B; }
+.badge-rescate { background:#FBF0E6; color:#9A5420; }
+.badge-proceso { background:#EEF1FB; color:#4F73B8; }
+.table-footer { padding:12px 16px; border-top:1px solid var(--borde-suave); font-size:12px; color:var(--texto-sec); font-weight:500; }
 
-.filtro-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  height: 30px;
-  padding: 0 6px 0 12px;
-  border-radius: 20px;
-  background: var(--verde);
-  color: var(--blanco);
-  font-size: 12px;
-  font-weight: 700;
-  white-space: nowrap;
+/* Botones de acción de la tabla — único botón "Ver" porque los
+   registros médicos son inmutables (diferencia funcional real). */
+.action-group { display:flex; gap:8px; align-items:center; }
+.icon-only {
+  width:38px; height:38px; border-radius:8px; border:1px solid var(--borde);
+  background:var(--blanco); display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:background-color .16s ease, border-color .16s ease; position:relative;
 }
-.filtro-chip button {
-  border: none;
-  background: rgba(255,255,255,0.2);
-  color: inherit;
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 10px;
-  font-family: inherit;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  padding: 0;
+.icon-only svg { width:16px; height:16px; }
+.icon-only--ver { color:#3D453B; }
+.icon-only--ver:hover { border-color:#C7D3C8; background:#FAFCFA; }
+.icon-only::before {
+  content:attr(data-tooltip); position:absolute; bottom:calc(100% + 8px); left:50%;
+  transform:translateX(-50%) translateY(4px); background:var(--verde); color:#fff;
+  font-size:11px; font-weight:600; padding:5px 9px; border-radius:7px; white-space:nowrap;
+  opacity:0; visibility:hidden; pointer-events:none; transition:opacity .15s ease, transform .15s ease; z-index:20;
 }
-.filtro-chip button:hover { background: rgba(255,255,255,0.35); }
-.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-.don-table { width: 100%; border-collapse: collapse; min-width: 680px; }
-.don-table thead th {
-  background: var(--verde);
-  padding: 13px 16px;
-  text-align: left;
-  color: var(--blanco);
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.6px;
-  white-space: nowrap;
-}
-.don-table tbody tr { border-bottom: 1px solid var(--borde); transition: background 0.15s; }
-.don-table tbody tr:last-child { border-bottom: none; }
-.don-table tbody tr:hover { background: #F4F6F4; }
-.don-table tbody td { padding: 13px 16px; vertical-align: middle; }
- 
-/* Pet cell */
-.pet-cell { display: flex; align-items: center; gap: 10px; }
-.pet-avatar {
-  width: 38px; height: 38px;
-  border-radius: 50%;
-  background: #DDE6DE;
-  display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0; overflow: hidden;
-  border: 1.5px solid #EEF3EE;
-}
-.pet-avatar--sm { width: 32px; height: 32px; }
-.pet-avatar-img { width: 100%; height: 100%; object-fit: cover; display: block; }
-.pet-avatar-ini { font-size: 13px; font-weight: 800; color: #5A6E5C; text-transform: uppercase; line-height: 1; }
-.pet-avatar--sm .pet-avatar-ini { font-size: 11px; }
- 
-.donor-name { display: block; font-size: 13px; font-weight: 700; color: var(--texto); line-height: 1.3; }
-.donor-mail { display: block; font-size: 11px; color: var(--texto-sec); margin-top: 2px; font-family: monospace; }
-.metodo-text { font-size: 13px; color: var(--texto-sec); }
-.monto-text  { font-size: 13px; font-weight: 700; color: var(--verde); }
-.fecha-text  { font-size: 13px; color: var(--texto-sec); white-space: nowrap; }
- 
-.id-pill {
-  font-size: 11px; font-family: monospace;
-  background: var(--fondo); border: 1px solid var(--borde);
-  padding: 3px 9px; border-radius: 6px;
-  color: var(--verde); font-weight: 700; white-space: nowrap;
-}
- 
-.estado-badge { display: inline-block; font-size: 11px; font-weight: 700; padding: 4px 12px; border-radius: 20px; white-space: nowrap; }
-.badge-aprobada  { background: #E8F5E9; color: #2E7D32; }
-.badge-pendiente { background: #FFF7E0; color: #96650A; }
-.badge-rechazada { background: #FDECEA; color: #B71C1C; }
- 
-.btn-ver {
-  padding: 6px 14px;
-  border-radius: 7px;
-  border: 1.5px solid var(--borde);
-  background: var(--blanco);
-  color: var(--verde);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  transition: all 0.18s;
-  white-space: nowrap;
-  font-family: inherit;
-}
-.btn-ver:hover { background: var(--verde); color: var(--blanco); border-color: var(--verde); }
- 
-.table-footer {
-  padding: 12px 16px;
-  border-top: 1px solid var(--borde);
-  font-size: 12px;
-  color: var(--texto-sec);
-  font-weight: 500;
-}
+.icon-only:hover::before { opacity:1; visibility:visible; transform:translateX(-50%) translateY(0); }
 
-/* Fila completa clicable */
-.don-row--click { cursor: pointer; }
+/* ══════════════════════════════════════════════
+   MODAL BASE — overlay y contenedor
+   ══════════════════════════════════════════════ */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.35); backdrop-filter:blur(4px); z-index:1000; display:flex; align-items:center; justify-content:center; padding:24px; }
+.modal-overlay--top { z-index:1100; }
+.modal-box { background:var(--blanco); border-radius:22px; box-shadow:var(--sombra-md); position:relative; }
+.modal-box--sm { max-width:480px; width:100%; padding:32px; max-height:90vh; overflow-y:auto; }
 
-/* Distintivo de tipo de registro */
-.rec-tipo-badge {
-  display: inline-block;
-  font-size: 11px;
-  font-weight: 800;
-  padding: 4px 12px;
-  border-radius: 20px;
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-  white-space: nowrap;
+/* ══════════════════════════════════════════════
+   .modal-box--uniform — Nuevo expediente / Ver
+   Mismo ancho y alto exactos que en Mascotas.vue
+   ══════════════════════════════════════════════ */
+.modal-box--uniform {
+  width:880px;
+  max-width:92vw;
+  height:660px;
+  max-height:90vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  border:1px solid var(--borde-suave);
 }
-.rec-tipo-badge--H { background: #EEF2EE; color: #3A473C; }
-.rec-tipo-badge--V { background: #E8F5E9; color: #2E7D32; }
-.rec-tipo-badge--T { background: #FFF7E0; color: #96650A; }
+.uniform-scroll { flex:1; min-height:0; overflow-y:auto; }
+.close-btn {
+  position:absolute; top:18px; right:18px; z-index:6;
+  width:30px; height:30px; border-radius:9px; background:var(--fondo); border:1px solid var(--borde-suave);
+  color:#8B928A; display:flex; align-items:center; justify-content:center; cursor:pointer;
+  transition:background-color .16s ease, color .16s ease, border-color .16s ease;
+}
+.close-btn svg { width:16px; height:16px; }
+.close-btn:hover { background:var(--verde); color:#fff; border-color:var(--verde); }
+.close-btn--hero { background:var(--fondo); }
+.close-btn--hero:hover { background:var(--verde); color:#fff; }
 
-/* ── Tarjetas de registro (solo móvil) ── */
-.rec-cards { display: none; }
+/* ── HERO ── */
+.hero {
+  flex-shrink:0;
+  background:linear-gradient(165deg, #FFFFFF 0%, #F7FAF7 55%, #F1F7F2 100%);
+  border-bottom:1px solid var(--borde-suave);
+  padding:28px 40px 24px;
+  display:flex; align-items:center; gap:20px;
+}
+.hero-photo {
+  width:60px; height:60px; border-radius:16px; flex-shrink:0; overflow:hidden;
+  background:linear-gradient(150deg,#E7F0E8 0%,#DCEBDE 100%);
+  border:1px solid var(--borde-suave);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 1px 2px rgba(58,71,60,.04), 0 10px 22px -12px rgba(58,71,60,.28);
+}
+.hero-photo img { width:100%; height:100%; object-fit:cover; display:block; }
+.hero-photo-ini { font-size:20px; font-weight:700; color:#3E7A45; letter-spacing:-.3px; }
+.hero-info { flex:1; min-width:0; display:flex; flex-direction:column; gap:8px; }
+.hero-name-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.hero-name { font-size:21px; font-weight:700; color:var(--texto); margin:0; letter-spacing:-.4px; }
+.hero-meta { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.hero-meta-chip {
+  display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600; color:#4B5A4C;
+  background:var(--blanco); border:1px solid var(--borde-suave); padding:4px 10px 4px 9px; border-radius:20px;
+}
+.hero-meta-chip svg { color:var(--verde-sec); flex-shrink:0; }
+.badge-status-hero { padding:5px 12px !important; font-size:10.5px !important; }
 
-.rec-card {
-  display: block;
-  width: 100%;
-  text-align: left;
-  padding: 14px;
-  border: none;
-  border-bottom: 1px solid var(--borde);
-  background: transparent;
-  cursor: pointer;
-  font-family: inherit;
-}
-.rec-card:last-of-type { border-bottom: none; }
-.rec-card:active { background: #F4F6F4; }
+/* ── TABS ── */
+.tabs { flex-shrink:0; display:flex; gap:2px; padding:0 40px; border-bottom:1px solid var(--borde); overflow-x:auto; }
+.tab { padding:11px 13px 9px; font-size:12px; font-weight:700; color:var(--texto-sec); border:none; background:transparent; cursor:pointer; border-bottom:2.5px solid transparent; margin-bottom:-1px; display:flex; align-items:center; gap:6px; white-space:nowrap; font-family:inherit; transition:color .15s ease; }
+.tab:hover { color:var(--texto); }
+.tab.active { color:var(--texto); border-bottom-color:var(--verde); }
+.tab-count { font-size:10px; font-weight:700; background:var(--fondo); color:var(--texto); border:1px solid var(--borde); border-radius:20px; padding:1px 6px; }
+.tab.active .tab-count { background:#EDF6EF; border-color:#C9E4CE; color:#2E7D45; }
 
-.rec-card-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
-}
+/* ── BODY ── */
+.body { padding:18px 40px 10px; }
+.grid-2col { display:grid; grid-template-columns:1.6fr 1fr; gap:14px; align-items:start; margin-bottom:0; }
+.block { background:var(--blanco); border:1px solid var(--borde-suave); border-radius:14px; padding:18px 20px; margin-bottom:14px; box-shadow:var(--sombra-sm); }
+.block:last-child { margin-bottom:0; }
+.block-title { display:flex; align-items:center; gap:10px; font-size:12.5px; font-weight:700; color:var(--texto); text-transform:uppercase; letter-spacing:.4px; margin:0 0 14px; }
+.block-title-icon { width:24px; height:24px; border-radius:50%; background:#F0F5F0; color:#4E7A54; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.fields-row { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px 16px; }
+.field-col { display:flex; flex-direction:column; gap:5px; }
+.field-label-row { font-size:10px; font-weight:700; color:var(--texto-ter); text-transform:uppercase; letter-spacing:.4px; }
+.field-value { font-size:14px; font-weight:600; color:var(--texto); }
+.info-subsection { margin-top:16px; padding-top:16px; border-top:1px solid var(--borde-suave); }
+.info-subsection .field-label-row { display:block; margin-bottom:7px; }
+.info-subsection-text { font-size:13px; font-weight:500; color:#4B534A; line-height:1.6; margin:0; }
+.list-col { display:grid; grid-template-columns:1fr; gap:8px; }
+.list-item { border:1px solid var(--borde-suave); border-radius:10px; padding:10px 12px; display:flex; align-items:center; gap:10px; }
+.list-icon { width:30px; height:30px; border-radius:8px; flex-shrink:0; background:#EDF3EE; color:#3E7A45; display:flex; align-items:center; justify-content:center; }
+.list-text { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.list-label { font-size:9.5px; font-weight:700; color:var(--texto-ter); text-transform:uppercase; letter-spacing:.4px; }
+.list-value { font-size:12.5px; font-weight:700; color:var(--texto); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.modal-empty-text { font-size:13px; color:var(--texto-ter); background:var(--fondo); border:1px dashed var(--borde); border-radius:10px; padding:18px 16px; margin:0; text-align:center; }
 
-.rec-card-list {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px 12px;
-  margin: 0;
-  padding-top: 12px;
-  border-top: 1px solid var(--borde);
+/* Listas del expediente médico */
+.expediente-list { display:flex; flex-direction:column; gap:10px; }
+.expediente-item { background:var(--blanco); border:1px solid var(--borde-suave); border-left:3px solid #92A894; border-radius:0 12px 12px 0; padding:14px 20px; box-shadow:var(--sombra-sm); }
+.expediente-item--medico { border-left-color:#4F8A6F; }
+.expediente-item--vacuna { border-left-color:#3E7CB1; }
+.expediente-item--tratamiento { border-left-color:#C98A35; }
+.expediente-item-header { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:7px; }
+.expediente-fecha { font-size:10.5px; font-weight:700; letter-spacing:.3px; color:var(--verde-sec); text-transform:uppercase; }
+.expediente-diag { font-size:13.5px; color:var(--texto); margin:0 0 4px; line-height:1.55; }
+.expediente-detalle { display:inline-block; font-size:12px; color:var(--texto-sec); margin:0 18px 0 0; line-height:1.6; }
+
+/* Línea de tiempo */
+.timeline-list { display:flex; flex-direction:column; }
+.timeline-item { display:flex; gap:13px; padding:9px 0; position:relative; }
+.timeline-item:not(:last-child)::before { content:''; position:absolute; left:15px; top:34px; bottom:-5px; width:2px; background:var(--borde); }
+.timeline-icon { width:30px; height:30px; flex-shrink:0; border-radius:50%; background:var(--blanco); border:1px solid var(--borde); display:flex; align-items:center; justify-content:center; color:#4E7A54; z-index:1; }
+.timeline-icon svg { width:15px; height:15px; }
+.timeline-content { display:flex; flex-direction:column; gap:2px; padding-top:2px; }
+.timeline-fecha { font-size:10px; font-weight:700; color:var(--verde-sec); text-transform:uppercase; letter-spacing:.5px; }
+.timeline-titulo { font-size:13px; color:var(--texto); font-weight:700; }
+.timeline-detalle { font-size:11.5px; color:var(--texto-sec); }
+
+/* ── FOOTER ── */
+.footer { flex-shrink:0; display:flex; justify-content:flex-end; padding:14px 40px 18px; border-top:1px solid var(--borde-suave); }
+.btn-ghost-red { display:flex; align-items:center; gap:6px; height:29px; padding:0 12px; border-radius:8px; background:var(--blanco); border:1px solid var(--borde); color:var(--texto-sec); font-size:11.5px; font-weight:600; cursor:pointer; transition:background-color .16s ease, border-color .16s ease, color .16s ease; }
+.btn-ghost-red:hover { background:#FDF4F3; border-color:#E8B9B2; color:var(--rojo); }
+
+/* ══════════════════════════════════════════════
+   FORMULARIO (Nuevo expediente)
+   ══════════════════════════════════════════════ */
+.form-header { flex-shrink:0; background:linear-gradient(165deg, #FFFFFF 0%, #F7FAF7 100%); padding:26px 40px 18px; border-bottom:1px solid var(--borde-suave); }
+.form-eyebrow { font-size:11px; font-weight:700; color:#3E8B54; text-transform:uppercase; letter-spacing:.6px; margin:0 0 4px; }
+.form-title { font-size:20px; font-weight:700; color:var(--texto); margin:0 0 4px; letter-spacing:-.3px; }
+.form-sub { font-size:12.5px; color:var(--texto-sec); margin:0; }
+.form-body { padding:20px 40px 8px; }
+.form-section { margin-bottom:20px; }
+.form-section-label { display:flex; align-items:center; gap:9px; font-size:12px; font-weight:700; color:var(--texto); text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px; padding-bottom:9px; border-bottom:1px solid var(--borde-suave); }
+.form-num { width:20px; height:20px; border-radius:7px; background:var(--verde); color:#fff; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.req { color:#c0392b; }
+.form-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:13px 16px; }
+.fg { display:flex; flex-direction:column; gap:6px; position:relative; }
+.fg--span2 { grid-column:span 2; }
+.fg--full { grid-column:1 / -1; }
+.fg label { font-size:11.5px; font-weight:700; color:var(--texto-sec); }
+.err-msg { font-size:11px; color:#c0392b; font-weight:600; margin:0; }
+.input {
+  height:38px; padding:0 12px; border-radius:9px; border:1px solid var(--borde);
+  background:var(--blanco); font-size:13px; color:var(--texto); font-family:inherit; outline:none; width:100%; box-sizing:border-box;
+  transition:border-color .16s ease, box-shadow .16s ease;
 }
-.rec-card-list > div { min-width: 0; }
-.rec-card-list dt {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--texto-sec);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
+.input:hover { border-color:#D3D8D3; }
+.input:focus { border-color:var(--verde-sec); box-shadow:0 0 0 3px rgba(146,168,148,.2); }
+.input.is-error { border-color:#e57373; background:#fff8f8; }
+.textarea { padding:10px 12px; border-radius:9px; border:1px solid var(--borde); background:var(--blanco); font-size:13px; color:var(--texto); font-family:inherit; outline:none; width:100%; box-sizing:border-box; height:72px; resize:vertical; line-height:1.5; transition:border-color .16s ease, box-shadow .16s ease; }
+.textarea:hover { border-color:#D3D8D3; }
+.textarea:focus { border-color:var(--verde-sec); box-shadow:0 0 0 3px rgba(146,168,148,.2); }
+.form-footer { flex-shrink:0; display:flex; justify-content:flex-end; gap:10px; padding:14px 40px 18px; border-top:1px solid var(--borde-suave); }
+.btn-cancel { height:38px; padding:0 16px; border-radius:9px; background:var(--blanco); border:1px solid var(--borde); color:var(--texto-sec); font-size:13px; font-weight:600; cursor:pointer; transition:background-color .16s ease, border-color .16s ease, color .16s ease; }
+.btn-cancel:hover { background:#FAFBFA; color:var(--texto); border-color:#D3D8D3; }
+.btn-save { display:flex; align-items:center; gap:7px; height:38px; padding:0 17px; border-radius:9px; background:var(--verde); border:none; color:#fff; font-size:13px; font-weight:600; cursor:pointer; box-shadow:0 1px 2px rgba(58,71,60,.12), 0 4px 10px -4px rgba(58,71,60,.35); transition:background-color .16s ease; }
+.btn-save svg { width:14px; height:14px; }
+.btn-save:hover { background:#465747; }
+
+/* Selector de mascota / veterinario — sin equivalente directo en
+   Mascotas.vue (necesidad funcional exclusiva de Salud: elegir la
+   mascota y el veterinario del expediente). Construido con el mismo
+   lenguaje visual que el resto de inputs. */
+.pet-select-wrap { position:relative; }
+.pet-select-btn {
+  width:100%; display:flex; align-items:center; gap:10px; height:38px; padding:0 12px;
+  border:1px solid var(--borde); border-radius:9px; background:var(--blanco); cursor:pointer;
+  font-family:inherit; font-size:13px; color:var(--texto); text-align:left;
+  transition:border-color .16s ease, box-shadow .16s ease; box-sizing:border-box;
 }
-.rec-card-list dd {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--texto);
-  margin: 3px 0 0;
-  word-break: break-word;
-}
- 
-/* Empty */
-.empty-cell { padding: 0; }
-.empty-state-inner {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 12px;
-  padding: 56px 24px;
-  color: var(--verde-sec);
-}
-.empty-state-inner svg { opacity: 0.4; }
-.empty-state-inner p { font-size: 14px; font-weight: 500; color: var(--texto-sec); margin: 0; }
- 
-/* ── Modales ───────────────────────────── */
-.modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.35);
-  backdrop-filter: blur(4px);
-  z-index: 1000;
-  display: flex; align-items: center; justify-content: center;
-  padding: 20px;
-}
-.modal-overlay--top { z-index: 1100; }
- 
-.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.22s ease; }
-.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
- 
-.modal-box {
-  background: #FFFFFF;
-  background: var(--blanco, #FFFFFF);
-  border-radius: 20px;
-  padding: 36px;
-  width: 100%;
-  max-height: 90vh;
-  overflow-y: auto;
-  position: relative;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.2);
-  color: #2F352F;
-  color: var(--texto, #2F352F);
-}
-.modal-box--sm { max-width: 420px; }
-.modal-box--md { max-width: 560px; }
-.modal-box--lg { max-width: 900px; }
- 
-.modal-close {
-  position: absolute; top: 18px; right: 18px;
-  width: 32px; height: 32px; border-radius: 50%;
-  border: none; background: var(--fondo);
-  color: var(--texto); font-size: 13px; font-weight: 700;
-  cursor: pointer; display: flex; align-items: center; justify-content: center;
-  transition: all 0.2s; font-family: inherit;
-}
-.modal-close:hover { background: var(--verde); color: var(--blanco); }
- 
-.modal-header {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin-bottom: 24px;
-}
-.modal-eyebrow {
-  font-size: 11px; font-weight: 700; color: var(--texto-sec);
-  text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 4px;
-}
-.modal-title {
-  font-size: 20px; font-weight: 800; color: var(--verde); letter-spacing: -0.4px;
-}
- 
-.modal-body { /* no extra padding since modal-box has padding */ }
- 
-.form-section { margin-bottom: 24px; }
- 
-.modal-section { margin-bottom: 24px; }
-.modal-section-title {
-  font-size: 11px; font-weight: 700; color: var(--texto-sec);
-  text-transform: uppercase; letter-spacing: 0.5px;
-  margin-bottom: 14px; padding-bottom: 10px;
-  border-bottom: 1px solid var(--borde);
-}
-.modal-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-.modal-field { display: flex; flex-direction: column; gap: 4px; }
-.modal-field--full { grid-column: 1 / -1; }
-.modal-field-label { font-size: 10px; font-weight: 700; color: var(--texto-sec); text-transform: uppercase; letter-spacing: 0.4px; }
-.modal-field-value { font-size: 14px; color: var(--texto); font-weight: 600; word-break: break-word; }
-.monto-highlight { font-size: 17px; color: var(--verde); font-weight: 800; }
-.modal-mensaje {
-  font-size: 14px; color: var(--texto); line-height: 1.7;
-  background: var(--fondo); border-radius: 10px; padding: 14px 16px; margin: 4px 0 0;
-}
- 
-/* Formulario */
-.form-grid { display: grid; gap: 14px; }
-.form-grid--4 { grid-template-columns: repeat(4, 1fr); }
-.fg { display: flex; flex-direction: column; gap: 6px; }
-.fg--span2 { grid-column: span 2; }
-.fg--full { grid-column: 1 / -1; }
-.fg-label { font-size: 11px; font-weight: 700; color: var(--verde); text-transform: uppercase; letter-spacing: 0.4px; }
-.req { color: #c0392b; }
-.fg-input {
-  height: 38px;
-  padding: 0 13px;
-  border: 1.5px solid #E8ECE8;
-  border: 1.5px solid var(--borde, #E8ECE8);
-  border-radius: 8px;
-  font-size: 13px;
-  color: #2F352F;
-  color: var(--texto, #2F352F);
-  background: #F7F8F7;
-  background: var(--fondo, #F7F8F7);
-  outline: none;
-  font-family: inherit;
-  transition: border-color 0.18s, background 0.18s;
-  width: 100%;
-  box-sizing: border-box;
-}
-.fg-input:focus {
-  border-color: #92A894;
-  border-color: var(--verde-sec, #92A894);
-  background: #FFFFFF;
-  background: var(--blanco, #FFFFFF);
-}
-.fg-input.is-error { border-color: #c0392b; background: #fff8f8; }
-.fg-textarea {
-  padding: 10px 13px;
-  border: 1.5px solid #E8ECE8;
-  border: 1.5px solid var(--borde, #E8ECE8);
-  border-radius: 8px;
-  font-size: 13px;
-  color: #2F352F;
-  color: var(--texto, #2F352F);
-  background: #F7F8F7;
-  background: var(--fondo, #F7F8F7);
-  outline: none;
-  font-family: inherit;
-  transition: border-color 0.18s, background 0.18s;
-  width: 100%;
-  box-sizing: border-box;
-  height: 80px;
-  resize: vertical;
-  line-height: 1.5;
-}
-.fg-textarea:focus {
-  border-color: #92A894;
-  border-color: var(--verde-sec, #92A894);
-  background: #FFFFFF;
-  background: var(--blanco, #FFFFFF);
-}
-.field-error { font-size: 11px; color: #c0392b; font-weight: 600; margin: 0; }
- 
-/* Pet selector */
-.pet-selector-wrap { position: relative; }
-.pet-selector-btn {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  height: 38px;
-  padding: 0 13px;
-  border: 1.5px solid #E8ECE8;
-  border: 1.5px solid var(--borde, #E8ECE8);
-  border-radius: 8px;
-  background: #F7F8F7;
-  background: var(--fondo, #F7F8F7);
-  cursor: pointer;
-  font-family: inherit;
-  font-size: 13px;
-  color: #2F352F;
-  color: var(--texto, #2F352F);
-  text-align: left;
-  transition: border-color 0.18s, background 0.18s;
-  box-sizing: border-box;
-}
-.pet-selector-btn:hover,
-.pet-selector-btn:focus {
-  border-color: #92A894;
-  border-color: var(--verde-sec, #92A894);
-  background: #FFFFFF;
-  background: var(--blanco, #FFFFFF);
-  outline: none;
-}
-.pet-selector-btn.is-error { border-color: #c0392b; }
-.psel-placeholder { color: var(--texto-sec); flex: 1; font-size: 13px; }
-.psel-name { font-weight: 700; flex: 1; color: #2F352F; color: var(--texto, #2F352F); }
-.psel-species { font-size: 12px; color: #92A894; color: var(--verde-sec, #92A894); }
-.psel-chevron { margin-left: auto; color: #92A894; color: var(--verde-sec, #92A894); transition: transform 0.18s; flex-shrink: 0; }
-.psel-chevron.open { transform: rotate(180deg); }
- 
+.pet-select-btn:hover { border-color:#D3D8D3; }
+.pet-select-btn:focus { outline:none; border-color:var(--verde-sec); box-shadow:0 0 0 3px rgba(146,168,148,.2); }
+.pet-select-btn.is-error { border-color:#e57373; background:#fff8f8; }
+.psel-placeholder { color:var(--texto-ter); flex:1; font-size:13px; }
+.psel-name { font-weight:700; flex:1; color:var(--texto); }
+.psel-species { font-size:12px; color:var(--verde-sec); }
+.psel-chevron { margin-left:auto; color:var(--verde-sec); transition:transform .18s; flex-shrink:0; width:14px; height:14px; }
+.psel-chevron.open { transform:rotate(180deg); }
 .pet-dropdown {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0; right: 0;
-  background: #FFFFFF;
-  background: var(--blanco, #FFFFFF);
-  border: 1.5px solid #E8ECE8;
-  border: 1.5px solid var(--borde, #E8ECE8);
-  border-radius: 12px;
-  box-shadow: 0 8px 24px rgba(58,71,60,0.12);
-  z-index: 600;
-  max-height: 220px;
-  overflow-y: auto;
-  padding: 6px;
+  position:absolute; top:calc(100% + 6px); left:0; right:0; background:var(--blanco);
+  border:1px solid var(--borde); border-radius:12px; box-shadow:0 8px 24px rgba(58,71,60,0.12);
+  z-index:30; max-height:220px; overflow-y:auto; padding:6px;
 }
-.dropdown-empty { padding: 16px; text-align: center; font-size: 13px; color: #92A894; color: var(--verde-sec, #92A894); }
-.dropdown-item {
-  display: flex; align-items: center; gap: 10px;
-  padding: 9px 10px; border-radius: 8px;
-  cursor: pointer; transition: background 0.12s;
-}
-.dropdown-item:hover { background: #F7F8F7; background: var(--fondo, #F7F8F7); }
-.dropdown-item.selected { background: var(--fondo); }
-.dropdown-info { display: flex; flex-direction: column; gap: 1px; flex: 1; min-width: 0; }
-.dropdown-name { font-size: 13px; font-weight: 700; color: #2F352F; color: var(--texto, #2F352F); }
-.dropdown-sub  { font-size: 11px; color: #92A894; color: var(--verde-sec, #92A894); }
- 
-/* ══════════════════════════════════════════
-   WIZARD — registro paso a paso
-══════════════════════════════════════════ */
-.modal-box--wizard {
-  display: flex;
-  flex-direction: column;
-  padding: 0;
-  overflow: hidden;
-  --verde:     var(--sal-verde);
-  --verde-sec: var(--sal-verde-sec);
-  --fondo:     var(--sal-fondo);
-  --blanco:    var(--sal-blanco);
-  --texto:     var(--sal-texto);
-  --texto-sec: var(--sal-texto-sec);
-  --borde:     var(--sal-borde);
-  --verde-ok:  var(--sal-verde-ok);
-}
+.dropdown-empty { padding:16px; text-align:center; font-size:13px; color:var(--verde-sec); }
+.dropdown-item { display:flex; align-items:center; gap:10px; padding:9px 10px; border-radius:9px; cursor:pointer; transition:background .12s; }
+.dropdown-item:hover { background:var(--fondo); }
+.dropdown-item.selected { background:#EEF2EE; }
+.dropdown-info { display:flex; flex-direction:column; gap:1px; flex:1; min-width:0; }
+.dropdown-name { font-size:13px; font-weight:700; color:var(--texto); }
+.dropdown-sub { font-size:11px; color:var(--verde-sec); }
 
-.wiz-header {
-  padding: 24px 36px 18px;
-  border-bottom: 1px solid var(--borde, #E8ECE8);
-  background: var(--blanco, #FFFFFF);
-  flex-shrink: 0;
-}
-
-/* Stepper */
-.wiz-steps {
-  position: relative;
-  display: flex;
-  justify-content: space-between;
-  gap: 6px;
-  margin-top: 18px;
-}
-.wiz-track {
-  position: absolute;
-  top: 15px;
-  left: 6%;
-  right: 6%;
-  height: 2px;
-  background: var(--borde, #E8ECE8);
-  border-radius: 2px;
-}
-.wiz-track-fill {
-  height: 100%;
-  background: var(--verde, #3A473C);
-  border-radius: 2px;
-  transition: width 0.32s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.wiz-step {
-  position: relative;
-  z-index: 1;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 7px;
-  background: transparent;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  font-family: inherit;
-  min-width: 0;
-}
-.wiz-step.is-locked { cursor: default; }
-
-.wiz-bullet {
-  width: 32px;
-  height: 32px;
-  border-radius: 50%;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  font-weight: 800;
-  background: var(--blanco, #FFFFFF);
-  border: 2px solid var(--borde, #E8ECE8);
-  color: var(--texto-sec, #6C756D);
-  transition: all 0.22s ease;
-  flex-shrink: 0;
-}
-.wiz-step-label {
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--texto-sec, #6C756D);
-  text-align: center;
-  letter-spacing: 0.2px;
-  transition: color 0.22s ease;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.wiz-step.is-done .wiz-bullet {
-  background: var(--verde, #3A473C);
-  border-color: var(--verde, #3A473C);
-  color: #FFFFFF;
-}
-.wiz-step.is-done .wiz-step-label { color: var(--verde, #3A473C); }
-
-.wiz-step.is-active .wiz-bullet {
-  background: var(--verde, #3A473C);
-  border-color: var(--verde, #3A473C);
-  color: #FFFFFF;
-  box-shadow: 0 0 0 4px rgba(58, 71, 60, 0.12);
-}
-.wiz-step.is-active .wiz-step-label {
-  color: var(--verde, #3A473C);
-  font-weight: 800;
-}
-
-.wiz-step:not(.is-locked):not(.is-active):hover .wiz-bullet {
-  border-color: var(--verde-sec, #92A894);
-}
-
-/* Contexto bajo el stepper */
-.wiz-context {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin-top: 16px;
-  font-size: 12px;
-  color: var(--texto-sec, #6C756D);
-  flex-wrap: wrap;
-}
-.wiz-context-count {
-  font-weight: 800;
-  color: var(--verde, #3A473C);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-  font-size: 11px;
-}
-.wiz-context-sep { opacity: 0.5; }
-.wiz-context-desc { font-weight: 500; }
-.wiz-context-pet {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-left: auto;
-  padding: 4px 10px 4px 4px;
-  background: var(--fondo, #F7F8F7);
-  border: 1px solid var(--borde, #E8ECE8);
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--verde, #3A473C);
-}
-.pet-avatar--xs {
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: #DDE6DE;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-  overflow: hidden;
-}
-.pet-avatar--xs .pet-avatar-ini { font-size: 10px; }
-
-/* Cuerpo con scroll propio */
-.wiz-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 26px 36px;
-  min-height: 260px;
-}
-.wiz-pane { animation: wiz-in 0.26s ease; }
-@keyframes wiz-in {
-  from { opacity: 0; transform: translateX(10px); }
-  to   { opacity: 1; transform: translateX(0); }
-}
-.wiz-hint {
-  font-size: 12px;
-  color: var(--texto-sec, #6C756D);
-  margin-top: 10px;
-}
-
-/* Paso 1 — tarjetas de tipo de registro */
-.tipo-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 12px;
-}
-.tipo-card {
-  position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 6px;
-  padding: 18px 16px;
-  border: 1.5px solid var(--borde, #E8ECE8);
-  border-radius: 12px;
-  background: var(--blanco, #FFFFFF);
-  cursor: pointer;
-  font-family: inherit;
-  text-align: left;
-  transition: border-color 0.18s, background 0.18s, box-shadow 0.18s;
-}
-.tipo-card:hover {
-  border-color: var(--verde-sec, #92A894);
-  background: var(--fondo, #F7F8F7);
-}
-.tipo-card.is-selected {
-  border-color: var(--verde, #3A473C);
-  background: var(--fondo, #F7F8F7);
-  box-shadow: 0 0 0 3px rgba(58, 71, 60, 0.10);
-}
-.tipo-card-icon {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 10px;
-  background: #EEF2EE;
-  color: var(--verde, #3A473C);
-  margin-bottom: 2px;
-}
-.tipo-card.is-selected .tipo-card-icon {
-  background: var(--verde, #3A473C);
-  color: #FFFFFF;
-}
-.tipo-card-title {
-  font-size: 14px;
-  font-weight: 800;
-  color: var(--verde, #3A473C);
-}
-.tipo-card-desc {
-  font-size: 11.5px;
-  color: var(--texto-sec, #6C756D);
-  line-height: 1.4;
-  font-weight: 500;
-}
-.tipo-card-check {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  color: var(--verde, #3A473C);
-}
-
-.wiz-res-card--full { grid-column: 1 / -1; }
-
-/* Acción "Agregar..." fija al pie de un desplegable */
-.dropdown-add {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-  width: 100%;
-  margin-top: 4px;
-  padding: 9px 10px;
-  border: none;
-  border-top: 1px solid var(--borde, #E8ECE8);
-  border-radius: 0 0 8px 8px;
-  background: transparent;
-  color: var(--verde, #3A473C);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.15s;
-}
-.dropdown-add:hover { background: var(--fondo, #F7F8F7); }
-
-/* Alta rápida de mascota */
-.wiz-add-pet-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  margin-top: 14px;
-  padding: 8px 14px;
-  border-radius: 8px;
-  border: 1.5px dashed var(--borde, #E8ECE8);
-  background: transparent;
-  color: var(--texto-sec, #6C756D);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-  transition: all 0.18s;
-}
-.wiz-add-pet-toggle:hover {
-  border-color: var(--verde-sec, #92A894);
-  color: var(--verde, #3A473C);
-}
-
-.wiz-add-pet {
-  margin-top: 16px;
-  padding: 16px;
-  border-radius: 12px;
-  border: 1.5px solid var(--borde, #E8ECE8);
-  background: var(--fondo, #F7F8F7);
-}
-.wiz-add-pet-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
-}
-.wiz-add-pet-title {
-  font-size: 12px;
-  font-weight: 800;
-  color: var(--verde, #3A473C);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.wiz-add-pet-close {
-  border: none;
-  background: transparent;
-  color: var(--texto-sec, #6C756D);
-  font-size: 12px;
-  cursor: pointer;
-  font-family: inherit;
-  padding: 2px 6px;
-}
-.wiz-add-pet-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 14px;
-}
-.wiz-add-pet-actions .btn-save:disabled { opacity: 0.6; cursor: default; }
-.form-grid--3 { grid-template-columns: repeat(3, 1fr); }
-
-/* Resumen final */
-.wiz-resumen {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 14px;
-}
-.wiz-res-card {
-  border: 1.5px solid var(--borde, #E8ECE8);
-  border-radius: 12px;
-  padding: 16px;
-  background: var(--blanco, #FFFFFF);
-}
-.wiz-res-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-bottom: 12px;
-  padding-bottom: 10px;
-  border-bottom: 1px solid var(--borde, #E8ECE8);
-}
-.wiz-res-title {
-  font-size: 11px;
-  font-weight: 800;
-  color: var(--verde, #3A473C);
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-.wiz-res-edit {
-  border: none;
-  background: transparent;
-  color: var(--texto-sec, #6C756D);
-  font-size: 11px;
-  font-weight: 700;
-  cursor: pointer;
-  font-family: inherit;
-  text-decoration: underline;
-  padding: 0;
-}
-.wiz-res-edit:hover { color: var(--verde, #3A473C); }
-
-.wiz-res-pet { display: flex; align-items: center; gap: 10px; }
-.wiz-res-value {
-  display: block;
-  font-size: 14px;
-  font-weight: 700;
-  color: var(--texto, #2F352F);
-}
-.wiz-res-sub {
-  display: block;
-  font-size: 11px;
-  color: var(--texto-sec, #6C756D);
-  margin-top: 2px;
-}
-
-.wiz-res-list {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  margin: 0;
-}
-.wiz-res-list > div { min-width: 0; }
-.wiz-res-full { grid-column: 1 / -1; }
-.wiz-res-list dt {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--texto-sec, #6C756D);
-  text-transform: uppercase;
-  letter-spacing: 0.4px;
-}
-.wiz-res-list dd {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--texto, #2F352F);
-  margin: 3px 0 0;
-  word-break: break-word;
-}
-
-/* Footer de navegación */
-.wiz-footer {
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px 36px;
-  margin-top: 0;
-  flex-shrink: 0;
-  background: var(--blanco, #FFFFFF);
-}
-.wiz-nav { display: flex; gap: 10px; }
-.btn-back {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-@media (max-width: 768px) {
-  .wiz-header { padding: 24px 18px 16px; }
-  .wiz-body   { padding: 20px 18px; }
-  .wiz-footer { padding: 14px 18px; }
-
-  .wiz-step-label { display: none; }
-  .wiz-steps { justify-content: center; gap: 0; }
-  .wiz-track { top: 15px; left: 10%; right: 10%; }
-
-  .wiz-context-pet { margin-left: 0; }
-
-  .wiz-resumen { grid-template-columns: 1fr; }
-  .form-grid--3 { grid-template-columns: 1fr; }
-  .tipo-grid { grid-template-columns: 1fr; }
-
-  .wiz-footer { flex-direction: column-reverse; align-items: stretch; gap: 8px; }
-  .wiz-nav { width: 100%; }
-  .wiz-nav .btn-cancel,
-  .wiz-nav .btn-save { flex: 1; justify-content: center; }
-}
-
-/* Immutable note */
+/* Aviso de inmutabilidad — misma paleta que el warn-box de Mascotas
+   (fondo ámbar, borde izquierdo, texto ámbar). */
 .immutable-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 12px 14px;
-  background: #FFFBF2;
-  border-radius: 8px;
-  border-left: 3px solid #F9C17A;
-  font-size: 12px;
-  color: #996C2A;
-  font-weight: 600;
-  line-height: 1.4;
-  margin-top: 4px;
+  display:flex; align-items:flex-start; gap:8px; padding:14px 16px;
+  background:#FFFBF3; border-left:3px solid var(--amarillo); border-radius:0 10px 10px 0;
+  font-size:13px; color:var(--texto); font-weight:600; line-height:1.5; margin-top:4px;
 }
-.immutable-note svg { flex-shrink: 0; margin-top: 1px; }
- 
-/* Modal footer */
-.modal-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  padding-top: 24px;
-  border-top: 1px solid var(--borde);
-  margin-top: 24px;
+.immutable-note svg { flex-shrink:0; margin-top:1px; color:#A97A0C; }
+
+/* Modal confirmar guardado — idéntico a "Cambiar estado" de Mascotas */
+.modal-header { display:flex; align-items:center; gap:14px; margin-bottom:24px; padding-bottom:20px; border-bottom:1px solid var(--borde-suave); }
+.modal-header-info { flex:1; min-width:0; }
+.modal-eyebrow { font-size:10.5px; font-weight:700; color:var(--verde-sec); text-transform:uppercase; letter-spacing:0.7px; margin:0 0 4px; }
+.modal-title { font-size:19px; font-weight:700; color:var(--texto); letter-spacing:-0.4px; margin:0; }
+.modal-section { margin-bottom:24px; }
+.confirm-desc { font-size:13.5px; color:var(--texto-sec); line-height:1.6; margin:0; }
+.modal-acciones { display:flex; gap:10px; justify-content:flex-end; padding-top:20px; border-top:1px solid var(--borde-suave); }
+
+/* Animaciones modal */
+.modal-fade-enter-active, .modal-fade-leave-active { transition:opacity 0.22s ease; }
+.modal-fade-enter-from, .modal-fade-leave-to { opacity:0; }
+
+/* ── Responsive (adaptado a 4 tarjetas de resumen en Salud) ── */
+@media (max-width:1100px) { .don-summary { grid-template-columns:repeat(2, 1fr); } }
+@media (max-width:900px) {
+  .form-grid { grid-template-columns:repeat(2, 1fr); }
+  .fg--span2 { grid-column:span 1; }
+  .modal-box--uniform { width:94vw; height:88vh; }
+  .grid-2col { grid-template-columns:1fr; }
+  .fields-row { grid-template-columns:repeat(2, 1fr); }
 }
-.btn-cancel {
-  height: 40px;
-  padding: 0 18px;
-  background: var(--fondo);
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--texto-sec);
-  cursor: pointer;
-  transition: background 0.15s;
-  font-family: inherit;
+@media (max-width:640px) {
+  .page-header { flex-direction:column; align-items:flex-start; }
+  .filtros-row { flex-direction:column; gap:14px; }
+  .filtros-row--end { align-items:stretch; }
+  .filtro-group { min-width:100%; }
+  .filtro-group--search { max-width:none; }
+  .don-summary { grid-template-columns:1fr 1fr; }
+  .form-grid { grid-template-columns:1fr; }
+  .fg--span2, .fg--full { grid-column:1; }
+  .don-table th:nth-child(4), .don-table td:nth-child(4), .don-table th:nth-child(5), .don-table td:nth-child(5) { display:none; }
+  .modal-box--uniform { width:96vw; height:92vh; border-radius:18px; }
+  .hero, .form-header, .form-body, .tabs, .body, .footer, .form-footer { padding-left:20px; padding-right:20px; }
+  .fields-row { grid-template-columns:1fr; }
 }
-.btn-cancel:hover { background: #E5EAE6; }
-.btn-save {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  height: 40px;
-  padding: 0 20px;
-  background: var(--verde);
-  border: none;
-  border-radius: 8px;
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--blanco);
-  cursor: pointer;
-  transition: background 0.18s;
-  font-family: inherit;
+@media (max-width:480px) { .don-summary { grid-template-columns:1fr; } }
+</style>
+<style>
+/* ── Variables globales (para contenido teletransportado) — idéntico a Mascotas.vue ── */
+:root {
+  --verde: #3A473C; --verde-sec:#92A894; --fondo:#F7F8F7; --blanco:#FFFFFF;
+  --texto:#2B322C; --texto-sec:#7A827B; --texto-ter:#A2A9A3;
+  --borde:#E9ECE9; --borde-suave:#EFF2EF; --amarillo:#F5B942;
+  --verde-ok:#4CAF6A; --rojo:#C0392B; --rojo-bg:#FBEDEC;
+  --sombra-sm:0 1px 2px rgba(58,71,60,.03);
+  --sombra-md:0 2px 4px rgba(58,71,60,.05), 0 14px 32px -14px rgba(58,71,60,.18);
 }
-.btn-save:hover { background: #2d3730; }
- 
-/* Confirmación */
-.confirm-body { text-align: center; padding-bottom: 8px; }
-.confirm-icon {
-  width: 60px; height: 60px; border-radius: 50%;
-  background: #EEF2EE; color: var(--verde);
-  display: flex; align-items: center; justify-content: center;
-  margin: 0 auto 18px;
-}
-.confirm-title { font-size: 18px; font-weight: 800; color: var(--verde); margin-bottom: 10px; }
-.confirm-text { font-size: 13px; color: var(--texto-sec); line-height: 1.6; max-width: 320px; margin: 0 auto; }
- 
-/* ── Responsive ────────────────────────── */
-@media (max-width: 900px) {
-  .don-summary { display: grid; grid-template-columns: repeat(2, 1fr); }
-  .form-grid--4 { grid-template-columns: repeat(2, 1fr); }
-  .fg--span2 { grid-column: span 1; }
-}
- 
-@media (max-width: 640px) {
-  .page-header { flex-direction: column; align-items: flex-start; }
-  .page-actions { width: 100%; }
-  .btn-primary, .btn-secondary { flex: 1; justify-content: center; }
-  .btn-limpiar { width: 100%; }
-  .don-summary { grid-template-columns: 1fr; }
-  .form-grid--4 { grid-template-columns: 1fr; }
-  .fg--span2, .fg--full { grid-column: 1; }
-  .modal-box { padding: 24px 18px; }
-  .modal-grid { grid-template-columns: 1fr; }
-
-  /* La tabla cede el paso a las tarjetas: nada de scroll horizontal
-     ni de ocultar columnas (antes se perdían Aplicación y Próxima dosis) */
-  .table-scroll { display: none; }
-  .rec-cards    { display: block; }
-  .rec-card-list { grid-template-columns: 1fr 1fr; }
-}
-
-/* ── MOBILE RESPONSIVE ── */
-@media (max-width: 768px) {
-  .don-summary {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-  }
-
-  .panel-filtros {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-    padding: 14px;
-  }
-  .panel-buscar { max-width: none; }
-  .panel-fechas { width: 100%; }
-  .panel-fechas .filtro-input { flex: 1; min-width: 0; }
-
-  .panel-tab { padding: 13px 12px 11px; font-size: 12px; }
-
-  .btn-limpiar {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .table-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-
-  .btn-primary {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .modal-box--lg {
-    max-width: calc(100vw - 24px);
-    padding: 22px 14px;
-    max-height: 95vh;
-  }
-
-  .form-grid--4 {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .fg--span2 { grid-column: span 1; }
-  .fg--full { grid-column: span 2; }
-
-  .modal-grid { grid-template-columns: 1fr; }
-
-  .modal-footer {
-    padding-top: 16px;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .modal-footer .btn-cancel,
-  .modal-footer .btn-save {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .pet-selector-btn { font-size: 12px; }
-}
-
-@media (max-width: 480px) {
-  .don-summary { grid-template-columns: 1fr; }
-
-  .form-grid--4 { grid-template-columns: 1fr; }
-  .fg--span2,
-  .fg--full { grid-column: span 1; }
-}
-
-/* El wizard maneja su propio padding y scroll: anula las reglas
-   genéricas de .modal-box--lg / .modal-footer de arriba */
-@media (max-width: 768px) {
-  .modal-box--lg.modal-box--wizard { padding: 0; }
-  .modal-footer.wiz-footer {
-    flex-direction: column-reverse;
-    padding: 14px 18px;
-  }
-}
-@media (max-width: 640px) {
-  .modal-box.modal-box--wizard { padding: 0; }
-}
-
-
 </style>

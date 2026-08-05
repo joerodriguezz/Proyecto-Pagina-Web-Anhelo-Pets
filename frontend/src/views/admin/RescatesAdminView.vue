@@ -1,84 +1,59 @@
 <script setup>
 import { ref, computed, watch, onMounted } from 'vue'
 import { ubicacionesCR } from '../../data/ubicaciones'
-import { useRescuesStore } from '../../stores/useRescuesStore'
-import { getAnimals, createAnimals } from '../../services/petServices'
-import { getFosterHomes, createFosterHome, uploadFosterHomePhoto } from '../../services/fosterHomeServices'
+import { usePetsStore } from '../../stores/usePetsStore'
+import { registrarAuditoria } from '../../composables/useAuditLog'
+import { getRescues, createRescue, updateRescue, closeRescue } from '../../services/rescueServices'
+import { getVolunteers } from '../../services/volunteerServices'
 
-/* ─── Store de rescates ──────────────────────────────────── */
-const store = useRescuesStore()
 
-/* ─── Lista de animales registrados ─────────────────────── */
-const animalesList = ref([])
-const animalesLoading = ref(false)
+/* ─── Store de mascotas ─────────────────────────────────── */
+const petsStore = usePetsStore()
 
-async function loadAnimales() {
-  animalesLoading.value = true
-  try {
-    const { data } = await getAnimals()
-    animalesList.value = (data || []).map(a => ({
-      id:   a.animalId,
-      name: a.animalName,
-      type: a.species || '',
-      sex:  a.sex === 'H' ? 'Hembra' : a.sex === 'M' ? 'Macho' : '',
-      age:  [a.ageYears, a.ageMonths].filter(Boolean).join(' '),
-    }))
-  } catch {
-    animalesList.value = []
-  } finally {
-    animalesLoading.value = false
-  }
-}
+/* ─── Estado principal ──────────────────────────────────── */
+const rescates = ref([])
 
-/* ─── Main state from store ──────────────────────────────── */
-const rescates = store.rescates
+/* ─── UI: modales ────────────────────────────────────────── */
+const showForm       = ref(false)
+const editMode       = ref(false)
+const editingIndex   = ref(null)
 
-/* ─── UI ─────────────────────────────────────────────────── */
-const showForm        = ref(false)
-const editMode        = ref(false)
-const showEditModal   = ref(false)
-const editingId       = ref(null)
-const showDetailModal = ref(false)
-const rescueSelected  = ref(null)
-const modalConfirm    = ref(false)
-const confirmId       = ref(null)
+const showViewModal  = ref(false)
+const viewTarget     = ref(null)
+
+const showCloseModal = ref(false)
+const closeTarget    = ref(null)
 
 /* ─── Toast ──────────────────────────────────────────────── */
-const toast = ref({ visible: false, tipo: 'exito', texto: '' })
-
-function mostrarToast(texto, tipo = 'exito') {
-  toast.value = { visible: true, tipo, texto }
-  setTimeout(() => { toast.value.visible = false }, 3000)
+const toast = ref({ show: false, type: 'success', message: '' })
+let toastTimer = null
+function showToast(type, message) {
+  clearTimeout(toastTimer)
+  toast.value = { show: true, type, message }
+  toastTimer = setTimeout(() => { toast.value.show = false }, 3500)
 }
 
 /* ─── Usuario actual ─────────────────────────────────────── */
 const usuarioActual = ref({ nombre: 'Shirley Valverde', rol: 'Admin' })
 
 /* ─── Voluntarios ────────────────────────────────────────── */
-const voluntarios = ref(
-  JSON.parse(localStorage.getItem('anhelo_usuarios')) || []
-)
+const voluntarios = ref([])
 
-/* ─── Provincias para filtro ─────────────────────────────── */
-const provinciasDisponibles = computed(() => Object.keys(ubicacionesCR))
-
-/* ─── Helper: obtener nombre del rescatista desde localStorage ── */
-function getVolunteerName(id) {
-  if (!id) return 'Anónimo'
-  const v = voluntarios.value.find(u => u.id === id)
-  return v?.nombre || v?.correo || id
+async function cargarVoluntarios() {
+    const { data } = await getVolunteers()
+    voluntarios.value = data
 }
 
-/* ─── Casas cuna y rescatistas ───────────────────────────── */
+/* ─── Provincias / casas cuna / rescatistas ──────────────── */
+const provinciasDisponibles = computed(() => Object.keys(ubicacionesCR))
+
 const casasCunaDisponibles = computed(() =>
   voluntarios.value.filter(v => {
     const estado = v.solicitudVoluntario?.estado
     const tipo   = v.solicitudVoluntario?.tipo || ''
-    return estado === 'Aprobada' &&
-      (tipo.toLowerCase() === 'casa cuna')
+    return estado === 'Aprobada' && tipo.toLowerCase() === 'casa cuna'
   })
 )
-
 const rescatistasDisponibles = computed(() =>
   voluntarios.value.filter(v => {
     const estado = v.solicitudVoluntario?.estado
@@ -87,20 +62,53 @@ const rescatistasDisponibles = computed(() =>
   })
 )
 
-/* ─── Filtros de tabla ───────────────────────────────────── */
-const filtroSearch   = ref('')
-const filtroProv     = ref('Todos')
-const filtroEstado   = ref('Todos')
+/* ─── Helpers para resolver voluntarios (nombre <-> id) ──────
+   El backend de Rescates guarda fosterHomeId / volunteerId como
+   referencias por ID, pero el <select> del formulario (que no se
+   puede modificar) usa el NOMBRE como value. Estas funciones hacen
+   el puente entre ambos mundos en los dos sentidos. ─────────── */
+function resolverIdVoluntario(nombre) {
+  if (!nombre) return null
+  const encontrado = voluntarios.value.find(v => (v.solicitudVoluntario?.nombre || v.nombre) === nombre)
+  return encontrado ? encontrado.id : null
+}
+function resolverNombreVoluntario(id) {
+  if (id === null || id === undefined || id === '') return ''
+  const encontrado = voluntarios.value.find(v => v.id === id)
+  return encontrado ? (encontrado.solicitudVoluntario?.nombre || encontrado.nombre) : ''
+}
+
+/* ─── Helper para reconstruir provincia/cantón/distrito ───────
+   El backend solo guarda "ubicacion" como texto libre (no guarda
+   provincia/cantón/distrito por separado). Al cargar un rescate ya
+   existente, se reconstruyen esos 3 campos a partir del texto para
+   poder precargar los <select> al editar. ─────────────────────── */
+function parseUbicacion(ubicacionStr) {
+  if (!ubicacionStr) return { provincia: '', canton: '', distrito: '' }
+  const partes = ubicacionStr.split(',').map(p => p.trim())
+  return {
+    provincia: partes[0] || '',
+    canton:    partes[1] || '',
+    distrito:  partes[2] || '',
+  }
+}
+
+/* ─── Filtros — misma estructura que Mascotas.vue:
+       2 grupos de tabs (Tipo / Estado) + buscador + botón limpiar ─── */
+const filtroSearch = ref('')
+const filtroTipo   = ref('Todos')
+const filtroEstado = ref('Todos')
+const TYPE_TABS    = ['Todos', 'Perro', 'Gato']
+const ESTADO_TABS  = ['Todos', 'Activo', 'Cerrado']
 
 const hayFiltros = computed(() =>
   filtroSearch.value.trim() !== '' ||
-  filtroProv.value   !== 'Todos'   ||
+  filtroTipo.value   !== 'Todos'   ||
   filtroEstado.value !== 'Todos'
 )
-
 function limpiarFiltros() {
   filtroSearch.value = ''
-  filtroProv.value   = 'Todos'
+  filtroTipo.value   = 'Todos'
   filtroEstado.value = 'Todos'
 }
 
@@ -109,342 +117,359 @@ const rescatesFiltrados = computed(() => {
   return rescates.value.filter(r => {
     const coincideSearch =
       !q ||
-      String(r.id || '').toLowerCase().includes(q) ||
+      (r.id || '').toString().toLowerCase().includes(q) ||
       (r.mascota || '').toLowerCase().includes(q) ||
-      (r.descripcion || '').toLowerCase().includes(q)
-
-    const coincideProv =
-      filtroProv.value === 'Todos' ||
-      (r.ubicacion || '').toLowerCase().startsWith(filtroProv.value.toLowerCase())
-
-    const coincideEstado =
-      filtroEstado.value === 'Todos' ||
-      r.estado === filtroEstado.value
-
-    return coincideSearch && coincideProv && coincideEstado
+      (r.rescatista || '').toLowerCase().includes(q) ||
+      (r.ubicacion || '').toLowerCase().includes(q) ||
+      (r.provincia || '').toLowerCase().includes(q)
+    const coincideTipo   = filtroTipo.value === 'Todos' || r.tipoMascota === filtroTipo.value
+    const coincideEstado = filtroEstado.value === 'Todos' || r.estado === filtroEstado.value
+    return coincideSearch && coincideTipo && coincideEstado
   })
 })
 
-/* ─── Carga ──────────────────────────────────────────────── */
-onMounted(() => {
-  if (!store.loaded) store.fetchRescues()
-  loadAnimales()
-  loadFosterHomes()
-})
+/* ─── Mapeo DTO backend → fila usada por la vista ────────────
+   El DTO del backend (animalId, fecha, ubicacion, descripcion,
+   status, fosterHomeId, volunteerId) es mucho más simple que los
+   campos que usa esta vista. Los datos de la mascota (nombre, tipo,
+   foto, edad, sexo, raza) se completan buscando el animal enlazado
+   en el store de mascotas por animalId. ─────────────────────────── */
+function mapRescueDtoToRow(dto) {
+  const pet = petsStore.pets.find(p => p.id === dto.animalId)
+  const { provincia, canton, distrito } = parseUbicacion(dto.ubicacion)
+  const fecha = dto.fecha ? String(dto.fecha).split('T')[0] : ''
+  return {
+    id: dto.id,
+    mascotaId: dto.animalId,
+    mascota: pet?.name || '',
+    tipoMascota: pet?.type || 'Perro',
+    foto: pet?.image || '',
+    edad: pet?.age || '',
+    sexo: pet?.sex || 'Macho',
+    raza: pet?.breed || 'Sin raza',
+    fechaRescate: fecha,
+    fechaCreacion: fecha,
+    creadoPor: '',
+    provincia,
+    canton,
+    distrito,
+    ubicacion: dto.ubicacion || '',
+    descripcion: dto.descripcion || '',
+    casaCuna: resolverNombreVoluntario(dto.fosterHomeId) || 'Sin asignar',
+    rescatista: resolverNombreVoluntario(dto.volunteerId) || '',
+    estado: dto.status || 'Activo',
+    volunteerId: dto.volunteerId ?? null,
+    fosterHomeId: dto.fosterHomeId ?? null,
+  }
+}
 
-/* ─── Lista de casas cuna desde API ────────────────────── */
-const fosterHomesList = ref([])
-const fhLoading = ref(false)
-
-async function loadFosterHomes() {
-  fhLoading.value = true
+/* ─── Carga desde el backend ─────────────────────────────── */
+async function cargarRescates() {
   try {
-    const { data } = await getFosterHomes()
-    fosterHomesList.value = (data || []).filter(f => f.active)
-  } catch {
-    fosterHomesList.value = []
-  } finally {
-    fhLoading.value = false
+    const data = await getRescues()
+    rescates.value = (data || []).map(mapRescueDtoToRow)
+  } catch (err) {
+    console.error('Error al cargar los rescates:', err)
+    rescates.value = []
+    showToast('error', 'No se pudieron cargar los rescates desde el servidor.')
   }
 }
+cargarRescates()
 
-/* ─── Quick-create foster home modal ──────────────────── */
-const showQuickFoster = ref(false)
-const quickFoster     = ref({ name: '', address: '', phone: '', responsible: '', capacity: 1 })
-const quickFosterLoading = ref(false)
-const quickFosterErrors  = ref([])
-const quickFosterPhotoFile    = ref(null)
-const quickFosterPhotoPreview = ref('')
-const quickFosterPhotoInput   = ref(null)
-
-function abrirQuickFoster() {
-  quickFoster.value = { name: '', address: '', phone: '', responsible: '', capacity: 1 }
-  quickFosterErrors.value = []
-  quickFosterPhotoFile.value = null
-  quickFosterPhotoPreview.value = ''
-  showQuickFoster.value = true
-}
-
-function triggerQuickFosterPhoto() {
-  quickFosterPhotoInput.value?.click()
-}
-
-function onQuickFosterPhotoChange(e) {
-  const file = e.target.files?.[0]
-  if (!file || !file.type.startsWith('image/')) return
-  quickFosterPhotoFile.value = file
-  const reader = new FileReader()
-  reader.onload = ev => { quickFosterPhotoPreview.value = ev.target.result }
-  reader.readAsDataURL(file)
-}
-
-function quitarQuickFosterPhoto() {
-  quickFosterPhotoFile.value = null
-  quickFosterPhotoPreview.value = ''
-  if (quickFosterPhotoInput.value) quickFosterPhotoInput.value.value = ''
-}
-
-async function guardarQuickFoster() {
-  const e = []
-  if (!quickFoster.value.name.trim())        e.push('Nombre')
-  if (!quickFoster.value.address.trim())     e.push('Dirección')
-  if (!quickFoster.value.phone.trim())       e.push('Teléfono')
-  if (!quickFoster.value.responsible.trim()) e.push('Responsable')
-  quickFosterErrors.value = e
-  if (e.length) return
-
-  quickFosterLoading.value = true
-  try {
-    const { data: created } = await createFosterHome(quickFoster.value)
-    if (quickFosterPhotoFile.value && created?.fosterHomeId) {
-      try {
-        await uploadFosterHomePhoto(created.fosterHomeId, quickFosterPhotoFile.value)
-      } catch {
-        mostrarToast('Casa cuna creada, pero la foto no se pudo subir.', 'error')
-      }
-    }
-    await loadFosterHomes()
-    showQuickFoster.value = false
-    mostrarToast('Casa cuna creada correctamente.')
-  } catch {
-    mostrarToast('Error al crear la casa cuna.', 'error')
-  } finally {
-    quickFosterLoading.value = false
-  }
-}
-
-/* ─── Quick-create animal modal ─────────────────────────── */
-const showQuickAnimal = ref(false)
-const quickAnimal     = ref({ name: '', species: '', sex: '', ageYears: 0 })
-const quickAnimalLoading = ref(false)
-const quickAnimalErrors  = ref([])
-
-function abrirQuickAnimal() {
-  quickAnimal.value = { name: '', species: '', sex: '', ageYears: 0 }
-  quickAnimalErrors.value = []
-  showQuickAnimal.value = true
-}
-
-async function guardarQuickAnimal() {
-  const e = []
-  if (!quickAnimal.value.name.trim())   e.push('Nombre')
-  if (!quickAnimal.value.species)       e.push('Tipo')
-  if (!quickAnimal.value.sex)           e.push('Sexo')
-  quickAnimalErrors.value = e
-  if (e.length) return
-
-  quickAnimalLoading.value = true
-  try {
-    const payload = {
-      name:  quickAnimal.value.name,
-      type:  quickAnimal.value.species,
-      age:   quickAnimal.value.ageYears ? `${quickAnimal.value.ageYears} año${quickAnimal.value.ageYears !== 1 ? 's' : ''}` : '',
-      sex:   quickAnimal.value.sex === 'H' ? 'Hembra' : 'Macho',
-    }
-    const { data } = await createAnimals(payload)
-    await loadAnimales()
-    animalId.value = data.animalId
-    showQuickAnimal.value = false
-    mostrarToast(`Mascota "${data.animalName}" creada correctamente.`)
-  } catch {
-    mostrarToast('Error al crear la mascota.', 'error')
-  } finally {
-    quickAnimalLoading.value = false
-  }
-}
-
-/* ─── Ubicación en formulario ────────────────────────────── */
-const provincia = ref('')
-const canton    = ref('')
-const distrito  = ref('')
-
-const cantonesDisponibles = computed(() => {
-  if (!provincia.value || !ubicacionesCR[provincia.value]) return []
-  return Object.keys(ubicacionesCR[provincia.value])
-})
-const distritosDisponibles = computed(() => {
-  if (!provincia.value || !canton.value) return []
-  return ubicacionesCR[provincia.value]?.[canton.value] || []
-})
-
-watch(provincia, () => { canton.value = ''; distrito.value = '' })
-watch(canton,    () => { distrito.value = '' })
-
-/* ─── Formulario ─────────────────────────────────────────── */
-const currentStep   = ref(1)
-const animalId      = ref('')
-const fechaRescate  = ref('')
-const descripcion   = ref('')
-const casaCuna      = ref('')
-const rescatista    = ref('')
-const estado        = ref('Activo')
-const formErrors    = ref([])
-
-/* ─── Validación ─────────────────────────────────────────── */
-function validar() {
-  const errores = []
-  if (!animalId.value)        errores.push('Animal')
-  if (!fechaRescate.value)    errores.push('Fecha de rescate')
-  if (!provincia.value)       errores.push('Provincia')
-  if (!canton.value)          errores.push('Cantón')
-  if (!distrito.value)        errores.push('Distrito')
-  if (!descripcion.value.trim()) errores.push('Descripción del rescate')
-  formErrors.value = errores
-  return errores.length === 0
-}
-
-/* ─── Guardar rescate ────────────────────────────────────── */
-async function guardarRescate() {
-  if (!validar()) {
-    mostrarToast('Completa todos los campos obligatorios.', 'error')
-    return
-  }
-
-  const formData = {
-    animalId:     animalId.value,
-    fechaRescate: fechaRescate.value,
-    ubicacion:    `${provincia.value} · ${canton.value} · ${distrito.value}`,
-    descripcion:  descripcion.value,
-    estado:       estado.value,
-    fosterHomeId: casaCuna.value || null,
-    volunteerId: rescatista.value || null,
-  }
-
-  try {
-    if (editMode.value && editingId.value) {
-      await store.editRescue(editingId.value, formData)
-      mostrarToast('Rescate actualizado correctamente.')
-    } else {
-      await store.addRescue(formData)
-      mostrarToast('Rescate registrado correctamente.')
-    }
-
-    limpiarFormulario()
-    showForm.value     = false
-    showEditModal.value = false
-    editMode.value     = false
-    editingId.value    = null
-  } catch {
-    mostrarToast('Error al guardar el rescate.', 'error')
-  }
-}
-
-/* ─── Editar ─────────────────────────────────────────────── */
-function editarRescate(index) {
-  const r = rescates.value[index]
-  animalId.value     = r.animalId || ''
-  fechaRescate.value = r.fechaRescate
-  descripcion.value  = r.descripcion
-  casaCuna.value     = r.fosterHomeId || ''
-  rescatista.value   = r.volunteerId || ''
-  estado.value       = r.estado
-  // parse ubicacion back to provincia/canton/distrito
-  const parts = (r.ubicacion || '').split(' · ')
-  provincia.value    = parts[0] || ''
-  canton.value       = parts[1] || ''
-  distrito.value     = parts[2] || ''
-  editingId.value    = r.id
-  editMode.value     = true
-  showEditModal.value = true
-}
-
-/* ─── Cerrar rescate (con confirmación) ──────────────────── */
-function pedirCerrar(index) {
-  confirmId.value = rescates.value[index]?.id
-  modalConfirm.value = true
-}
-async function confirmarCerrar() {
-  if (confirmId.value != null) {
-    try {
-      await store.removeRescue(confirmId.value)
-      mostrarToast('Rescate cerrado correctamente.')
-    } catch {
-      mostrarToast('Error al cerrar el rescate.', 'error')
-    }
-  }
-  modalConfirm.value = false
-  confirmId.value = null
-}
-
-/* ─── Ver detalle ────────────────────────────────────────── */
-function verDetalle(rescate) {
-  rescueSelected.value  = rescate
-  showDetailModal.value = true
-}
-
-/* ─── Limpiar formulario ─────────────────────────────────── */
-function limpiarFormulario() {
-  currentStep.value  = 1
-  animalId.value     = ''
-  fechaRescate.value = ''
-  descripcion.value  = ''
-  casaCuna.value     = ''
-  rescatista.value   = ''
-  estado.value       = 'Activo'
-  provincia.value    = ''
-  canton.value       = ''
-  distrito.value     = ''
-  formErrors.value   = []
-}
-
-function abrirNuevo() {
-  limpiarFormulario()
-  editMode.value  = false
-  showForm.value  = true
-}
-
-function cancelarFormulario() {
-  limpiarFormulario()
-  editMode.value  = false
-  showForm.value  = false
-}
-
-function pasoValido(paso) {
-  if (paso === 1) {
-    return animalId.value && fechaRescate.value
-  }
-  return true
-}
-
-function siguientePaso() {
-  if (!pasoValido(currentStep.value)) {
-    mostrarToast('Completa los campos obligatorios del paso actual.', 'error')
-    return
-  }
-  currentStep.value++
-}
-
-function pasoAnterior() {
-  currentStep.value--
-}
-
-/* ─── KPIs ───────────────────────────────────────────────── */
+/* ─── Estadísticas ───────────────────────────────────────── */
 const ahora     = new Date()
 const mesActual = ahora.getMonth()
 const añoActual = ahora.getFullYear()
+const stats = computed(() => ({
+  esteMes:  rescates.value.filter(r => {
+    const f = new Date(r.fechaCreacion || r.fechaRescate)
+    return f.getMonth() === mesActual && f.getFullYear() === añoActual
+  }).length,
+  total:    rescates.value.length,
+  activos:  rescates.value.filter(r => r.estado === 'Activo').length,
+  cerrados: rescates.value.filter(r => r.estado === 'Cerrado').length,
+}))
 
-const totalRescates = computed(() => rescates.value.length)
-const totalActivos  = computed(() => rescates.value.filter(r => r.estado === 'Activo').length)
-const totalCerrados = computed(() => rescates.value.filter(r => r.estado === 'Cerrado').length)
-const totalEsteMes  = computed(() =>
-  rescates.value.filter(r => {
-    const f = new Date(r.fechaRescate || r.fechaCreacion)
-    return !isNaN(f) && f.getMonth() === mesActual && f.getFullYear() === añoActual
-  }).length
-)
-
-/* ─── Badge helpers ──────────────────────────────────────── */
-function estadoBadgeClass(est) {
+/* ─── Formulario (Nuevo / Editar) ────────────────────────── */
+function formDataInicial() {
   return {
-    'Activo':  'badge-activo',
-    'Cerrado': 'badge-cerrado',
-  }[est] || 'badge-cerrado'
+    mascota: '', tipoMascota: 'Perro', edad: '', sexo: 'Macho',
+    tieneRaza: 'No', raza: '', fechaRescate: '',
+    provincia: '', canton: '', distrito: '',
+    rescatista: '', casaCuna: '', estado: 'Activo',
+    descripcion: '', foto: '',
+  }
+}
+const formData   = ref(formDataInicial())
+const formErrors = ref({})
+const imageInputRef = ref(null)
+
+const cantonesDisponibles = computed(() => {
+  if (!formData.value.provincia || !ubicacionesCR[formData.value.provincia]) return []
+  return Object.keys(ubicacionesCR[formData.value.provincia])
+})
+const distritosDisponibles = computed(() => {
+  if (!formData.value.provincia || !formData.value.canton) return []
+  return ubicacionesCR[formData.value.provincia]?.[formData.value.canton] || []
+})
+watch(() => formData.value.provincia, () => { formData.value.canton = ''; formData.value.distrito = '' })
+watch(() => formData.value.canton,    () => { formData.value.distrito = '' })
+
+function handleImageUpload(e) {
+  const file = e.target.files?.[0]
+  if (!file || !file.type.startsWith('image/')) return
+  const reader = new FileReader()
+  reader.onload = ev => { formData.value.foto = ev.target.result }
+  reader.readAsDataURL(file)
+  e.target.value = ''
+}
+function removeImage() {
+  formData.value.foto = ''
 }
 
-function estadoIcon(est) {
-  return { 'Activo': '●', 'Cerrado': '◉' }[est] || '●'
+function clearErr(campo) {
+  if (formErrors.value[campo]) {
+    const e = { ...formErrors.value }
+    delete e[campo]
+    formErrors.value = e
+  }
+}
+function validateForm() {
+  const errors = {}
+  if (!formData.value.mascota.trim())      errors.mascota      = 'El nombre es obligatorio'
+  if (!formData.value.edad.trim())         errors.edad         = 'La edad es obligatoria'
+  if (!formData.value.fechaRescate)        errors.fechaRescate = 'La fecha de rescate es obligatoria'
+  if (!formData.value.provincia)           errors.provincia    = 'Selecciona la provincia'
+  if (!formData.value.canton)              errors.canton       = 'Selecciona el cantón'
+  if (!formData.value.distrito)            errors.distrito     = 'Selecciona el distrito'
+  if (!formData.value.rescatista)          errors.rescatista   = 'Selecciona un rescatista'
+  if (!formData.value.descripcion.trim())  errors.descripcion  = 'La descripción es obligatoria'
+  if (!formData.value.foto)                errors.foto         = 'Debes subir una fotografía'
+  formErrors.value = errors
+  return Object.keys(errors).length === 0
 }
 
+function obtenerFechaActual() {
+  return new Date().toLocaleString('es-CR', {
+    year: 'numeric', month: '2-digit', day: '2-digit',
+    hour: '2-digit', minute: '2-digit'
+  })
+}
+function ubicacionTexto(f) {
+  return [f.provincia, f.canton, f.distrito].filter(Boolean).join(', ')
+}
+
+/* ─── Abrir / cerrar formulario ──────────────────────────── */
+function openForm() {
+  editMode.value     = false
+  editingIndex.value = null
+  formErrors.value   = {}
+  formData.value     = formDataInicial()
+  showForm.value     = true
+}
+function openEdit(rescate) {
+  const index = rescates.value.indexOf(rescate)
+  editMode.value     = true
+  editingIndex.value = index
+  formData.value = {
+    mascota:      rescate.mascota,
+    tipoMascota:  rescate.tipoMascota || 'Perro',
+    edad:         rescate.edad,
+    sexo:         rescate.sexo,
+    tieneRaza:    (rescate.raza && rescate.raza !== 'Sin raza') ? 'Si' : 'No',
+    raza:         (rescate.raza && rescate.raza !== 'Sin raza') ? rescate.raza : '',
+    fechaRescate: rescate.fechaRescate,
+    provincia:    rescate.provincia || '',
+    canton:       rescate.canton    || '',
+    distrito:     rescate.distrito  || '',
+    rescatista:   rescate.rescatista || '',
+    casaCuna:     rescate.casaCuna === 'Sin asignar' ? '' : (rescate.casaCuna || ''),
+    estado:       rescate.estado,
+    descripcion:  rescate.descripcion,
+    foto:         rescate.foto || '',
+  }
+  formErrors.value = {}
+  showForm.value   = true
+  showViewModal.value = false
+}
+function closeForm() {
+  showForm.value     = false
+  editMode.value     = false
+  editingIndex.value = null
+  formErrors.value   = {}
+  formData.value     = formDataInicial()
+}
+
+/* ─── Sincronizar la mascota vinculada en el store ───────────
+   Esta llamada sigue aislada del guardado del rescate: si falla la
+   sincronización con el store de mascotas, el rescate igual se
+   registra en el backend. ──────────────────────────────────── */
+function sincronizarMascota(nuevaMascota) {
+  try {
+    if (typeof petsStore.addPet === 'function') {
+      petsStore.addPet(nuevaMascota)
+    } else if (Array.isArray(petsStore.pets)) {
+      petsStore.pets.unshift(nuevaMascota)
+      if (typeof petsStore.savePets === 'function') petsStore.savePets()
+    }
+    return true
+  } catch (err) {
+    console.error('No se pudo sincronizar la mascota del rescate en el store de mascotas:', err)
+    return false
+  }
+}
+function actualizarMascotaVinculada(mascotaId, cambios) {
+  try {
+    const petIndex = petsStore.pets.findIndex(p => p.id === mascotaId)
+    if (petIndex === -1) return false
+    petsStore.pets[petIndex] = { ...petsStore.pets[petIndex], ...cambios }
+    if (typeof petsStore.savePets === 'function') petsStore.savePets()
+    return true
+  } catch (err) {
+    console.error('No se pudo actualizar la mascota vinculada al rescate:', err)
+    return false
+  }
+}
+
+/* ─── Guardar rescate (+ crear/actualizar mascota + auditoría) ─── */
+async function guardarRescate() {
+  if (!validateForm()) {
+    showToast('error', 'Completa todos los campos obligatorios.')
+    return
+  }
+  const razaFinal = formData.value.tieneRaza === 'Si' ? formData.value.raza : 'Sin raza'
+
+  if (editMode.value && editingIndex.value !== null) {
+    const orig = rescates.value[editingIndex.value]
+    const payload = {
+      animalId:     orig.mascotaId || null,
+      fecha:        formData.value.fechaRescate,
+      ubicacion:    ubicacionTexto(formData.value),
+      descripcion:  formData.value.descripcion,
+      status:       formData.value.estado,
+      fosterHomeId: resolverIdVoluntario(formData.value.casaCuna),
+      volunteerId:  resolverIdVoluntario(formData.value.rescatista),
+    }
+
+    try {
+      await updateRescue(orig.id, payload)
+
+      if (orig.mascotaId) {
+        actualizarMascotaVinculada(orig.mascotaId, {
+          name:   formData.value.mascota,
+          type:   formData.value.tipoMascota,
+          image:  formData.value.foto,
+          images: [{ preview: formData.value.foto, file: null, name: 'foto-rescate' }],
+          age:    formData.value.edad,
+          sex:    formData.value.sexo,
+          breed:  razaFinal !== 'Sin raza' ? razaFinal : '',
+        })
+      }
+
+      registrarAuditoria({
+        modulo: 'Rescates', accion: 'Editó un rescate', tipoAccion: 'editar',
+        elemento: formData.value.mascota, elementoId: orig.id,
+        descripcion: `Se actualizó el registro del rescate de "${formData.value.mascota}".`,
+      })
+
+      await cargarRescates()
+      showToast('success', 'Rescate actualizado correctamente.')
+      closeForm()
+    } catch (err) {
+      console.error('Error al actualizar el rescate:', err)
+      showToast('error', 'No se pudo guardar el cambio en el servidor.')
+    }
+    return
+  }
+
+  // ── Nuevo rescate ──
+  const nuevaMascota = {
+    id: `pet-${Date.now()}`,
+    name: formData.value.mascota,
+    type: formData.value.tipoMascota,
+    images: [{ preview: formData.value.foto, file: null, name: 'foto-rescate' }],
+    image: formData.value.foto,
+    age: formData.value.edad,
+    sex: formData.value.sexo,
+    breed: razaFinal !== 'Sin raza' ? razaFinal : '',
+    status: 'En rescate',
+    description: formData.value.descripcion,
+    location: `${formData.value.provincia}, ${formData.value.canton}`,
+    createdAt: obtenerFechaActual(),
+  }
+
+  const mascotaSincronizada = sincronizarMascota(nuevaMascota)
+
+  const payload = {
+    animalId:     nuevaMascota.id,
+    fecha:        formData.value.fechaRescate,
+    ubicacion:    ubicacionTexto(formData.value),
+    descripcion:  formData.value.descripcion,
+    status:       formData.value.estado,
+    fosterHomeId: resolverIdVoluntario(formData.value.casaCuna),
+    volunteerId:  resolverIdVoluntario(formData.value.rescatista),
+  }
+
+  try {
+    const creado = await createRescue(payload)
+
+    registrarAuditoria({
+      modulo: 'Rescates', accion: 'Registró un nuevo rescate', tipoAccion: 'crear',
+      elemento: formData.value.mascota, elementoId: creado?.id ?? null,
+      descripcion: `Se registró el rescate de "${formData.value.mascota}" en ${ubicacionTexto(formData.value)}.`,
+    })
+
+    await cargarRescates()
+
+    if (mascotaSincronizada) {
+      showToast('success', 'Rescate registrado y mascota creada correctamente.')
+    } else {
+      showToast('success', 'Rescate registrado correctamente. (La ficha de mascota no pudo sincronizarse, revisa el store de mascotas.)')
+    }
+    closeForm()
+  } catch (err) {
+    console.error('Error al registrar el rescate:', err)
+    showToast('error', 'No se pudo registrar el rescate en el servidor.')
+  }
+}
+
+/* ─── Ver rescate ─────────────────────────────────────────── */
+function openView(rescate) {
+  viewTarget.value    = rescate
+  showViewModal.value = true
+}
+
+/* ─── Cerrar rescate ──────────────────────────────────────── */
+function openCloseModal(rescate) {
+  closeTarget.value    = rescate
+  showCloseModal.value = true
+}
+async function confirmClose() {
+  if (!closeTarget.value) return
+  try {
+    await closeRescue(closeTarget.value.id)
+
+    registrarAuditoria({
+      modulo: 'Rescates', accion: 'Cerró un rescate', tipoAccion: 'estado',
+      elemento: closeTarget.value.mascota, elementoId: closeTarget.value.id,
+      descripcion: `El rescate de "${closeTarget.value.mascota}" pasó a Cerrado.`,
+    })
+
+    await cargarRescates()
+    showCloseModal.value = false
+    closeTarget.value    = null
+    showViewModal.value  = false
+    showToast('success', 'Rescate cerrado correctamente.')
+  } catch (err) {
+    console.error('Error al cerrar el rescate:', err)
+    showToast('error', 'No se pudo cerrar el rescate en el servidor.')
+  }
+}
+
+/* ─── Helpers de vista ────────────────────────────────────── */
+function estadoBadgeClass(est) {
+  return { 'Activo': 'badge-aprobada', 'Cerrado': 'badge-inactiva' }[est] || 'badge-inactiva'
+}
 function iniciales(nombre) {
   if (!nombre) return '?'
   return nombre.trim().split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()
@@ -454,178 +479,324 @@ function iniciales(nombre) {
 <template>
   <div class="view-container">
 
-    <!-- ══ Toast ══ -->
+    <!-- ── Toast ── -->
     <Teleport to="body">
-      <Transition name="toast-anim">
-        <div v-if="toast.visible" class="rc-toast" :class="toast.tipo === 'error' ? 'toast-error' : 'toast-success'">
-          <svg v-if="toast.tipo === 'exito'" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-          <svg v-else width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          {{ toast.texto }}
+      <Transition name="toast-fade">
+        <div v-if="toast.show" class="don-toast" :class="toast.type">
+          <span class="don-toast-dot"></span>
+          {{ toast.message }}
         </div>
       </Transition>
     </Teleport>
 
-    <!-- ══════════════════════════════════════════
-         VISTA TABLA
-    ═══════════════════════════════════════════ -->
-    <template v-if="!showForm">
+    <!-- ══════════════════════════════════════
+         MODAL 1/3 — NUEVO / EDITAR RESCATE
+         (misma arquitectura que "Nueva / Editar mascota" en Mascotas.vue)
+    ══════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showForm" class="modal-overlay" @click.self="closeForm">
+          <div class="modal-box modal-box--uniform">
+            <button class="close-btn" @click="closeForm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
 
-      <!-- Cabecera -->
-      <header class="page-header">
-        <div>
-          <h1 class="admin-page-title">Rescates</h1>
-          <p class="admin-page-sub">Registro y seguimiento de animales rescatados</p>
+            <div class="form-header">
+              <p class="form-eyebrow">{{ editMode ? 'Editar registro' : 'Nuevo registro' }}</p>
+              <h2 class="form-title">{{ editMode ? 'Editar rescate' : 'Nuevo rescate' }}</h2>
+              <p class="form-sub">{{ editMode ? 'Modifica los datos del rescate' : 'Registra un animal rescatado y su expediente' }}</p>
+            </div>
+
+            <div class="uniform-scroll">
+              <div class="form-body">
+
+                <!-- Sección 1: Información básica -->
+                <div class="form-section">
+                  <div class="form-section-label"><span class="form-num">1</span> Información básica</div>
+                  <div class="form-grid">
+                    <div class="fg">
+                      <label>Nombre <span class="req">*</span></label>
+                      <input v-model="formData.mascota" placeholder="Nombre del animal" class="input" :class="{ 'is-error': formErrors.mascota }" @input="clearErr('mascota')" />
+                      <p v-if="formErrors.mascota" class="err-msg">{{ formErrors.mascota }}</p>
+                    </div>
+                    <div class="fg">
+                      <label>Tipo <span class="req">*</span></label>
+                      <select v-model="formData.tipoMascota" class="select">
+                        <option>Perro</option>
+                        <option>Gato</option>
+                      </select>
+                    </div>
+                    <div class="fg">
+                      <label>Edad <span class="req">*</span></label>
+                      <input v-model="formData.edad" placeholder="Ej. 2 años" class="input" :class="{ 'is-error': formErrors.edad }" @input="clearErr('edad')" />
+                      <p v-if="formErrors.edad" class="err-msg">{{ formErrors.edad }}</p>
+                    </div>
+                    <div class="fg">
+                      <label>Sexo</label>
+                      <select v-model="formData.sexo" class="select">
+                        <option>Macho</option>
+                        <option>Hembra</option>
+                      </select>
+                    </div>
+                    <div class="fg">
+                      <label>¿Tiene raza?</label>
+                      <select v-model="formData.tieneRaza" class="select">
+                        <option value="No">No</option>
+                        <option value="Si">Sí</option>
+                      </select>
+                    </div>
+                    <div class="fg" v-if="formData.tieneRaza === 'Si'">
+                      <label>Raza</label>
+                      <input v-model="formData.raza" placeholder="Ej. Labrador" class="input" />
+                    </div>
+                    <div class="fg">
+                      <label>Fecha de rescate <span class="req">*</span></label>
+                      <input type="date" v-model="formData.fechaRescate" class="input" :class="{ 'is-error': formErrors.fechaRescate }" @input="clearErr('fechaRescate')" />
+                      <p v-if="formErrors.fechaRescate" class="err-msg">{{ formErrors.fechaRescate }}</p>
+                    </div>
+                    <div class="fg">
+                      <label>Estado</label>
+                      <select v-model="formData.estado" class="select">
+                        <option>Activo</option>
+                        <option>Cerrado</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Sección 2: Ubicación del rescate -->
+                <div class="form-section">
+                  <div class="form-section-label"><span class="form-num">2</span> Ubicación del rescate</div>
+                  <div class="form-grid">
+                    <div class="fg">
+                      <label>Provincia <span class="req">*</span></label>
+                      <select v-model="formData.provincia" class="select" :class="{ 'is-error': formErrors.provincia }" @change="clearErr('provincia')">
+                        <option value="">Seleccione</option>
+                        <option v-for="p in provinciasDisponibles" :key="p" :value="p">{{ p }}</option>
+                      </select>
+                      <p v-if="formErrors.provincia" class="err-msg">{{ formErrors.provincia }}</p>
+                    </div>
+                    <div class="fg">
+                      <label>Cantón <span class="req">*</span></label>
+                      <select v-model="formData.canton" class="select" :disabled="!formData.provincia" :class="{ 'is-error': formErrors.canton }" @change="clearErr('canton')">
+                        <option value="">Seleccione</option>
+                        <option v-for="c in cantonesDisponibles" :key="c" :value="c">{{ c }}</option>
+                      </select>
+                      <p v-if="formErrors.canton" class="err-msg">{{ formErrors.canton }}</p>
+                    </div>
+                    <div class="fg">
+                      <label>Distrito <span class="req">*</span></label>
+                      <select v-model="formData.distrito" class="select" :disabled="!formData.canton" :class="{ 'is-error': formErrors.distrito }" @change="clearErr('distrito')">
+                        <option value="">Seleccione</option>
+                        <option v-for="d in distritosDisponibles" :key="d" :value="d">{{ d }}</option>
+                      </select>
+                      <p v-if="formErrors.distrito" class="err-msg">{{ formErrors.distrito }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Sección 3: Asignaciones -->
+                <div class="form-section">
+                  <div class="form-section-label"><span class="form-num">3</span> Asignaciones</div>
+                  <div class="form-grid">
+                    <div class="fg fg--span2">
+                      <label>Rescatista <span class="req">*</span></label>
+                      <select v-model="formData.rescatista" class="select" :class="{ 'is-error': formErrors.rescatista }" @change="clearErr('rescatista')">
+                        <option value="">Seleccione un rescatista</option>
+                        <option v-for="r in rescatistasDisponibles" :key="r.id" :value="r.solicitudVoluntario?.nombre || r.nombre">{{ r.solicitudVoluntario?.nombre || r.nombre }}</option>
+                      </select>
+                      <p v-if="formErrors.rescatista" class="err-msg">{{ formErrors.rescatista }}</p>
+                    </div>
+                    <div class="fg fg--span2">
+                      <label>Casa cuna asignada</label>
+                      <select v-model="formData.casaCuna" class="select">
+                        <option value="">Sin asignar</option>
+                        <option v-for="c in casasCunaDisponibles" :key="c.id" :value="c.solicitudVoluntario?.nombre || c.nombre">{{ c.solicitudVoluntario?.nombre || c.nombre }}</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Sección 4: Descripción del rescate -->
+                <div class="form-section">
+                  <div class="form-section-label"><span class="form-num">4</span> Descripción del rescate</div>
+                  <div class="form-grid">
+                    <div class="fg fg--full">
+                      <textarea v-model="formData.descripcion" placeholder="Describe las circunstancias del rescate, condición del animal, observaciones importantes..." class="textarea" :class="{ 'is-error': formErrors.descripcion }" @input="clearErr('descripcion')"></textarea>
+                      <p v-if="formErrors.descripcion" class="err-msg">{{ formErrors.descripcion }}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- Sección 5: Fotografía -->
+                <div class="form-section">
+                  <div class="form-section-label"><span class="form-num">5</span> Fotografía <span class="req">*</span></div>
+                  <div v-if="formData.foto" class="image-previews">
+                    <div class="image-preview-item">
+                      <img :src="formData.foto" alt="foto rescate" />
+                      <button class="remove-image-btn" @click="removeImage" title="Eliminar">×</button>
+                      <span class="main-photo-label">Principal</span>
+                    </div>
+                  </div>
+                  <div v-else class="upload-zone" :class="{ 'is-error': formErrors.foto }" @click="imageInputRef.click()">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                    <p class="upload-title">Subir fotografía del animal</p>
+                    <p class="upload-sub">Haz clic para seleccionar · JPG, PNG, WebP</p>
+                  </div>
+                  <p v-if="formErrors.foto" class="err-msg" style="margin-top:8px">{{ formErrors.foto }}</p>
+                  <input ref="imageInputRef" type="file" accept="image/*" style="display:none" @change="handleImageUpload" />
+                </div>
+
+              </div>
+            </div>
+
+            <div class="form-footer">
+              <button class="btn-cancel" @click="closeForm">Cancelar</button>
+              <button class="btn-save" @click="guardarRescate">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>{{ editMode ? 'Guardar cambios' : 'Registrar rescate' }}</span>
+              </button>
+            </div>
+          </div>
         </div>
-          <button class="btn-nuevo" @click="abrirNuevo">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          Nuevo rescate
-        </button>
-        <button class="btn-nuevo btn-nuevo--secondary" @click="store.fetchRescues()" style="margin-left:8px">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
-          Recargar
+      </Transition>
+    </Teleport>
+
+    <!-- ══════════════════════════════════════
+         VISTA PRINCIPAL
+    ══════════════════════════════════════ -->
+    <div>
+      <header class="page-header">
+        <div class="brand-row">
+          <div class="brand-mark">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 21 10a2.12 2.12 0 0 0-3-3L7.5 17.5"/><path d="M3 21l3-3"/><circle cx="6.5" cy="6.5" r="2.5"/></svg>
+          </div>
+          <div>
+            <h1 class="admin-page-title">Rescates</h1>
+            <p class="admin-page-sub">Registro y seguimiento de animales rescatados</p>
+          </div>
+        </div>
+        <button class="btn btn--primary" @click="openForm">
+          <svg class="btn-ico" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          <span>Nuevo rescate</span>
         </button>
       </header>
 
-      <!-- KPIs -->
       <div class="don-summary">
-        <div class="don-card kpi-mes">
-          <span class="don-label">Rescates este mes</span>
-          <strong class="don-value">{{ totalEsteMes }}</strong>
+        <div class="don-card">
+          <div class="don-icon proceso-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          </div>
+          <strong class="don-value">{{ stats.esteMes }}</strong>
+          <span class="don-label">Este mes</span>
+          <span class="don-desc">Rescates registrados</span>
         </div>
-        <div class="don-card kpi-total">
-          <span class="don-label">Total rescates</span>
-          <strong class="don-value">{{ totalRescates }}</strong>
+        <div class="don-card">
+          <div class="don-icon total-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+          </div>
+          <strong class="don-value">{{ stats.total }}</strong>
+          <span class="don-label">Total</span>
+          <span class="don-desc">En el sistema</span>
         </div>
-        <div class="don-card kpi-activos">
+        <div class="don-card">
+          <div class="don-icon disponible-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg>
+          </div>
+          <strong class="don-value">{{ stats.activos }}</strong>
           <span class="don-label">Activos</span>
-          <strong class="don-value">{{ totalActivos }}</strong>
+          <span class="don-desc">En seguimiento</span>
         </div>
-        <div class="don-card kpi-cerrados">
+        <div class="don-card">
+          <div class="don-icon inactiva-icon">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <strong class="don-value">{{ stats.cerrados }}</strong>
           <span class="don-label">Cerrados</span>
-          <strong class="don-value">{{ totalCerrados }}</strong>
+          <span class="don-desc">Casos finalizados</span>
         </div>
       </div>
 
-      <!-- Panel de filtros -->
       <div class="filtros-panel">
-
-        <div class="filtro-group">
-          <label class="filtro-label">Buscar</label>
-          <div class="filtro-input-wrap">
-            <input
-              v-model="filtroSearch"
-              placeholder="ID, mascota o rescatista..."
-              class="filtro-input"
-            />
-            <span class="filtro-icon filtro-icon--right">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-            </span>
+        <div class="filtros-row">
+          <div class="filtro-group filtro-group--tabs">
+            <label class="filtro-label">Tipo</label>
+            <div class="tabs-wrap">
+              <button v-for="t in TYPE_TABS" :key="t" class="tab-btn" :class="{ active: filtroTipo === t }" @click="filtroTipo = t">{{ t }}</button>
+            </div>
+          </div>
+          <div class="filtro-group filtro-group--tabs">
+            <label class="filtro-label">Estado</label>
+            <div class="tabs-wrap">
+              <button v-for="e in ESTADO_TABS" :key="e" class="tab-btn" :class="{ active: filtroEstado === e }" @click="filtroEstado = e">{{ e }}</button>
+            </div>
           </div>
         </div>
-
-        <div class="filtro-group">
-          <label class="filtro-label">Provincia</label>
-          <div class="filtro-input-wrap">
-            <select v-model="filtroProv" class="filtro-input filtro-select">
-              <option value="Todos">Todas</option>
-              <option v-for="p in provinciasDisponibles" :key="p" :value="p">{{ p }}</option>
-            </select>
-            <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-            </span>
+        <div class="filtros-divider"></div>
+        <div class="filtros-row filtros-row--end">
+          <div class="filtro-group filtro-group--search">
+            <label class="filtro-label">Buscar</label>
+            <div class="filtro-input-wrap">
+              <span class="filtro-icon filtro-icon--left">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+              </span>
+              <input v-model="filtroSearch" placeholder="ID, mascota, rescatista o ubicación..." class="filtro-input filtro-input--icon-left" />
+            </div>
+          </div>
+          <div class="filtro-group filtro-group--btn">
+            <button class="btn btn--ghost" :class="{ 'btn--ghost-active': hayFiltros }" @click="limpiarFiltros">Limpiar filtros</button>
           </div>
         </div>
-
-        <div class="filtro-group">
-          <label class="filtro-label">Estado</label>
-          <div class="filtro-input-wrap">
-            <select v-model="filtroEstado" class="filtro-input filtro-select">
-              <option value="Todos">Todos</option>
-              <option value="Activo">Activo</option>
-              <option value="Cerrado">Cerrado</option>
-            </select>
-            <span class="filtro-icon filtro-icon--right filtro-icon--no-events">
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-            </span>
-          </div>
-        </div>
-
-        <div class="filtro-group filtro-group--btn">
-          <button
-            type="button"
-            class="btn-limpiar"
-            :class="{ 'btn-limpiar--activo': hayFiltros }"
-            @click="limpiarFiltros"
-          >
-            Limpiar filtros
-          </button>
-        </div>
-
       </div>
 
-      <!-- Estado vacío -->
       <div v-if="rescatesFiltrados.length === 0" class="empty-state">
+        <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.5 20.5 21 10a2.12 2.12 0 0 0-3-3L7.5 17.5"/><path d="M3 21l3-3"/><circle cx="6.5" cy="6.5" r="2.5"/></svg>
         <p class="empty-title">{{ hayFiltros ? 'Sin resultados para los filtros aplicados' : 'No hay rescates registrados' }}</p>
-        <p class="empty-sub">{{ hayFiltros ? 'Ajusta los filtros para ver resultados.' : 'Registra el primer rescate usando el botón superior.' }}</p>
+        <p class="empty-sub">{{ hayFiltros ? 'Ajusta los filtros para ver más resultados.' : 'Registra el primer rescate con el botón superior.' }}</p>
       </div>
 
-      <!-- Tabla -->
       <div v-else class="table-wrapper">
         <div class="table-scroll">
           <table class="don-table">
             <thead>
               <tr>
-                <th>ID</th>
-                <th>Mascota</th>
-                <th>Rescatista</th>
-                <th>Provincia</th>
-                <th>Casa cuna</th>
-                <th>Estado</th>
-                <th>Acción</th>
+                <th>ID</th><th>Foto</th><th>Mascota</th><th>Rescatista</th><th>Estado</th><th>Ubicación</th><th>Acciones</th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="r in rescatesFiltrados" :key="r.id" class="don-row">
-
+              <tr v-for="r in rescatesFiltrados" :key="r.id" class="don-row" :class="{ 'row-inactive': r.estado === 'Cerrado' }">
                 <td><span class="id-pill">{{ r.id }}</span></td>
-
                 <td>
-                  <div class="pet-cell">
-                    <div class="pet-avatar">
-                      <span class="pet-avatar-ini">{{ iniciales(r.mascota) }}</span>
-                    </div>
-                    <div>
-                      <span class="donor-name">{{ r.mascota }}</span>
-                      <span class="donor-mail" v-if="r.animalId">{{ r.animalId }}</span>
-                    </div>
+                  <div class="pet-avatar">
+                    <img v-if="r.foto" :src="r.foto" class="pet-avatar-img" :alt="r.mascota" />
+                    <span v-else class="pet-avatar-ini">{{ iniciales(r.mascota) }}</span>
                   </div>
                 </td>
-
-                <td><span class="fecha-text">{{ getVolunteerName(r.volunteerId) }}</span></td>
-                <td><span class="fecha-text">{{ (r.ubicacion || '—').split(' · ')[0] || '—' }}</span></td>
-                <td><span class="fecha-text">{{ r.fosterHomeName || r.fosterHomeId || '—' }}</span></td>
-
                 <td>
-                  <span class="estado-badge" :class="estadoBadgeClass(r.estado)">{{ r.estado }}</span>
+                  <span class="donor-name">{{ r.mascota }}</span>
+                  <span class="donor-mail">{{ r.edad }} · {{ r.sexo }}</span>
                 </td>
-
+                <td><span class="fecha-text">{{ r.rescatista || '—' }}</span></td>
+                <td><span class="estado-badge" :class="estadoBadgeClass(r.estado)">{{ r.estado }}</span></td>
+                <td><span class="fecha-text">{{ r.ubicacion || '—' }}</span></td>
                 <td>
-                  <div class="acciones-cell">
-                    <button class="btn-ver" title="Ver detalle" @click="verDetalle(r)">Ver</button>
-                    <button class="btn-accion-edit" title="Editar" @click="editarRescate(rescates.indexOf(r))">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+                  <div class="action-group">
+                    <button class="icon-only icon-only--ver" @click="openView(r)" data-tooltip="Ver rescate">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+                    </button>
+                    <button class="icon-only icon-only--editar" @click="openEdit(r)" data-tooltip="Editar">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.12 2.12 0 0 1 3 3L12 15l-4 1 1-4z"/></svg>
                     </button>
                     <button
-                      class="btn-accion-close"
-                      title="Cerrar rescate"
+                      class="icon-only icon-only--inactivar"
                       :disabled="r.estado === 'Cerrado'"
-                      @click="pedirCerrar(rescates.indexOf(r))"
+                      @click="openCloseModal(r)"
+                      data-tooltip="Cerrar rescate"
                     >
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                   </div>
                 </td>
-
               </tr>
             </tbody>
           </table>
@@ -634,411 +805,151 @@ function iniciales(nombre) {
           {{ rescatesFiltrados.length }} rescate{{ rescatesFiltrados.length !== 1 ? 's' : '' }} encontrado{{ rescatesFiltrados.length !== 1 ? 's' : '' }}
         </div>
       </div>
+    </div>
 
-    </template>
-
-    <!-- ══════════════════════════════════════════
-         VISTA FORMULARIO
-    ═══════════════════════════════════════════ -->
-    <template v-else>
-
-      <header class="page-header">
-        <div>
-          <h1 class="admin-page-title">{{ editMode ? 'Editar rescate' : 'Nuevo rescate' }}</h1>
-          <p class="admin-page-sub">{{ editMode ? 'Modifica la información del rescate' : 'Registra un nuevo animal rescatado' }}</p>
-        </div>
-        <button class="btn-cancelar-header" @click="cancelarFormulario">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          Cancelar
-        </button>
-      </header>
-
-      <div v-if="formErrors.length > 0" class="form-errors-banner">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-        <span>Campos obligatorios incompletos: {{ formErrors.join(', ') }}.</span>
-      </div>
-
-      <div class="form-panel">
-
-        <!-- ══ Step indicator ══ -->
-        <div class="steps-indicator">
-          <div class="step" :class="{ 'step--active': currentStep === 1, 'step--done': currentStep > 1 }" @click="currentStep = 1">
-            <div class="step-circle">{{ currentStep > 1 ? '✓' : '1' }}</div>
-            <span class="step-label">Animal</span>
-          </div>
-          <div class="steps-line"></div>
-          <div class="step" :class="{ 'step--active': currentStep === 2, 'step--done': currentStep > 2 }">
-            <div class="step-circle">{{ currentStep > 2 ? '✓' : '2' }}</div>
-            <span class="step-label">Casa cuna</span>
-          </div>
-        </div>
-
-        <!-- ══ Paso 1: Animal ══ -->
-        <template v-if="currentStep === 1">
-          <div class="form-section-title">
-            <span class="form-section-num">1</span>
-            Registrar o asociar el animal
-          </div>
-
-          <div class="form-grid form-grid--4">
-            <div class="fg fg--span2">
-              <label class="fg-label">Animal rescatado <span class="req">*</span></label>
-              <div style="display:flex;gap:6px;align-items:start">
-                <div class="sel-wrap" style="flex:1">
-                  <select class="form-input" v-model="animalId" :disabled="animalesLoading">
-                    <option value="">Seleccione un animal</option>
-                    <option v-for="a in animalesList" :key="a.id" :value="a.id">
-                      {{ a.id }} — {{ a.name }} ({{ a.type }})
-                    </option>
-                  </select>
-                  <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-                </div>
-                <button type="button" class="btn-agregar-animal" @click="abrirQuickAnimal" title="Crear nueva mascota">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  Agregar
-                </button>
-              </div>
-            </div>
-            <div class="fg">
-              <label class="fg-label">Fecha de rescate <span class="req">*</span></label>
-              <input type="date" class="form-input" v-model="fechaRescate">
-            </div>
-            <div class="fg">
-              <label class="fg-label">Estado</label>
-              <div class="sel-wrap">
-                <select class="form-input" v-model="estado">
-                  <option>Activo</option>
-                  <option>Cerrado</option>
-                </select>
-                <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-              </div>
-            </div>
-          </div>
-          <div class="form-grid form-grid--4" style="margin-top:16px">
-            <div class="fg fg--span2">
-              <label class="fg-label">Rescatista</label>
-              <div class="sel-wrap">
-                <select class="form-input" v-model="rescatista">
-                  <option value="">Anónimo / Sin asignar</option>
-                  <option v-for="v in rescatistasDisponibles" :key="v.id" :value="v.id">
-                    {{ v.nombre || v.correo || v.id }}
-                  </option>
-                </select>
-                <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-              </div>
-            </div>
-          </div>
-        </template>
-
-        <!-- ══ Paso 2: Casa cuna + ubicación + descripción ══ -->
-        <template v-if="currentStep === 2">
-          <div class="form-section-title">
-            <span class="form-section-num">2</span>
-            Registrar o asociar a una casa cuna
-          </div>
-
-          <div class="form-grid form-grid--4">
-            <div class="fg fg--span2">
-              <label class="fg-label">Casa cuna</label>
-              <div style="display:flex;gap:6px;align-items:start">
-                <div class="sel-wrap" style="flex:1">
-                  <select class="form-input" v-model="casaCuna" :disabled="fhLoading">
-                    <option value="">Sin asignar</option>
-                    <option v-for="c in fosterHomesList" :key="c.fosterHomeId" :value="c.fosterHomeId">
-                      {{ c.name }} — {{ c.responsible }}
-                    </option>
-                  </select>
-                  <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-                </div>
-                <button type="button" class="btn-agregar-animal" @click="abrirQuickFoster" title="Crear nueva casa cuna">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  Agregar
-                </button>
-              </div>
-            </div>
-          </div>
-
-          <div class="form-section-title" style="margin-top:28px">
-            <span class="form-section-num">—</span>
-            Ubicación del rescate
-          </div>
-          <div class="form-grid form-grid--4">
-            <div class="fg">
-              <label class="fg-label">Provincia <span class="req">*</span></label>
-              <div class="sel-wrap">
-                <select class="form-input" v-model="provincia">
-                  <option value="">Seleccione</option>
-                  <option v-for="p in provinciasDisponibles" :key="p" :value="p">{{ p }}</option>
-                </select>
-                <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-              </div>
-            </div>
-            <div class="fg">
-              <label class="fg-label">Cantón <span class="req">*</span></label>
-              <div class="sel-wrap">
-                <select class="form-input" v-model="canton" :disabled="!provincia">
-                  <option value="">Seleccione</option>
-                  <option v-for="c in cantonesDisponibles" :key="c" :value="c">{{ c }}</option>
-                </select>
-                <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-              </div>
-            </div>
-            <div class="fg">
-              <label class="fg-label">Distrito <span class="req">*</span></label>
-              <div class="sel-wrap">
-                <select class="form-input" v-model="distrito" :disabled="!canton">
-                  <option value="">Seleccione</option>
-                  <option v-for="d in distritosDisponibles" :key="d" :value="d">{{ d }}</option>
-                </select>
-                <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-              </div>
-            </div>
-          </div>
-
-          <div class="form-section-title" style="margin-top:28px">
-            <span class="form-section-num">—</span>
-            Descripción del rescate
-          </div>
-          <div class="fg">
-            <label class="fg-label">Descripción <span class="req">*</span></label>
-            <textarea class="form-textarea" v-model="descripcion" placeholder="Describe las circunstancias del rescate, condición del animal, observaciones importantes..."></textarea>
-          </div>
-        </template>
-
-        <div class="form-footer">
-          <button class="btn-cancelar" @click="cancelarFormulario">Cancelar</button>
-          <button v-if="currentStep === 1" class="btn-guardar" @click="siguientePaso">
-            Siguiente
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-          </button>
-          <template v-if="currentStep === 2">
-            <button class="btn-cancelar" @click="pasoAnterior">Anterior</button>
-            <button class="btn-guardar" @click="guardarRescate">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              {{ editMode ? 'Guardar cambios' : 'Registrar rescate' }}
-            </button>
-          </template>
-        </div>
-
-      </div>
-    </template>
-
-    <!-- ══════════════════════════════════════════
-         MODAL EDITAR
-    ═══════════════════════════════════════════ -->
+    <!-- ══════════════════════════════════════
+         MODAL 2/3 — VER RESCATE (expediente)
+         Reconstruido sobre la arquitectura exacta del expediente de
+         Mascotas.vue: hero → bloques → footer (un solo botón).
+    ══════════════════════════════════════ -->
     <Teleport to="body">
       <Transition name="modal-fade">
-        <div v-if="showEditModal" class="modal-overlay" @click.self="showEditModal = false">
-          <div class="modal-box modal-box--lg">
+        <div v-if="showViewModal && viewTarget" class="modal-overlay" @click.self="showViewModal = false">
+          <div class="modal-box modal-box--uniform">
+            <button class="close-btn close-btn--hero" @click="showViewModal = false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
 
-            <button class="modal-close" @click="showEditModal = false">✕</button>
-
-            <div class="modal-header">
-              <div class="modal-header-avatar">{{ iniciales(mascota) }}</div>
-              <div>
-                <p class="modal-eyebrow">Editar rescate</p>
-                <h2 class="modal-title">{{ mascota || 'Sin nombre' }}</h2>
+            <div class="hero">
+              <div class="hero-photo">
+                <img v-if="viewTarget.foto" :src="viewTarget.foto" :alt="viewTarget.mascota" />
+                <span v-else class="hero-photo-ini">{{ iniciales(viewTarget.mascota) }}</span>
+              </div>
+              <div class="hero-info">
+                <div class="hero-name-row">
+                  <h2 class="hero-name">{{ viewTarget.mascota }}</h2>
+                  <span class="estado-badge badge-status-hero" :class="estadoBadgeClass(viewTarget.estado)">{{ viewTarget.estado }}</span>
+                </div>
+                <div class="hero-meta">
+                  <span class="hero-meta-chip">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                    {{ viewTarget.tipoMascota || '—' }}
+                  </span>
+                  <span class="hero-meta-chip">{{ viewTarget.raza || 'Sin raza' }}</span>
+                  <span class="hero-meta-chip">{{ viewTarget.edad }}</span>
+                  <span class="hero-meta-chip">{{ viewTarget.sexo }}</span>
+                </div>
               </div>
             </div>
 
-            <div class="modal-body">
-
-              <div class="modal-section">
-                <h4 class="modal-section-title">Información del rescate</h4>
-                <div class="modal-grid">
-                  <div class="modal-field">
-                    <label class="fg-label">Animal rescatado</label>
-                    <div style="display:flex;gap:6px;align-items:start">
-                      <div class="sel-wrap" style="flex:1">
-                        <select class="form-input" v-model="animalId" :disabled="animalesLoading">
-                          <option value="">Seleccione un animal</option>
-                          <option v-for="a in animalesList" :key="a.id" :value="a.id">
-                            {{ a.id }} — {{ a.name }} ({{ a.type }})
-                          </option>
-                        </select>
-                        <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+            <div class="uniform-scroll">
+              <div class="body">
+                <div class="grid-2col">
+                  <div>
+                    <div class="block">
+                      <h4 class="block-title">
+                        <span class="block-title-icon">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.5 20.5 21 10a2.12 2.12 0 0 0-3-3L7.5 17.5"/><path d="M3 21l3-3"/><circle cx="6.5" cy="6.5" r="2.5"/></svg>
+                        </span>
+                        Información del rescate
+                      </h4>
+                      <div class="fields-row">
+                        <div class="field-col"><span class="field-label-row">ID</span><span class="field-value">{{ viewTarget.id }}</span></div>
+                        <div class="field-col"><span class="field-label-row">Fecha de rescate</span><span class="field-value">{{ viewTarget.fechaRescate || '—' }}</span></div>
+                        <div class="field-col"><span class="field-label-row">Fecha de registro</span><span class="field-value">{{ viewTarget.fechaCreacion || '—' }}</span></div>
+                        <div class="field-col"><span class="field-label-row">Registrado por</span><span class="field-value">{{ viewTarget.creadoPor || '—' }}</span></div>
                       </div>
-                      <button type="button" class="btn-agregar-animal" @click="abrirQuickAnimal" title="Crear nueva mascota">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        Agregar
-                      </button>
+                      <div class="info-subsection" v-if="viewTarget.descripcion">
+                        <span class="field-label-row">Descripción del rescate</span>
+                        <p class="info-subsection-text">{{ viewTarget.descripcion }}</p>
+                      </div>
+                    </div>
+
+                    <div class="block">
+                      <h4 class="block-title">
+                        <span class="block-title-icon">
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                        </span>
+                        Ubicación
+                      </h4>
+                      <div class="tint-box">
+                        <span>{{ viewTarget.ubicacion || [viewTarget.provincia, viewTarget.canton, viewTarget.distrito].filter(Boolean).join(', ') || '—' }}</span>
+                      </div>
                     </div>
                   </div>
-                  <div class="modal-field">
-                    <label class="fg-label">Fecha de rescate</label>
-                    <input type="date" class="form-input" v-model="fechaRescate">
-                  </div>
-                  <div class="modal-field">
-                    <label class="fg-label">Estado</label>
-                    <div class="sel-wrap">
-                      <select class="form-input" v-model="estado">
-                        <option>Activo</option>
-                        <option>Cerrado</option>
-                      </select>
-                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-                    </div>
-                  </div>
-                  <div class="modal-field">
-                    <label class="fg-label">Rescatista</label>
-                    <div class="sel-wrap">
-                      <select class="form-input" v-model="rescatista">
-                        <option value="">Anónimo / Sin asignar</option>
-                        <option v-for="v in rescatistasDisponibles" :key="v.id" :value="v.id">
-                          {{ v.nombre || v.correo || v.id }}
-                        </option>
-                      </select>
-                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
+
+                  <div class="block" style="margin-bottom:0;">
+                    <h4 class="block-title">
+                      <span class="block-title-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                      </span>
+                      Asignaciones
+                    </h4>
+                    <div class="list-col">
+                      <div class="list-item">
+                        <div class="list-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+                        <div class="list-text"><span class="list-label">Rescatista</span><span class="list-value">{{ viewTarget.rescatista || '—' }}</span></div>
+                      </div>
+                      <div class="list-item">
+                        <div class="list-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></div>
+                        <div class="list-text"><span class="list-label">Casa cuna</span><span class="list-value">{{ viewTarget.casaCuna || 'Sin asignar' }}</span></div>
+                      </div>
+                      <div class="list-item">
+                        <div class="list-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></div>
+                        <div class="list-text"><span class="list-label">Estado</span><span class="list-value">{{ viewTarget.estado }}</span></div>
+                      </div>
+                      <div class="list-item">
+                        <div class="list-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg></div>
+                        <div class="list-text"><span class="list-label">Edad</span><span class="list-value">{{ viewTarget.edad }}</span></div>
+                      </div>
                     </div>
                   </div>
                 </div>
               </div>
-
-              <div class="modal-section">
-                <h4 class="modal-section-title">Ubicación</h4>
-                <div class="modal-grid modal-grid--3">
-                  <div class="modal-field">
-                    <label class="fg-label">Provincia</label>
-                    <div class="sel-wrap">
-                      <select class="form-input" v-model="provincia">
-                        <option value="">Seleccione</option>
-                        <option v-for="p in provinciasDisponibles" :key="p" :value="p">{{ p }}</option>
-                      </select>
-                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-                    </div>
-                  </div>
-                  <div class="modal-field">
-                    <label class="fg-label">Cantón</label>
-                    <div class="sel-wrap">
-                      <select class="form-input" v-model="canton" :disabled="!provincia">
-                        <option value="">Seleccione</option>
-                        <option v-for="c in cantonesDisponibles" :key="c" :value="c">{{ c }}</option>
-                      </select>
-                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-                    </div>
-                  </div>
-                  <div class="modal-field">
-                    <label class="fg-label">Distrito</label>
-                    <div class="sel-wrap">
-                      <select class="form-input" v-model="distrito" :disabled="!canton">
-                        <option value="">Seleccione</option>
-                        <option v-for="d in distritosDisponibles" :key="d" :value="d">{{ d }}</option>
-                      </select>
-                      <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              <div class="modal-section">
-                <h4 class="modal-section-title">Descripción del rescate</h4>
-                <textarea class="form-textarea" v-model="descripcion"></textarea>
-              </div>
-
             </div>
 
-            <div class="modal-footer">
-              <button class="btn-cancelar" @click="showEditModal = false">Cancelar</button>
-              <button class="btn-guardar" @click="guardarRescate">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                Guardar cambios
+            <div class="footer">
+              <button class="btn-ghost-red" @click="showViewModal = false">
+                Cerrar expediente
               </button>
             </div>
-
           </div>
         </div>
       </Transition>
     </Teleport>
 
-    <!-- ══════════════════════════════════════════
-         MODAL VER DETALLE
-    ═══════════════════════════════════════════ -->
+    <!-- ══════════════════════════════════════
+         MODAL 3/3 — CONFIRMAR CIERRE DE RESCATE
+         Misma arquitectura que "Desactivar mascota" en Mascotas.vue.
+    ══════════════════════════════════════ -->
     <Teleport to="body">
       <Transition name="modal-fade">
-        <div v-if="showDetailModal" class="modal-overlay" @click.self="showDetailModal = false">
-          <div class="modal-box modal-box--lg">
+        <div v-if="showCloseModal" class="modal-overlay" @click.self="showCloseModal = false">
+          <div class="modal-box modal-box--confirm">
+            <button class="close-btn" @click="showCloseModal = false">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
 
-            <button class="modal-close" @click="showDetailModal = false">✕</button>
-
-            <div class="modal-header">
-              <div class="modal-header-avatar-lg">
-                <span>{{ iniciales(rescueSelected?.mascota) }}</span>
+            <div class="confirm-header">
+              <div class="confirm-icon">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
               </div>
               <div>
-                <p class="modal-eyebrow">Expediente de rescate</p>
-                <h2 class="modal-title">{{ rescueSelected?.mascota }}</h2>
-                <div class="modal-badges-row">
-                  <span class="id-pill">{{ rescueSelected?.animalId }}</span>
-                  <span class="estado-badge" :class="estadoBadgeClass(rescueSelected?.estado)">{{ rescueSelected?.estado }}</span>
-                  <span class="id-pill">#{{ rescueSelected?.id }}</span>
-                </div>
+                <p class="confirm-eyebrow">Cerrar rescate</p>
+                <h2 class="confirm-title">{{ closeTarget?.mascota }}</h2>
               </div>
             </div>
 
-            <div class="modal-body" v-if="rescueSelected">
-
-              <div class="modal-section">
-                <h4 class="modal-section-title">Ubicación</h4>
-                <div class="modal-grid">
-                  <div class="modal-field">
-                    <span class="modal-field-label">Lugar</span>
-                    <strong class="modal-field-value">{{ rescueSelected.ubicacion || '—' }}</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div class="modal-section">
-                <h4 class="modal-section-title">Fechas</h4>
-                <div class="modal-grid">
-                  <div class="modal-field">
-                    <span class="modal-field-label">Fecha de rescate</span>
-                    <strong class="modal-field-value">{{ rescueSelected.fechaRescate || '—' }}</strong>
-                  </div>
-                </div>
-              </div>
-
-              <div class="modal-section">
-                <h4 class="modal-section-title">Descripción del rescate</h4>
-                <p class="modal-mensaje">{{ rescueSelected.descripcion || '—' }}</p>
-              </div>
-
-              <div v-if="rescueSelected?.estado === 'Activo'" class="modal-acciones">
-                <button
-                  class="btn-cerrar-rescate"
-                  @click="showDetailModal = false; pedirCerrar(rescates.indexOf(rescueSelected))"
-                >
-                  Cerrar rescate
-                </button>
-              </div>
-              <div v-else class="modal-estado-final">
-                <p class="estado-cerrado-msg">Este rescate ha sido cerrado.</p>
-              </div>
-
-            </div>
-
-            <div class="modal-footer">
-              <button class="btn-cancelar" @click="showDetailModal = false">Cerrar expediente</button>
-            </div>
-
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- ══ MODAL CONFIRMACIÓN CERRAR ══ -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div v-if="modalConfirm" class="modal-overlay modal-overlay--top" @click.self="modalConfirm = false">
-          <div class="modal-box modal-box--sm">
             <div class="confirm-body">
-              <div class="confirm-icon">
-                <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+              <div class="warn-box">
+                <p>🔒 <strong>No se eliminará</strong> del sistema. Se conservará todo su historial, expediente y registros asociados.</p>
+                <p>El rescate pasará a estado <strong>Cerrado</strong> y dejará de aparecer como caso activo en seguimiento.</p>
               </div>
-              <h3 class="confirm-title">Cerrar rescate</h3>
-              <p class="confirm-text">¿Estás seguro de que deseas marcar este rescate como <strong>Cerrado</strong>? Esta acción no se puede deshacer.</p>
             </div>
-            <div class="modal-footer">
-              <button class="btn-cancelar" @click="modalConfirm = false">Cancelar</button>
-              <button class="btn-guardar" @click="confirmarCerrar">Confirmar</button>
+
+            <div class="confirm-footer">
+              <button class="btn-cancel" @click="showCloseModal = false">Cancelar</button>
+              <button class="btn-danger" @click="confirmClose">Confirmar cierre</button>
             </div>
           </div>
         </div>
@@ -1046,809 +957,348 @@ function iniciales(nombre) {
     </Teleport>
 
   </div>
-
-  <!-- ══════════════════════════════════════════
-       MODAL CREAR MASCOTA RÁPIDO
-  ═══════════════════════════════════════════ -->
-  <Teleport to="body">
-    <Transition name="modal-fade">
-      <div v-if="showQuickAnimal" class="modal-overlay" @click.self="showQuickAnimal = false">
-        <div class="modal-box modal-box--sm">
-          <button class="modal-close" @click="showQuickAnimal = false">✕</button>
-          <div class="modal-header">
-            <div class="modal-header-avatar">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-            </div>
-            <div>
-              <p class="modal-eyebrow">Nueva mascota</p>
-              <h2 class="modal-title">Crear mascota</h2>
-            </div>
-          </div>
-
-          <div class="modal-body">
-            <div v-if="quickAnimalErrors.length" class="form-errors-banner" style="margin-bottom:16px">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <span>Campos obligatorios: {{ quickAnimalErrors.join(', ') }}.</span>
-            </div>
-
-            <div class="modal-grid">
-              <div class="modal-field">
-                <label class="fg-label">Nombre <span class="req">*</span></label>
-                <input class="form-input" v-model="quickAnimal.name" placeholder="Ej. Luna">
-              </div>
-              <div class="modal-field">
-                <label class="fg-label">Tipo <span class="req">*</span></label>
-                <div class="sel-wrap">
-                  <select class="form-input" v-model="quickAnimal.species">
-                    <option value="">Seleccione</option>
-                    <option value="Perro">Perro</option>
-                    <option value="Gato">Gato</option>
-                  </select>
-                  <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-                </div>
-              </div>
-              <div class="modal-field">
-                <label class="fg-label">Sexo <span class="req">*</span></label>
-                <div class="sel-wrap">
-                  <select class="form-input" v-model="quickAnimal.sex">
-                    <option value="">Seleccione</option>
-                    <option value="M">Macho</option>
-                    <option value="H">Hembra</option>
-                  </select>
-                  <span class="sel-icon"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></span>
-                </div>
-              </div>
-              <div class="modal-field">
-                <label class="fg-label">Edad (años)</label>
-                <input type="number" min="0" class="form-input" v-model="quickAnimal.ageYears" placeholder="0">
-              </div>
-            </div>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn-cancelar" @click="showQuickAnimal = false">Cancelar</button>
-            <button class="btn-guardar" :disabled="quickAnimalLoading" @click="guardarQuickAnimal">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              {{ quickAnimalLoading ? 'Creando...' : 'Crear mascota' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
-
-  <!-- ══════════════════════════════════════════
-       MODAL CREAR CASA CUNA RÁPIDO
-  ═══════════════════════════════════════════ -->
-  <Teleport to="body">
-    <Transition name="modal-fade">
-      <div v-if="showQuickFoster" class="modal-overlay" @click.self="showQuickFoster = false">
-        <div class="modal-box modal-box--sm">
-          <button class="modal-close" @click="showQuickFoster = false">✕</button>
-          <div class="modal-header">
-            <div class="modal-header-avatar">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
-            </div>
-            <div>
-              <p class="modal-eyebrow">Nueva casa cuna</p>
-              <h2 class="modal-title">Crear casa cuna</h2>
-            </div>
-          </div>
-
-          <div class="modal-body">
-            <div v-if="quickFosterErrors.length" class="form-errors-banner" style="margin-bottom:16px">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-              <span>Campos obligatorios: {{ quickFosterErrors.join(', ') }}.</span>
-            </div>
-
-            <div class="modal-grid">
-              <div class="modal-field">
-                <label class="fg-label">Nombre <span class="req">*</span></label>
-                <input class="form-input" v-model="quickFoster.name" placeholder="Ej. Hogar temporal San José">
-              </div>
-              <div class="modal-field">
-                <label class="fg-label">Dirección <span class="req">*</span></label>
-                <input class="form-input" v-model="quickFoster.address" placeholder="Ej. Av. Central, #123">
-              </div>
-              <div class="modal-field">
-                <label class="fg-label">Teléfono <span class="req">*</span></label>
-                <input class="form-input" v-model="quickFoster.phone" placeholder="Ej. 8888-7777">
-              </div>
-              <div class="modal-field">
-                <label class="fg-label">Responsable <span class="req">*</span></label>
-                <input class="form-input" v-model="quickFoster.responsible" placeholder="Ej. María Rojas">
-              </div>
-              <div class="modal-field">
-                <label class="fg-label">Capacidad</label>
-                <input type="number" min="1" max="50" class="form-input" v-model.number="quickFoster.capacity" placeholder="1">
-              </div>
-            </div>
-
-            <div class="foto-wrap" style="margin-top:18px">
-              <div class="foto-preview" :class="{ 'has-img': quickFosterPhotoPreview }">
-                <img v-if="quickFosterPhotoPreview" :src="quickFosterPhotoPreview" class="foto-img" alt="Foto de la casa cuna">
-                <div v-else class="foto-placeholder">
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-                  <span>Sin foto</span>
-                </div>
-              </div>
-              <div class="foto-actions">
-                <input ref="quickFosterPhotoInput" type="file" accept="image/jpeg,image/png,image/webp" style="display:none" @change="onQuickFosterPhotoChange">
-                <button type="button" class="btn-foto" @click="triggerQuickFosterPhoto">
-                  {{ quickFosterPhotoPreview ? 'Cambiar foto' : 'Subir foto' }}
-                </button>
-                <button v-if="quickFosterPhotoPreview" type="button" class="btn-foto" @click="quitarQuickFosterPhoto">Quitar foto</button>
-                <p class="foto-hint">JPG, PNG o WEBP. Máximo 5MB.</p>
-              </div>
-            </div>
-          </div>
-
-          <div class="modal-footer">
-            <button class="btn-cancelar" @click="showQuickFoster = false">Cancelar</button>
-            <button class="btn-guardar" :disabled="quickFosterLoading" @click="guardarQuickFoster">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-              {{ quickFosterLoading ? 'Creando...' : 'Crear casa cuna' }}
-            </button>
-          </div>
-        </div>
-      </div>
-    </Transition>
-  </Teleport>
-
 </template>
 
 <style scoped>
 /* ══════════════════════════════════════════════
-   VARIABLES — sistema de tokens Anhelo Pets
-   idéntico al módulo de Donaciones
-══════════════════════════════════════════════ */
+   Variables y sistema de botones — idénticos a Mascotas.vue
+   ══════════════════════════════════════════════ */
 .view-container {
-  --verde:      #3A473C;
-  --verde-sec:  #92A894;
-  --fondo:      #F7F8F7;
-  --blanco:     #FFFFFF;
-  --texto:      #2F352F;
-  --texto-sec:  #6C756D;
-  --borde:      #E8ECE8;
-  --amarillo:   #F5B942;
-  --verde-ok:   #4CAF6A;
-  background: transparent;
+  --verde:       #3A473C;
+  --verde-sec:   #92A894;
+  --fondo:       #F7F8F7;
+  --blanco:      #FFFFFF;
+  --texto:       #2B322C;
+  --texto-sec:   #7A827B;
+  --texto-ter:   #A2A9A3;
+  --borde:       #E9ECE9;
+  --borde-suave: #EFF2EF;
+  --amarillo:    #F5B942;
+  --verde-ok:    #4CAF6A;
+  --rojo:        #C0392B;
+  --rojo-bg:     #FBEDEC;
+  --sombra-sm:   0 1px 2px rgba(58,71,60,.03);
+  --sombra-md:   0 2px 4px rgba(58,71,60,.05), 0 14px 32px -14px rgba(58,71,60,.18);
+  --btn-height:      33px;
+  --btn-radius:      9px;
+  --btn-pad-x:       13px;
+  --btn-icon-size:   14px;
+  --btn-icon-gap:    6px;
+  --btn-font-size:   12.5px;
+  --btn-font-weight: 600;
+  --btn-transition:  0.16s ease;
+  --select-arrow: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%237A827B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>');
+  --select-arrow-focus: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%233A473C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>');
+  background:
+    radial-gradient(ellipse 800px 420px at 12% 0%, rgba(146,168,148,.07), transparent),
+    var(--fondo);
+  padding-bottom: 40px;
 }
+.btn { display:inline-flex; align-items:center; justify-content:center; gap:var(--btn-icon-gap); height:var(--btn-height); padding:0 var(--btn-pad-x); border-radius:var(--btn-radius); border:1px solid transparent; font-family:inherit; font-size:var(--btn-font-size); font-weight:var(--btn-font-weight); line-height:1; white-space:nowrap; cursor:pointer; user-select:none; transition:background-color var(--btn-transition), border-color var(--btn-transition), color var(--btn-transition), box-shadow var(--btn-transition); }
+.btn-ico, .btn :deep(svg) { width:var(--btn-icon-size); height:var(--btn-icon-size); flex-shrink:0; }
+.btn:active:not(:disabled) { transform:translateY(1px); }
+.btn:focus-visible { outline:none; box-shadow:0 0 0 3px rgba(58,71,60,.16); }
+.btn--primary { background:var(--verde); color:#fff; box-shadow:0 1px 2px rgba(58,71,60,.12), 0 4px 10px -4px rgba(58,71,60,.35); }
+.btn--primary:hover:not(:disabled) { background:#465747; box-shadow:0 1px 2px rgba(58,71,60,.14), 0 6px 14px -4px rgba(58,71,60,.4); }
+.btn--ghost { background:var(--blanco); color:var(--texto-sec); border-color:var(--borde); }
+.btn--ghost:hover:not(:disabled) { background:#FAFBFA; color:var(--texto); border-color:#D3D8D3; }
+.btn--ghost-active { border-color:var(--verde-sec); color:var(--verde); }
+.btn--ghost-active:hover:not(:disabled) { background:#F3F6F3; color:var(--verde); border-color:var(--verde-sec); }
+
+/* ── Toast ── */
+.don-toast { position:fixed; bottom:32px; right:32px; z-index:9999; display:flex; align-items:center; gap:10px; padding:14px 20px; border-radius:14px; font-size:14px; font-weight:600; box-shadow:0 8px 32px rgba(0,0,0,0.16); pointer-events:none; }
+.don-toast.success { background:var(--verde); color:#fff; }
+.don-toast.error { background:#c0392b; color:#fff; }
+.don-toast-dot { width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.5); flex-shrink:0; }
+.toast-fade-enter-active, .toast-fade-leave-active { transition:all 0.25s ease; }
+.toast-fade-enter-from, .toast-fade-leave-to { opacity:0; transform:translateY(10px); }
+
+/* ── Encabezado ── */
+.page-header { display:flex; justify-content:space-between; align-items:center; margin-bottom:24px; gap:16px; flex-wrap:wrap; }
+.brand-row { display:flex; align-items:center; gap:12px; }
+.brand-mark { width:38px; height:38px; min-width:38px; border-radius:11px; background:linear-gradient(150deg, var(--verde) 0%, #6E8870 100%); color:#fff; display:flex; align-items:center; justify-content:center; box-shadow:0 4px 10px -3px rgba(58,71,60,.45); }
+.admin-page-title { font-size:22px; font-weight:700; color:var(--texto); letter-spacing:-0.4px; line-height:1.15; margin:0 0 2px; }
+.admin-page-sub { font-size:12.5px; color:var(--texto-sec); font-weight:500; margin:0; }
+
+/* ── Tarjetas resumen ── */
+.don-summary { display:grid; grid-template-columns:repeat(4, 1fr); gap:12px; margin-bottom:20px; }
+.don-card { background:var(--blanco); border-radius:16px; padding:16px 15px; border:1px solid var(--borde); box-shadow:var(--sombra-sm); display:flex; flex-direction:column; transition:box-shadow .18s ease, border-color .18s ease; }
+.don-card:hover { border-color:#D7DED8; box-shadow:var(--sombra-md); }
+.don-icon { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:12px; border:1px solid transparent; }
+.total-icon { background:#F2F3F2; border-color:#DFE2DF; color:#616861; }
+.disponible-icon { background:#EDF6EF; border-color:#C9E4CE; color:#2E7D45; }
+.proceso-icon { background:#FDF6E8; border-color:#F2E1B8; color:#A97A0C; }
+.inactiva-icon { background:#F2F3F2; border-color:#DFE2DF; color:#7A827B; }
+.don-value { font-size:21px; font-weight:700; color:var(--texto); line-height:1; letter-spacing:-0.4px; font-variant-numeric:tabular-nums; }
+.don-label { font-size:10.5px; color:var(--texto-ter); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-top:7px; }
+.don-desc { font-size:11px; color:var(--texto-sec); margin-top:2px; }
+
+/* ── Panel de filtros ── */
+.filtros-panel { background:var(--blanco); border-radius:16px; padding:18px 20px; margin-bottom:20px; border:1px solid var(--borde); box-shadow:var(--sombra-sm); display:flex; flex-direction:column; gap:16px; }
+.filtros-row { display:flex; gap:24px; flex-wrap:wrap; }
+.filtros-row--end { align-items:flex-end; justify-content:space-between; }
+.filtros-divider { height:1px; background:var(--borde-suave); }
+.filtro-group { display:flex; flex-direction:column; gap:7px; }
+.filtro-group--tabs { flex:0 0 auto; }
+.filtro-group--btn { flex:0 0 auto; }
+.filtro-group--search { flex:1; min-width:220px; max-width:340px; }
+.filtro-label { font-size:10.5px; font-weight:700; color:var(--texto-ter); text-transform:uppercase; letter-spacing:0.6px; }
+.tabs-wrap { display:flex; gap:3px; background:var(--fondo); border:1px solid var(--borde-suave); border-radius:10px; padding:3px; }
+.tab-btn { padding:7px 13px; border-radius:7px; border:none; background:transparent; color:var(--texto-sec); font-size:12px; font-weight:700; cursor:pointer; transition:all 0.18s; white-space:nowrap; font-family:inherit; }
+.tab-btn:hover { color:var(--texto); }
+.tab-btn.active { background:var(--blanco); color:var(--texto); box-shadow:var(--sombra-sm); border:1px solid var(--borde); }
+.filtro-input-wrap { position:relative; display:flex; align-items:center; }
+.filtro-input { width:100%; height:36px; padding:0 14px; border-radius:8px; border:1px solid var(--borde); background:var(--fondo); font-size:13px; color:var(--texto); font-family:inherit; outline:none; transition:border-color 0.18s, background 0.18s; box-sizing:border-box; }
+.filtro-input:focus { border-color:var(--verde-sec); background:var(--blanco); }
+.filtro-input--icon-left { padding-left:36px; }
+.filtro-icon { position:absolute; display:flex; align-items:center; color:var(--texto-sec); }
+.filtro-icon--left { left:12px; }
+
+/* ── Estado vacío ── */
+.empty-state { text-align:center; padding:72px 24px; background:var(--blanco); border-radius:16px; border:1px solid var(--borde); color:var(--verde-sec); display:flex; flex-direction:column; align-items:center; gap:10px; }
+.empty-state svg { opacity:0.4; }
+.empty-title { font-size:16px; font-weight:700; color:var(--texto); margin:0; }
+.empty-sub { font-size:13px; color:var(--texto-sec); margin:0; }
+
+/* ── Tabla ── */
+.table-wrapper { background:var(--blanco); border-radius:16px; border:1px solid var(--borde); overflow:hidden; box-shadow:var(--sombra-sm); }
+.table-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.don-table { width:100%; border-collapse:collapse; min-width:700px; }
+.don-table thead th { padding:12px 16px; text-align:left; color:var(--texto-ter); font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; white-space:nowrap; }
+.don-table tbody tr { border-top:1px solid var(--borde-suave); transition:background 0.15s; }
+.don-table tbody tr:hover { background:#FAFBFA; }
+.don-table tbody td { padding:12px 16px; vertical-align:middle; }
+.row-inactive { opacity:0.5; }
+.pet-avatar { width:38px; height:38px; border-radius:50%; overflow:hidden; flex-shrink:0; background:#F1F5F1; display:flex; align-items:center; justify-content:center; border:1px solid var(--borde); }
+.pet-avatar-img { width:100%; height:100%; object-fit:cover; display:block; }
+.pet-avatar-ini { font-size:14px; font-weight:700; color:#4E6E51; text-transform:uppercase; line-height:1; }
+.id-pill { font-size:11px; font-family:ui-monospace, Menlo, Consolas, monospace; background:var(--fondo); border:1px solid var(--borde); padding:3px 9px; border-radius:6px; color:var(--texto); font-weight:700; white-space:nowrap; }
+.donor-name { display:block; font-size:12.5px; font-weight:700; color:var(--texto); line-height:1.3; }
+.donor-mail { display:block; font-size:11px; color:var(--texto-sec); margin-top:2px; }
+.fecha-text { font-size:12.5px; color:var(--texto-sec); }
+.estado-badge { display:inline-block; font-size:10.5px; font-weight:700; padding:4px 11px; border-radius:20px; white-space:nowrap; }
+.badge-aprobada { background:#EDF6EF; color:#2E7D32; }
+.badge-inactiva { background:#F2F3F2; color:#7A827B; }
+.table-footer { padding:12px 16px; border-top:1px solid var(--borde-suave); font-size:12px; color:var(--texto-sec); font-weight:500; }
+
+/* Botones de acción de la tabla */
+.action-group { display:flex; gap:8px; align-items:center; }
+.icon-only {
+  width:38px; height:38px; border-radius:8px; border:1px solid var(--borde);
+  background:var(--blanco); display:flex; align-items:center; justify-content:center;
+  cursor:pointer; transition:background-color .16s ease, border-color .16s ease; position:relative;
+}
+.icon-only svg { width:16px; height:16px; }
+.icon-only--ver { color:#3D453B; }
+.icon-only--ver:hover { border-color:#C7D3C8; background:#FAFCFA; }
+.icon-only--editar { color:#2E7D45; border-color:#CFE8D6; }
+.icon-only--editar:hover { background:#F3FAF5; border-color:#2E7D45; }
+.icon-only--inactivar { color:#C0392B; border-color:#F0CFC9; }
+.icon-only--inactivar:hover { background:#FDF4F3; border-color:#C0392B; }
+.icon-only:disabled { opacity:0.35; cursor:not-allowed; }
+.icon-only:disabled:hover { background:var(--blanco); border-color:var(--borde); }
+.icon-only::before {
+  content:attr(data-tooltip); position:absolute; bottom:calc(100% + 8px); left:50%;
+  transform:translateX(-50%) translateY(4px); background:var(--verde); color:#fff;
+  font-size:11px; font-weight:600; padding:5px 9px; border-radius:7px; white-space:nowrap;
+  opacity:0; visibility:hidden; pointer-events:none; transition:opacity .15s ease, transform .15s ease; z-index:20;
+}
+.icon-only:hover::before { opacity:1; visibility:visible; transform:translateX(-50%) translateY(0); }
 
 /* ══════════════════════════════════════════════
-   TOAST
-══════════════════════════════════════════════ */
-.rc-toast {
-  position: fixed; bottom: 32px; right: 32px; z-index: 9999;
-  display: flex; align-items: center; gap: 10px;
-  padding: 14px 20px; border-radius: 14px;
-  font-size: 14px; font-weight: 600;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.16); pointer-events: none;
+   MODAL BASE
+   ══════════════════════════════════════════════ */
+.modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.35); backdrop-filter:blur(4px); z-index:1000; display:flex; align-items:center; justify-content:center; padding:24px; }
+.modal-box { background:var(--blanco); border-radius:22px; box-shadow:var(--sombra-md); position:relative; }
+.modal-box--confirm { width:420px; max-width:90vw; max-height:90vh; display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--borde-suave); }
+.modal-box--uniform {
+  width:880px;
+  max-width:92vw;
+  height:660px;
+  max-height:90vh;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  border:1px solid var(--borde-suave);
 }
-.toast-success { background: var(--verde); color: #fff; }
-.toast-error   { background: #c0392b; color: #fff; }
-.toast-anim-enter-active, .toast-anim-leave-active { transition: all 0.25s ease; }
-.toast-anim-enter-from, .toast-anim-leave-to { opacity: 0; transform: translateY(10px); }
+.uniform-scroll { flex:1; min-height:0; overflow-y:auto; }
+.close-btn {
+  position:absolute; top:18px; right:18px; z-index:6;
+  width:30px; height:30px; border-radius:9px; background:var(--fondo); border:1px solid var(--borde-suave);
+  color:#8B928A; display:flex; align-items:center; justify-content:center; cursor:pointer;
+  transition:background-color .16s ease, color .16s ease, border-color .16s ease;
+}
+.close-btn svg { width:16px; height:16px; }
+.close-btn:hover { background:var(--verde); color:#fff; border-color:var(--verde); }
+.close-btn--hero { background:var(--fondo); }
+.close-btn--hero:hover { background:var(--verde); color:#fff; }
+
+/* ── HERO ── */
+.hero {
+  flex-shrink:0;
+  background:linear-gradient(165deg, #FFFFFF 0%, #F7FAF7 55%, #F1F7F2 100%);
+  border-bottom:1px solid var(--borde-suave);
+  padding:28px 40px 24px;
+  display:flex; align-items:center; gap:20px;
+}
+.hero-photo {
+  width:60px; height:60px; border-radius:16px; flex-shrink:0; overflow:hidden;
+  background:linear-gradient(150deg,#E7F0E8 0%,#DCEBDE 100%);
+  border:1px solid var(--borde-suave);
+  display:flex; align-items:center; justify-content:center;
+  box-shadow:0 1px 2px rgba(58,71,60,.04), 0 10px 22px -12px rgba(58,71,60,.28);
+}
+.hero-photo img { width:100%; height:100%; object-fit:cover; display:block; }
+.hero-photo-ini { font-size:20px; font-weight:700; color:#3E7A45; letter-spacing:-.3px; }
+.hero-info { flex:1; min-width:0; display:flex; flex-direction:column; gap:8px; }
+.hero-name-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+.hero-name { font-size:21px; font-weight:700; color:var(--texto); margin:0; letter-spacing:-.4px; }
+.hero-meta { display:flex; align-items:center; gap:7px; flex-wrap:wrap; }
+.hero-meta-chip {
+  display:inline-flex; align-items:center; gap:6px; font-size:11.5px; font-weight:600; color:#4B5A4C;
+  background:var(--blanco); border:1px solid var(--borde-suave); padding:4px 10px 4px 9px; border-radius:20px;
+}
+.hero-meta-chip svg { color:var(--verde-sec); flex-shrink:0; }
+.badge-status-hero { padding:5px 12px !important; font-size:10.5px !important; }
+
+/* ── BODY ── */
+.body { padding:18px 40px 10px; }
+.grid-2col { display:grid; grid-template-columns:1.6fr 1fr; gap:14px; align-items:start; }
+.block { background:var(--blanco); border:1px solid var(--borde-suave); border-radius:14px; padding:18px 20px; margin-bottom:14px; box-shadow:var(--sombra-sm); }
+.block:last-child { margin-bottom:0; }
+.block-title { display:flex; align-items:center; gap:10px; font-size:12.5px; font-weight:700; color:var(--texto); text-transform:uppercase; letter-spacing:.4px; margin:0 0 14px; }
+.block-title-icon { width:24px; height:24px; border-radius:50%; background:#F0F5F0; color:#4E7A54; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.fields-row { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:14px 16px; }
+.field-col { display:flex; flex-direction:column; gap:5px; }
+.field-label-row { font-size:10px; font-weight:700; color:var(--texto-ter); text-transform:uppercase; letter-spacing:.4px; }
+.field-value { font-size:14px; font-weight:600; color:var(--texto); }
+.info-subsection { margin-top:16px; padding-top:16px; border-top:1px solid var(--borde-suave); }
+.info-subsection .field-label-row { display:block; margin-bottom:7px; }
+.info-subsection-text { font-size:13px; font-weight:500; color:#4B534A; line-height:1.6; margin:0; }
+.tint-box { background:var(--fondo); border-radius:10px; padding:13px 15px; }
+.tint-box span { font-size:13px; font-weight:600; color:var(--texto); line-height:1.55; }
+.list-col { display:grid; grid-template-columns:1fr; gap:8px; }
+.list-item { border:1px solid var(--borde-suave); border-radius:10px; padding:10px 12px; display:flex; align-items:center; gap:10px; }
+.list-icon { width:30px; height:30px; border-radius:8px; flex-shrink:0; background:#EDF3EE; color:#3E7A45; display:flex; align-items:center; justify-content:center; }
+.list-text { display:flex; flex-direction:column; gap:2px; min-width:0; }
+.list-label { font-size:9.5px; font-weight:700; color:var(--texto-ter); text-transform:uppercase; letter-spacing:.4px; }
+.list-value { font-size:12.5px; font-weight:700; color:var(--texto); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+
+/* ── FOOTER ── */
+.footer { flex-shrink:0; display:flex; justify-content:flex-end; padding:14px 40px 18px; border-top:1px solid var(--borde-suave); }
+.btn-ghost-red { display:flex; align-items:center; gap:6px; height:29px; padding:0 12px; border-radius:8px; background:var(--blanco); border:1px solid var(--borde); color:var(--texto-sec); font-size:11.5px; font-weight:600; cursor:pointer; transition:background-color .16s ease, border-color .16s ease, color .16s ease; }
+.btn-ghost-red:hover { background:#FDF4F3; border-color:#E8B9B2; color:var(--rojo); }
 
 /* ══════════════════════════════════════════════
-   ENCABEZADO — idéntico a Donaciones
-══════════════════════════════════════════════ */
-.page-header {
-  display: flex; justify-content: space-between; align-items: flex-start;
-  margin-bottom: 28px; gap: 16px; flex-wrap: wrap;
+   FORMULARIO (Nuevo / Editar rescate)
+   ══════════════════════════════════════════════ */
+.form-header { flex-shrink:0; background:linear-gradient(165deg, #FFFFFF 0%, #F7FAF7 100%); padding:26px 40px 18px; border-bottom:1px solid var(--borde-suave); }
+.form-eyebrow { font-size:11px; font-weight:700; color:#3E8B54; text-transform:uppercase; letter-spacing:.6px; margin:0 0 4px; }
+.form-title { font-size:20px; font-weight:700; color:var(--texto); margin:0 0 4px; letter-spacing:-.3px; }
+.form-sub { font-size:12.5px; color:var(--texto-sec); margin:0; }
+.form-body { padding:20px 40px 8px; }
+.form-section { margin-bottom:20px; }
+.form-section-label { display:flex; align-items:center; gap:9px; font-size:12px; font-weight:700; color:var(--texto); text-transform:uppercase; letter-spacing:.5px; margin-bottom:12px; padding-bottom:9px; border-bottom:1px solid var(--borde-suave); }
+.form-num { width:20px; height:20px; border-radius:7px; background:var(--verde); color:#fff; font-size:10px; font-weight:700; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.req { color:#c0392b; }
+.form-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:13px 16px; }
+.fg { display:flex; flex-direction:column; gap:6px; }
+.fg--span2 { grid-column:span 2; }
+.fg--full { grid-column:1 / -1; }
+.fg label { font-size:11.5px; font-weight:700; color:var(--texto-sec); }
+.err-msg { font-size:11px; color:#c0392b; font-weight:600; margin:0; }
+.input, .select {
+  height:38px; padding:0 12px; border-radius:9px; border:1px solid var(--borde);
+  background:var(--blanco); font-size:13px; color:var(--texto); font-family:inherit; outline:none; width:100%; box-sizing:border-box;
+  transition:border-color .16s ease, box-shadow .16s ease;
 }
-.admin-page-title {
-  font-size: 28px; font-weight: 800; color: var(--verde);
-  letter-spacing: -0.5px; line-height: 1.1;
+.select {
+  padding-right:32px;
+  background-image:var(--select-arrow);
+  background-repeat:no-repeat;
+  background-position:right 12px center;
+  appearance:none;
+  -webkit-appearance:none;
+  -moz-appearance:none;
 }
-.admin-page-sub {
-  font-size: 14px; color: var(--texto-sec); margin-top: 4px; font-weight: 500;
-}
-
-.btn-nuevo {
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px 20px; background: var(--verde); border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 700; color: #fff;
-  cursor: pointer; transition: background 0.18s; font-family: inherit;
-  flex-shrink: 0; white-space: nowrap;
-}
-.btn-nuevo:hover { background: #2d3730; }
-
-.btn-cancelar-header {
-  display: flex; align-items: center; gap: 8px;
-  padding: 10px 18px; background: var(--fondo);
-  border: 1.5px solid var(--borde); border-radius: 8px;
-  font-size: 13px; font-weight: 700; color: var(--texto-sec);
-  cursor: pointer; transition: background 0.15s; font-family: inherit;
-  flex-shrink: 0; white-space: nowrap;
-}
-.btn-cancelar-header:hover { background: #e5eae6; }
-
-/* ══════════════════════════════════════════════
-   KPI CARDS — idénticas a Donaciones
-══════════════════════════════════════════════ */
-.don-summary {
-  display: flex; gap: 14px; margin-bottom: 20px; flex-wrap: wrap;
-}
-.don-card {
-  flex: 1; min-width: 150px;
-  background: var(--blanco); border-radius: 14px; padding: 20px;
-  border: 1px solid var(--borde); border-top: 3px solid var(--borde);
-  display: flex; flex-direction: column; gap: 8px;
-}
-.kpi-mes      { border-top-color: var(--amarillo); }
-.kpi-total    { border-top-color: var(--verde-sec); }
-.kpi-activos  { border-top-color: var(--amarillo); }
-.kpi-cerrados { border-top-color: var(--verde-ok); }
-
-.don-label {
-  font-size: 11px; color: var(--texto-sec); font-weight: 700;
-  text-transform: uppercase; letter-spacing: 0.5px;
-}
-.don-value {
-  font-size: 24px; font-weight: 800; color: var(--verde); line-height: 1;
-}
-
-/* ══════════════════════════════════════════════
-   PANEL DE FILTROS — idéntico a Donaciones
-══════════════════════════════════════════════ */
-.filtros-panel {
-  background: var(--blanco); border-radius: 14px; padding: 20px;
-  margin-bottom: 20px; border: 1px solid var(--borde);
-  display: flex; gap: 12px; flex-wrap: wrap; align-items: flex-end;
-}
-.filtro-group {
-  display: flex; flex-direction: column; gap: 6px; flex: 1; min-width: 130px;
-}
-.filtro-group--btn { flex: 0 0 auto; min-width: unset; }
-.filtro-label {
-  font-size: 11px; font-weight: 700; color: var(--verde);
-  text-transform: uppercase; letter-spacing: 0.5px;
-  min-height: 16px; display: flex; align-items: flex-end;
-}
-.filtro-input-wrap {
-  position: relative; display: flex; align-items: center;
-}
-.filtro-input {
-  width: 100%; height: 38px; padding: 0 36px 0 12px;
-  border-radius: 8px; border: 1.5px solid var(--borde);
-  background: var(--fondo); font-size: 13px; color: var(--texto);
-  font-family: inherit; outline: none;
-  transition: border-color 0.18s, background 0.18s; box-sizing: border-box;
-}
-.filtro-input:focus { border-color: var(--verde-sec); background: var(--blanco); }
-.filtro-input::placeholder { color: #9CA8A0; }
-.filtro-select { appearance: none; -webkit-appearance: none; cursor: pointer; }
-.filtro-icon { position: absolute; display: flex; align-items: center; color: var(--texto-sec); }
-.filtro-icon--right { right: 11px; }
-.filtro-icon--no-events { pointer-events: none; }
-
-.btn-limpiar {
-  height: 38px; padding: 0 16px; border-radius: 8px;
-  border: 1.5px solid var(--borde); background: transparent;
-  color: var(--texto-sec); font-size: 12px; font-weight: 700;
-  cursor: pointer; white-space: nowrap; transition: all 0.18s; font-family: inherit;
-}
-.btn-limpiar--activo { border-color: var(--verde); color: var(--verde); }
-.btn-limpiar:hover   { background: var(--verde); color: var(--blanco); border-color: var(--verde); }
+.select:disabled { background-color:#F4F6F4; color:#B4BCB5; cursor:not-allowed; }
+.input:hover, .select:hover { border-color:#D3D8D3; }
+.input:focus, .select:focus { border-color:var(--verde-sec); box-shadow:0 0 0 3px rgba(146,168,148,.2); }
+.select:focus { background-image:var(--select-arrow-focus); }
+.input.is-error, .select.is-error { border-color:#e57373; background:#fff8f8; }
+.textarea { padding:10px 12px; border-radius:9px; border:1px solid var(--borde); background:var(--blanco); font-size:13px; color:var(--texto); font-family:inherit; outline:none; width:100%; box-sizing:border-box; height:72px; resize:vertical; line-height:1.5; transition:border-color .16s ease, box-shadow .16s ease; }
+.textarea:hover { border-color:#D3D8D3; }
+.textarea:focus { border-color:var(--verde-sec); box-shadow:0 0 0 3px rgba(146,168,148,.2); }
+.textarea.is-error { border-color:#e57373; background:#fff8f8; }
+.upload-zone { border:1.5px dashed #D0D9D1; border-radius:9px; padding:20px; text-align:center; cursor:pointer; background:#FAFCFA; transition:border-color .16s ease, background-color .16s ease; }
+.upload-zone:hover { border-color:var(--verde-sec); background:#F2F7F2; }
+.upload-zone.is-error { border-color:#e57373; background:#fff8f8; }
+.upload-zone svg { color:var(--verde-sec); margin-bottom:8px; }
+.upload-title { font-size:13px; font-weight:700; color:var(--texto); margin:0 0 3px; }
+.upload-sub { font-size:12px; color:var(--texto-ter); margin:0; }
+.image-previews { display:flex; flex-wrap:wrap; gap:10px; }
+.image-preview-item { position:relative; width:74px; height:74px; border-radius:9px; overflow:hidden; border:1px solid var(--borde); }
+.image-preview-item img { width:100%; height:100%; object-fit:cover; display:block; }
+.remove-image-btn { position:absolute; top:4px; right:4px; width:20px; height:20px; border-radius:50%; background:rgba(0,0,0,0.5); color:white; font-size:12px; border:none; cursor:pointer; display:flex; align-items:center; justify-content:center; }
+.main-photo-label { position:absolute; bottom:0; left:0; right:0; background:rgba(45,58,46,.75); color:white; font-size:9px; font-weight:700; text-align:center; padding:3px 0; }
+.form-footer { flex-shrink:0; display:flex; justify-content:flex-end; gap:10px; padding:14px 40px 18px; border-top:1px solid var(--borde-suave); }
+.btn-cancel { height:38px; padding:0 16px; border-radius:9px; background:var(--blanco); border:1px solid var(--borde); color:var(--texto-sec); font-size:13px; font-weight:600; cursor:pointer; transition:background-color .16s ease, border-color .16s ease, color .16s ease; }
+.btn-cancel:hover { background:#FAFBFA; color:var(--texto); border-color:#D3D8D3; }
+.btn-save { display:flex; align-items:center; gap:7px; height:38px; padding:0 17px; border-radius:9px; background:var(--verde); border:none; color:#fff; font-size:13px; font-weight:600; cursor:pointer; box-shadow:0 1px 2px rgba(58,71,60,.12), 0 4px 10px -4px rgba(58,71,60,.35); transition:background-color .16s ease; }
+.btn-save:hover { background:#465747; }
 
 /* ══════════════════════════════════════════════
-   ESTADO VACÍO — idéntico a Donaciones
-══════════════════════════════════════════════ */
-.empty-state {
-  text-align: center; padding: 72px 24px;
-  background: var(--blanco); border-radius: 14px; border: 1px solid var(--borde);
+   CONFIRMAR CIERRE
+   ══════════════════════════════════════════════ */
+.confirm-header { flex-shrink:0; padding:24px 32px 16px; display:flex; align-items:center; gap:14px; border-bottom:1px solid var(--borde); background:linear-gradient(165deg, #FFFFFF 0%, #FDF7F6 100%); }
+.confirm-icon { width:42px; height:42px; border-radius:11px; flex-shrink:0; background:var(--rojo-bg); color:var(--rojo); display:flex; align-items:center; justify-content:center; }
+.confirm-eyebrow { font-size:11px; font-weight:700; color:var(--rojo); text-transform:uppercase; letter-spacing:.6px; margin:0 0 4px; }
+.confirm-title { font-size:17px; font-weight:700; color:var(--texto); margin:0; letter-spacing:-.3px; }
+.confirm-body { padding:20px 32px; }
+.warn-box { background:#FFFBF3; border-left:3px solid var(--amarillo); border-radius:0 10px 10px 0; padding:14px 16px; font-size:13px; color:var(--texto); line-height:1.7; }
+.warn-box p { margin:0 0 6px; }
+.warn-box p:last-child { margin:0; }
+.confirm-footer { flex-shrink:0; display:flex; justify-content:flex-end; gap:10px; padding:14px 32px 18px; border-top:1px solid var(--borde-suave); }
+.btn-danger { height:38px; padding:0 16px; border-radius:9px; background:var(--rojo-bg); border:none; color:var(--rojo); font-size:13px; font-weight:600; cursor:pointer; transition:background-color .16s ease, color .16s ease; }
+.btn-danger:hover { background:var(--rojo); color:#fff; }
+
+/* Animaciones modal */
+.modal-fade-enter-active, .modal-fade-leave-active { transition:opacity 0.22s ease; }
+.modal-fade-enter-from, .modal-fade-leave-to { opacity:0; }
+
+/* ── Responsive ── */
+@media (max-width:1100px) { .don-summary { grid-template-columns:repeat(2, 1fr); } }
+@media (max-width:900px) {
+  .form-grid { grid-template-columns:repeat(2, 1fr); }
+  .fg--span2 { grid-column:span 1; }
+  .modal-box--uniform { width:94vw; height:88vh; }
+  .grid-2col { grid-template-columns:1fr; }
+  .fields-row { grid-template-columns:repeat(2, 1fr); }
 }
-.empty-title { font-size: 16px; font-weight: 700; color: var(--texto); margin-bottom: 6px; }
-.empty-sub   { font-size: 13px; color: var(--texto-sec); margin: 0; }
-
-/* ══════════════════════════════════════════════
-   TABLA — idéntica a Donaciones
-══════════════════════════════════════════════ */
-.table-wrapper {
-  background: var(--blanco); border-radius: 14px;
-  border: 1px solid var(--borde); overflow: hidden;
+@media (max-width:640px) {
+  .page-header { flex-direction:column; align-items:flex-start; }
+  .filtros-row { flex-direction:column; gap:14px; }
+  .filtros-row--end { align-items:stretch; }
+  .filtro-group { min-width:100%; }
+  .filtro-group--search { max-width:none; }
+  .don-summary { grid-template-columns:1fr 1fr; }
+  .form-grid { grid-template-columns:1fr; }
+  .fg--span2, .fg--full { grid-column:1; }
+  .don-table th:nth-child(4), .don-table td:nth-child(4), .don-table th:nth-child(6), .don-table td:nth-child(6) { display:none; }
+  .modal-box--uniform { width:96vw; height:92vh; border-radius:18px; }
+  .hero, .form-header, .form-body, .body, .footer, .form-footer, .confirm-header, .confirm-body, .confirm-footer { padding-left:20px; padding-right:20px; }
+  .fields-row { grid-template-columns:1fr; }
 }
-.table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
-
-.don-table { width: 100%; border-collapse: collapse; min-width: 700px; }
-.don-table thead tr { background: var(--verde); }
-.don-table thead th {
-  padding: 13px 16px; text-align: left; color: var(--blanco);
-  font-size: 11px; font-weight: 700; text-transform: uppercase;
-  letter-spacing: 0.6px; white-space: nowrap;
+@media (max-width:480px) { .don-summary { grid-template-columns:1fr; } }
+</style>
+<style>
+/* ── Variables globales (para contenido teletransportado) ── */
+:root {
+  --verde: #3A473C; --verde-sec:#92A894; --fondo:#F7F8F7; --blanco:#FFFFFF;
+  --texto:#2B322C; --texto-sec:#7A827B; --texto-ter:#A2A9A3;
+  --borde:#E9ECE9; --borde-suave:#EFF2EF; --amarillo:#F5B942;
+  --verde-ok:#4CAF6A; --rojo:#C0392B; --rojo-bg:#FBEDEC;
+  --sombra-sm:0 1px 2px rgba(58,71,60,.03);
+  --sombra-md:0 2px 4px rgba(58,71,60,.05), 0 14px 32px -14px rgba(58,71,60,.18);
 }
-.don-table tbody tr { border-bottom: 1px solid var(--borde); transition: background 0.15s; }
-.don-table tbody tr:last-child { border-bottom: none; }
-.don-table tbody tr:hover { background: #F4F6F4; }
-.don-table tbody td { padding: 13px 16px; vertical-align: middle; }
-
-.table-footer {
-  padding: 12px 16px; border-top: 1px solid var(--borde);
-  font-size: 12px; color: var(--texto-sec); font-weight: 500;
-}
-
-/* Celda mascota con avatar */
-.pet-cell { display: flex; align-items: center; gap: 10px; }
-.pet-avatar {
-  width: 36px; height: 36px; border-radius: 50%; overflow: hidden; flex-shrink: 0;
-  background: #DDE6DE; display: flex; align-items: center; justify-content: center;
-}
-.pet-avatar-img { width: 100%; height: 100%; object-fit: cover; }
-.pet-avatar-ini { font-size: 13px; font-weight: 800; color: #5A6E5C; }
-
-/* Tipografías de celda — idénticas a Donaciones */
-.id-pill {
-  font-size: 11px; font-family: monospace; background: var(--fondo);
-  border: 1px solid var(--borde); padding: 3px 9px; border-radius: 6px;
-  color: var(--verde); font-weight: 700; white-space: nowrap;
-}
-.donor-name { display: block; font-size: 13px; font-weight: 700; color: var(--texto); line-height: 1.3; }
-.donor-mail { display: block; font-size: 11px; color: var(--texto-sec); margin-top: 2px; }
-.metodo-text { font-size: 13px; color: var(--texto-sec); }
-.fecha-text  { font-size: 13px; color: var(--texto-sec); }
-
-/* Acciones en tabla */
-.acciones-cell { display: flex; align-items: center; gap: 6px; }
-
-.btn-ver {
-  padding: 6px 14px; border-radius: 7px;
-  border: 1.5px solid var(--borde); background: var(--blanco);
-  color: var(--verde); font-size: 12px; font-weight: 700;
-  cursor: pointer; transition: all 0.18s; white-space: nowrap; font-family: inherit;
-}
-.btn-ver:hover { background: var(--verde); color: var(--blanco); border-color: var(--verde); }
-
-.btn-accion-edit,
-.btn-accion-close {
-  display: inline-flex; align-items: center; justify-content: center;
-  width: 30px; height: 30px; border-radius: 7px; border: none;
-  cursor: pointer; transition: background 0.15s, opacity 0.15s; flex-shrink: 0;
-}
-.btn-accion-edit  { background: rgba(33,150,243,.10); color: #1565C0; }
-.btn-accion-edit:hover  { background: rgba(33,150,243,.22); }
-.btn-accion-close { background: rgba(176,0,32,.10); color: #B71C1C; }
-.btn-accion-close:not(:disabled):hover { background: rgba(176,0,32,.20); }
-.btn-accion-close:disabled { opacity: 0.3; cursor: not-allowed; }
-
-/* ══════════════════════════════════════════════
-   BADGES — pill idéntico a Donaciones
-══════════════════════════════════════════════ */
-.estado-badge {
-  display: inline-block; font-size: 11px; font-weight: 700;
-  padding: 4px 12px; border-radius: 20px; white-space: nowrap;
-}
-.badge-activo  { background: #E8F5E9; color: #2E7D32; }
-.badge-cerrado { background: #F4F6F4; color: #6C756D; }
-
-/* ══════════════════════════════════════════════
-   FORMULARIO
-══════════════════════════════════════════════ */
-.form-errors-banner {
-  display: flex; align-items: flex-start; gap: 10px;
-  padding: 14px 18px; background: rgba(176,0,32,.08);
-  border: 1.5px solid rgba(176,0,32,.20); border-radius: 12px;
-  font-size: 13px; color: #B71C1C; margin-bottom: 20px; line-height: 1.5;
-}
-.form-errors-banner svg { flex-shrink: 0; margin-top: 1px; }
-
-.form-panel {
-  background: var(--blanco); border-radius: 14px;
-  border: 1px solid var(--borde); padding: 32px 32px 28px;
-}
-
-.form-section-title {
-  display: flex; align-items: center; gap: 10px;
-  font-size: 11px; font-weight: 700; color: var(--verde);
-  text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px;
-}
-.form-section-num {
-  width: 22px; height: 22px; border-radius: 6px;
-  background: var(--verde); color: #fff;
-  font-size: 11px; font-weight: 800;
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
-}
-
-.req { color: #B71C1C; margin-left: 2px; }
-
-.form-grid { display: grid; gap: 14px; }
-.form-grid--4 { grid-template-columns: repeat(4, 1fr); }
-.fg { display: flex; flex-direction: column; gap: 6px; }
-.fg--span2 { grid-column: span 2; }
-.fg--full  { grid-column: 1 / -1; }
-.fg-label {
-  font-size: 11px; font-weight: 700; color: var(--verde);
-  text-transform: uppercase; letter-spacing: 0.5px;
-}
-
-.form-input {
-  width: 100%; height: 38px; padding: 0 36px 0 12px; box-sizing: border-box;
-  border: 1.5px solid var(--borde); border-radius: 8px;
-  font-size: 13px; color: var(--texto); background: var(--fondo);
-  outline: none; font-family: inherit; transition: border-color 0.18s, background 0.18s;
-}
-.form-input:focus    { border-color: var(--verde-sec); background: var(--blanco); }
-.form-input:disabled { background: #F4F6F4; color: #9BA99C; cursor: not-allowed; }
-
-.form-textarea {
-  width: 100%; padding: 10px 13px; box-sizing: border-box;
-  border: 1.5px solid var(--borde); border-radius: 8px;
-  font-size: 13px; color: var(--texto); background: var(--fondo);
-  outline: none; font-family: inherit; min-height: 100px; resize: vertical; line-height: 1.5;
-  transition: border-color 0.18s, background 0.18s;
-}
-.form-textarea:focus { border-color: var(--verde-sec); background: var(--blanco); }
-
-.sel-wrap { position: relative; }
-.sel-wrap .form-input { appearance: none; -webkit-appearance: none; cursor: pointer; padding-right: 36px; }
-.sel-icon {
-  position: absolute; right: 11px; top: 50%; transform: translateY(-50%);
-  color: var(--texto-sec); pointer-events: none; display: flex; align-items: center;
-}
-
-.radio-row { display: flex; gap: 16px; align-items: center; padding-top: 4px; }
-.r-opt {
-  display: flex; align-items: center; gap: 7px;
-  font-size: 13px; font-weight: 600; color: var(--texto); cursor: pointer;
-}
-.r-opt input[type="radio"] { accent-color: var(--verde); width: 15px; height: 15px; cursor: pointer; }
-
-.foto-wrap { display: flex; align-items: center; gap: 20px; }
-.foto-preview {
-  width: 100px; height: 100px; border-radius: 12px;
-  border: 2px dashed var(--borde); background: var(--fondo);
-  display: flex; align-items: center; justify-content: center;
-  overflow: hidden; flex-shrink: 0;
-}
-.foto-preview.has-img { border-style: solid; border-color: var(--verde-sec); }
-.foto-img { width: 100%; height: 100%; object-fit: cover; }
-.foto-placeholder { display: flex; flex-direction: column; align-items: center; gap: 6px; color: var(--verde-sec); }
-.foto-placeholder span { font-size: 11px; font-weight: 600; }
-.foto-actions { display: flex; flex-direction: column; gap: 8px; }
-.btn-foto {
-  display: inline-flex; align-items: center; gap: 8px;
-  padding: 9px 16px; background: var(--fondo); border: 1.5px solid var(--borde);
-  border-radius: 8px; font-size: 13px; font-weight: 700; color: var(--texto);
-  cursor: pointer; transition: background 0.15s; font-family: inherit;
-}
-.btn-foto:hover { background: #e5eae6; }
-.foto-hint { font-size: 11px; color: var(--verde-sec); margin: 0; }
-
-.form-footer {
-  display: flex; justify-content: flex-end; gap: 10px;
-  padding-top: 24px; margin-top: 24px; border-top: 1px solid var(--borde);
-}
-
-/* ══════════════════════════════════════════════
-   STEP INDICATOR
-══════════════════════════════════════════════ */
-.steps-indicator {
-  display: flex; align-items: center; justify-content: center; gap: 0;
-  margin-bottom: 28px; padding: 0 20px;
-}
-.step {
-  display: flex; flex-direction: column; align-items: center; gap: 6px;
-  cursor: pointer; user-select: none;
-}
-.step-circle {
-  width: 34px; height: 34px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 14px; font-weight: 800;
-  background: var(--fondo); color: var(--verde-sec);
-  border: 2px solid var(--borde); transition: all 0.2s;
-}
-.step--active .step-circle {
-  background: var(--verde); color: #fff; border-color: var(--verde);
-}
-.step--done .step-circle {
-  background: var(--verde); color: #fff; border-color: var(--verde);
-}
-.step-label {
-  font-size: 11px; font-weight: 700; color: var(--texto-sec);
-  text-transform: uppercase; letter-spacing: 0.3px;
-}
-.step--active .step-label { color: var(--verde); }
-.steps-line {
-  flex: 1; max-width: 80px; height: 2px;
-  background: var(--borde); margin: 0 12px; margin-bottom: 22px;
-}
-
-/* ══════════════════════════════════════════════
-   BOTONES COMUNES
-══════════════════════════════════════════════ */
-.btn-agregar-animal {
-  display: inline-flex; align-items: center; gap: 4px;
-  padding: 7px 12px; background: var(--verde); border: none; border-radius: 8px;
-  font-size: 12px; font-weight: 700; color: #fff; cursor: pointer;
-  white-space: nowrap; font-family: inherit; transition: background 0.15s; height: 38px;
-}
-.btn-agregar-animal:hover { background: #2d3730; }
-
-.btn-cancelar {
-  padding: 10px 18px; background: var(--fondo); border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 700; color: var(--texto-sec);
-  cursor: pointer; transition: background 0.15s; font-family: inherit;
-}
-.btn-cancelar:hover { background: #e5eae6; }
-
-.btn-guardar {
-  display: flex; align-items: center; gap: 7px; padding: 10px 20px;
-  background: var(--verde); border: none; border-radius: 8px;
-  font-size: 13px; font-weight: 700; color: #fff;
-  cursor: pointer; transition: background 0.18s; font-family: inherit;
-}
-.btn-guardar:hover { background: #2d3730; }
-
-/* ══════════════════════════════════════════════
-   MODALES — idénticos a Donaciones
-══════════════════════════════════════════════ */
-.modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(0,0,0,0.35); backdrop-filter: blur(4px);
-  z-index: 1000; display: flex; align-items: center; justify-content: center;
-  padding: 24px; overflow-y: auto;
-}
-.modal-overlay--top { z-index: 1100; }
-
-.modal-box {
-  background: #FFFFFF; border-radius: 20px; width: 100%;
-  max-height: 90vh; overflow-y: auto; position: relative;
-  box-shadow: 0 24px 80px rgba(0,0,0,0.18); margin: auto;
-}
-.modal-box--sm { max-width: 420px; }
-.modal-box--lg { max-width: 680px; }
-
-.modal-close {
-  position: absolute; top: 18px; right: 18px;
-  width: 32px; height: 32px; border-radius: 50%;
-  border: none; background: var(--fondo); color: var(--texto);
-  font-size: 13px; font-weight: 700; cursor: pointer;
-  display: flex; align-items: center; justify-content: center;
-  transition: all 0.2s; font-family: inherit; z-index: 1;
-}
-.modal-close:hover { background: var(--verde); color: var(--blanco); }
-
-.modal-header {
-  display: flex; align-items: center; gap: 14px;
-  padding: 26px 28px 22px; border-bottom: 1px solid var(--borde);
-}
-.modal-header-avatar {
-  width: 44px; height: 44px; min-width: 44px; border-radius: 12px;
-  background: #DDE6DE; color: #5A6E5C;
-  font-size: 16px; font-weight: 800;
-  display: flex; align-items: center; justify-content: center;
-}
-.modal-header-avatar-lg {
-  width: 56px; height: 56px; min-width: 56px; border-radius: 14px;
-  background: #DDE6DE; overflow: hidden;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 20px; font-weight: 800; color: #5A6E5C; flex-shrink: 0;
-}
-.modal-avatar-img { width: 100%; height: 100%; object-fit: cover; }
-.modal-eyebrow {
-  font-size: 11px; font-weight: 700; color: var(--texto-sec);
-  text-transform: uppercase; letter-spacing: 0.7px; margin-bottom: 4px;
-}
-.modal-title {
-  font-size: 20px; font-weight: 800; color: var(--verde);
-  letter-spacing: -0.4px; margin-bottom: 8px;
-}
-.modal-badges-row { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
-
-.modal-body { padding: 24px 28px 8px; }
-
-.modal-section { margin-bottom: 24px; }
-.modal-section-title {
-  font-size: 11px; font-weight: 700; color: var(--texto-sec);
-  text-transform: uppercase; letter-spacing: 0.5px;
-  margin-bottom: 14px; padding-bottom: 10px; border-bottom: 1px solid var(--borde);
-}
-
-.modal-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
-.modal-grid--3 { grid-template-columns: repeat(3, 1fr); }
-.modal-field  { display: flex; flex-direction: column; gap: 4px; }
-.modal-field-label {
-  font-size: 10px; font-weight: 700; color: #9CA8A0;
-  text-transform: uppercase; letter-spacing: 0.4px;
-}
-.modal-field-value { font-size: 14px; color: var(--texto); font-weight: 600; word-break: break-word; }
-
-.modal-mensaje {
-  font-size: 14px; color: var(--texto); line-height: 1.7;
-  background: var(--fondo); border-radius: 10px; padding: 14px 16px; margin: 0;
-}
-
-.modal-acciones {
-  display: flex; gap: 10px;
-  padding-top: 20px; border-top: 1px solid var(--borde); margin-top: 8px;
-}
-.btn-cerrar-rescate {
-  flex: 1; padding: 13px; border-radius: 10px; border: none;
-  background: #FDECEA; color: #B71C1C;
-  font-size: 13px; font-weight: 700; cursor: pointer;
-  transition: all 0.2s; font-family: inherit;
-}
-.btn-cerrar-rescate:hover { background: #B71C1C; color: var(--blanco); }
-
-.modal-estado-final {
-  padding-top: 20px; border-top: 1px solid var(--borde); text-align: center;
-}
-.estado-cerrado-msg { color: var(--texto-sec); font-weight: 700; font-size: 14px; }
-
-.modal-footer {
-  display: flex; justify-content: flex-end; gap: 10px;
-  padding: 18px 28px 24px; border-top: 1px solid var(--borde); margin-top: 12px;
-}
-
-/* ══════════════════════════════════════════════
-   CONFIRMACIÓN
-══════════════════════════════════════════════ */
-.confirm-body { padding: 32px 28px 8px; text-align: center; }
-.confirm-icon {
-  width: 60px; height: 60px; border-radius: 50%;
-  background: #EEF2EE; color: var(--verde);
-  display: flex; align-items: center; justify-content: center; margin: 0 auto 18px;
-}
-.confirm-title { font-size: 18px; font-weight: 800; color: var(--verde); margin-bottom: 10px; }
-.confirm-text {
-  font-size: 13px; color: var(--texto-sec); line-height: 1.6;
-  max-width: 320px; margin: 0 auto;
-}
-
-/* ══════════════════════════════════════════════
-   ANIMACIONES
-══════════════════════════════════════════════ */
-.modal-fade-enter-active, .modal-fade-leave-active { transition: opacity 0.22s ease; }
-.modal-fade-enter-from, .modal-fade-leave-to { opacity: 0; }
-
-/* ══════════════════════════════════════════════
-   RESPONSIVE
-══════════════════════════════════════════════ */
-@media (max-width: 900px) {
-  .don-summary { display: grid; grid-template-columns: repeat(2, 1fr); }
-  .kpi-cerrados { grid-column: span 2; }
-  .modal-grid--3 { grid-template-columns: repeat(2, 1fr); }
-}
-
-@media (max-width: 640px) {
-  .page-header { flex-direction: column; align-items: flex-start; }
-  .filtros-panel { flex-direction: column; }
-  .filtro-group { min-width: 100%; }
-  .filtro-group--btn { width: 100%; }
-  .btn-limpiar { width: 100%; justify-content: center; }
-  .form-grid--4 { grid-template-columns: repeat(2, 1fr); }
-  .fg--span2 { grid-column: 1; }
-  .fg--full  { grid-column: 1; }
-  .form-panel { padding: 20px 18px; }
-  .modal-grid { grid-template-columns: 1fr; }
-  .modal-grid--3 { grid-template-columns: 1fr 1fr; }
-  .modal-body { padding: 16px 18px 8px; }
-  .modal-header { padding: 20px 18px 16px; }
-  .modal-footer { padding: 14px 18px 20px; }
-  .modal-acciones { flex-direction: column; }
-  .don-summary { grid-template-columns: 1fr; }
-  .kpi-cerrados { grid-column: span 1; }
-}
-
-@media (max-width: 480px) {
-  .modal-grid--3 { grid-template-columns: 1fr; }
-}
-
-
-/* ── MOBILE RESPONSIVE ── */
-@media (max-width: 768px) {
-  .don-summary {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
-  }
-
-  .kpi-cerrados {
-    grid-column: span 2;
-  }
-
-  .filtros-panel {
-    flex-direction: column;
-    gap: 10px;
-    padding: 14px;
-  }
-
-  .filtro-group,
-  .filtro-group--btn {
-    min-width: unset;
-    width: 100%;
-  }
-
-  .btn-limpiar {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .table-scroll {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .page-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-  }
-
-  .btn-nuevo {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .btn-cancelar-header {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .form-panel {
-    padding: 20px 14px;
-  }
-
-  .form-grid--4 {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .fg--span2 { grid-column: span 1; }
-  .fg--full  { grid-column: span 2; }
-
-  .foto-wrap {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .modal-box--lg {
-    max-width: calc(100vw - 24px);
-    max-height: 95vh;
-    padding: 22px 14px;
-  }
-
-  .modal-body { padding: 16px 0 0; }
-
-  .modal-grid { grid-template-columns: 1fr; }
-  .modal-grid--3 { grid-template-columns: 1fr 1fr; }
-
-  .modal-header { flex-wrap: wrap; gap: 10px; }
-
-  .modal-footer {
-    padding: 14px 0 0;
-    flex-direction: column;
-  }
-
-  .modal-footer .btn-cancelar,
-  .modal-footer .btn-guardar {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .acciones-cell { flex-wrap: wrap; gap: 4px; }
-
-  .form-footer {
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .form-footer .btn-cancelar,
-  .form-footer .btn-guardar {
-    width: 100%;
-    justify-content: center;
-  }
-}
-
-@media (max-width: 480px) {
-  .don-summary { grid-template-columns: 1fr; }
-  .kpi-cerrados { grid-column: span 1; }
-
-  .form-grid--4 { grid-template-columns: 1fr; }
-  .fg--span2,
-  .fg--full { grid-column: span 1; }
-
-  .modal-grid--3 { grid-template-columns: 1fr; }
-}
-
-
 </style>

@@ -52,133 +52,58 @@ const gallery = [
 
   <!-- HISTORIA -->
 
-  <section class="history-section">
+  <section class="history-section-new">
 
-    <div class="history-card">
+    <div class="history-layout">
 
-  <!-- IMAGEN -->
-
-<div class="history-image-side">
-
-  <img
-    src="/img-nosotros/inicioanhelo.PNG"
-    class="history-main-image"
-  >
-
-</div>
-
-<!-- TEXTO -->
-
-<div class="history-content-side">
-
-  <h2>
-    El inicio de
-    Anhelo Pets
-  </h2>
-
-  <div class="history-text">
-
-    <p>
-      Todo comenzó con un simple acto de empatía.
-    </p>
-
-    <p>
-      Al ver la realidad que enfrentaban muchos perros y gatos
-      en situación de abandono en Quepos, nació el deseo de
-      ayudar, rescatar y brindar una segunda oportunidad a
-      quienes más lo necesitaban.
-    </p>
-
-    <p>
-      Lo que inició con pequeños rescates y apoyo voluntario
-      fue creciendo hasta convertirse en una comunidad unida
-      por el amor y el compromiso con el bienestar animal.
-    </p>
-
-    <p>
-      Hoy, gracias al esfuerzo de voluntarios, casas cuna,
-      adoptantes y personas solidarias, Anhelo Pets continúa
-      transformando historias de abandono en historias de
-      recuperación, esperanza y nuevos comienzos.
-    </p>
-
-  </div>
-
-</div>
-    </div>
-
-  </section>
-
-
-  
-<section class="about-background">
-
-  
-
-  <!-- MISIÓN Y VISIÓN -->
-
-  <section class="purpose-section">
-
-    <div class="purpose-container">
-
-      <div class="purpose-header">
-
-        <h2>
-    
-        </h2>
-
-      </div>
-
-      <div class="purpose-grid">
-
-        <div class="purpose-box">
-
-          <h3>Misión</h3>
-
-          <p>
-            Rescatar, rehabilitar y proteger animales en situación
-            de abandono o vulnerabilidad, promoviendo adopciones
-            responsables y creando conciencia sobre el bienestar
-            animal mediante el trabajo comunitario y la educación.
-          </p>
-
-        </div>
-
-        <div class="purpose-box">
-
-          <h3>Visión</h3>
-
-          <p>
-            Ser una organización referente en protección animal
-            en Costa Rica, construyendo una sociedad donde cada
-            mascota tenga acceso a una vida digna, segura y llena
-            de amor dentro de una familia responsable.
-          </p>
-
-        </div>
-
-      </div>
-
-    </div>
-
-  </section>
-
-  <!-- GALERÍA -->
-
-  <section class="gallery-section">
-
-    <div class="gallery-track">
-
-      <div
-        class="gallery-item"
-        v-for="(img, index) in gallery"
-        :key="index"
-      >
+      <div class="history-photo">
 
         <img
-          :src="img"
-          class="gallery-image"
+          src="/img-nosotros/inicioanhelo.PNG"
+          class="history-photo-img"
         >
+
+        <svg class="history-paw" viewBox="0 0 24 24" fill="white">
+          <path d="M12 14c-3 0-6 2-6 5a1 1 0 0 0 1 1h10a1 1 0 0 0 1-1c0-3-3-5-6-5zM6.5 9A2.5 2.5 0 1 0 6.5 4a2.5 2.5 0 0 0 0 5zm11 0A2.5 2.5 0 1 0 17.5 4a2.5 2.5 0 0 0 0 5zM3.5 13A2 2 0 1 0 3.5 9a2 2 0 0 0 0 4zm17 0a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+        </svg>
+
+      </div>
+
+      <div class="history-panel">
+
+        <h2>
+          El inicio de<br>Anhelo Pets
+        </h2>
+
+        <div class="history-text">
+
+          <p>
+            Todo comenzó con un simple acto de empatía.
+          </p>
+
+          <p>
+            Al ver la realidad que enfrentaban muchos perros y gatos
+            en situación de abandono en Quepos, nació el deseo de
+            ayudar, rescatar y brindar una segunda oportunidad a
+            quienes más lo necesitaban.
+          </p>
+
+          <p>
+            Lo que inició con pequeños rescates y apoyo voluntario
+            fue creciendo hasta convertirse en una comunidad unida
+            por el amor y el compromiso con el bienestar animal.
+          </p>
+
+        </div>
+
+        <div class="history-quote">
+
+          <p>
+            Hoy transformamos historias de abandono en historias de
+            recuperación, esperanza y nuevos comienzos.
+          </p>
+
+        </div>
 
       </div>
 
@@ -186,7 +111,79 @@ const gallery = [
 
   </section>
 
-</section>
+
+  <section class="about-background">
+
+    <!-- MISIÓN Y VISIÓN -->
+
+    <section class="purpose-section-new">
+
+      <div class="purpose-container-new">
+
+        <div class="purpose-header-new">
+
+        </div>
+
+        <div class="purpose-grid-new">
+
+          <div class="purpose-box-light">
+
+            <h3>Misión</h3>
+
+            <p>
+              Cumplir con las campañas de castración que realizamos
+              para brindar una mejor calidad de vida a los animales,
+              prevenir la sobrepoblación y contribuir al bienestar de una comunidad que,
+              en muchas ocasiones, ha sido olvidada.
+            </p>
+
+          </div>
+
+          <div class="purpose-box-dark">
+
+         
+
+            <h3>Visión</h3>
+
+            <p>
+              Rescatar, rehabilitar y encontrar familias responsables para cada uno de los animales
+              que la Fundación Anhelo Pet's acoge es nuestro propósito.
+              Aspiramos a que, en el futuro, más personas se unan a la protección y el bienestar animal,
+              promoviendo la conciencia y el compromiso con esta causa tan importante.
+            </p>
+
+          </div>
+
+        </div>
+
+      </div>
+
+    </section>
+
+    <!-- GALERÍA -->
+
+    <section class="gallery-section">
+
+      <div class="gallery-track">
+
+        <div
+          class="gallery-item"
+          v-for="(img, index) in gallery"
+          :key="index"
+        >
+
+          <img
+            :src="img"
+            class="gallery-image"
+          >
+
+        </div>
+
+      </div>
+
+    </section>
+
+  </section>
 
 
   <FooterBar />
@@ -219,13 +216,10 @@ const gallery = [
   background: rgba(58,71,60,0.55);
 }
 
-.purpose-section,
-
-
 /* GENERAL */
 
-.history-section,
-.purpose-section,
+.history-section-new,
+.purpose-section-new,
 .gallery-section,
 .team-section {
 
@@ -350,113 +344,104 @@ const gallery = [
   }
 }
 
-/* HISTORY */
+/* HISTORY (nuevo) */
 
-.history-section {
+.history-section-new {
 
-  padding:
-    28px 24px
-    30px;
+  padding: 40px 24px 70px;
 }
 
-.history-card {
+.history-layout {
 
-  max-width: 1120px;
+  max-width: 1100px;
 
   margin: 0 auto;
 
   display: grid;
 
-  grid-template-columns: 0.7fr 1.3fr;
+  grid-template-columns: 0.85fr 1.15fr;
+
+  align-items: center;
+}
+
+.history-photo {
+
+  position: relative;
+
+  z-index: 2;
+
+  border-radius: 24px;
 
   overflow: hidden;
 
-  border-radius: 28px;
-
-  background: white;
-
-  border:
-    1px solid rgba(146,168,148,0.10);
-
-  box-shadow:
-    0 14px 35px rgba(58,71,60,0.05);
+  box-shadow: 0 20px 45px rgba(58,71,60,0.22);
 }
 
-/* IMAGE SIDE */
-
-.history-image-side {
-
-  overflow: hidden;
-}
-
-.history-main-image {
+.history-photo-img {
 
   width: 100%;
 
-  height: 420px;
+  height: 460px;
 
   object-fit: cover;
 
-  object-position: center;
+  display: block;
 
   transition: 0.8s ease;
 }
 
-.history-card:hover .history-main-image {
+.history-photo:hover .history-photo-img {
 
-  transform: scale(1.03);
+  transform: scale(1.04);
 }
 
-/* CONTENT SIDE */
+.history-paw {
 
-.history-content-side {
+  position: absolute;
 
-  padding: 28px;
+  bottom: 16px;
 
-  display: flex;
+  right: 16px;
 
-  flex-direction: column;
+  width: 70px;
 
-  justify-content: center;
+  height: 70px;
+
+  opacity: 0.35;
+
+  pointer-events: none;
 }
 
-.history-label {
+.history-panel {
 
-  display: inline-flex;
+  background: white;
 
-  padding: 9px 18px;
+  border-radius: 24px;
 
-  border-radius: 999px;
+  padding: 44px 40px;
 
-  background:
-    rgba(146,168,148,0.14);
+  margin-left: -70px;
 
-  color: #3A473C;
+  position: relative;
 
-  font-size: 11px;
+  z-index: 3;
 
-  font-weight: 700;
-
-  letter-spacing: 1px;
-
-  margin-bottom: 16px;
-
-  width: fit-content;
+  box-shadow: 0 18px 40px rgba(58,71,60,0.10);
 }
 
-.history-content-side h2 {
+.history-panel h2 {
 
-  font-size: 46px;
-
-  line-height: 0.94;
+  font-size: 38px;
 
   font-weight: 800;
 
   color: #3A473C;
 
-  letter-spacing: -3px;
+  letter-spacing: -1.5px;
 
-  margin-bottom: 16px;
+  line-height: 1.05;
+
+  margin-bottom: 18px;
 }
 
 .history-text {
@@ -465,16 +450,38 @@ const gallery = [
 
   flex-direction: column;
 
-  gap: 8px;
+  gap: 10px;
 }
 
 .history-text p {
 
-  font-size: 15px;
+  font-size: 14.5px;
 
-  line-height: 1.7;
+  line-height: 1.75;
 
   color: #687168;
+
+  margin: 0;
+}
+
+.history-quote {
+
+  border-left: 3px solid #92A894;
+
+  padding-left: 16px;
+
+  margin-top: 22px;
+}
+
+.history-quote p {
+
+  font-size: 14.5px;
+
+  line-height: 1.75;
+
+  color: #3A473C;
+
+  font-weight: 500;
 
   margin: 0;
 }
@@ -558,32 +565,30 @@ const gallery = [
   transform: scale(1.08);
 }
 
-/* MISIÓN Y VISIÓN */
+/* MISIÓN Y VISIÓN (nuevo) */
 
-.purpose-section {
+.purpose-section-new {
 
-  padding:
-    20px 24px
-    80px;
+  padding: 20px 24px 80px;
 
   background: transparent;
 }
 
-.purpose-container {
+.purpose-container-new {
 
-  max-width: 1000px;
+  max-width: 1100px;
 
   margin: 0 auto;
 }
 
-.purpose-header {
+.purpose-header-new {
 
   text-align: center;
 
-  margin-bottom: 40px;
+  margin-bottom: 38px;
 }
 
-.purpose-header span {
+.purpose-header-new span {
 
   color: #3A473C;
 
@@ -594,32 +599,29 @@ const gallery = [
   letter-spacing: 1px;
 }
 
-.purpose-header h2 {
+.purpose-header-new h2 {
 
-  font-size: 46px;
+  font-size: 38px;
 
   font-weight: 800;
 
   color: #3A473C;
 
-  margin-top: 14px;
+  letter-spacing: -1.5px;
 
-  letter-spacing: -2px;
-
-  line-height: 1;
+  margin: 10px 0 0;
 }
 
-.purpose-grid {
+.purpose-grid-new {
 
   display: grid;
 
-  grid-template-columns:
-    repeat(2, 1fr);
+  grid-template-columns: 0.9fr 1.1fr;
 
-  gap: 24px;
+  gap: 22px;
 }
 
-.purpose-box {
+.purpose-box-light {
 
   background: rgba(255,255,255,0.88);
 
@@ -629,43 +631,105 @@ const gallery = [
 
   border: 1px solid rgba(255,255,255,0.30);
 
-  border-radius: 28px;
+  border-radius: 24px;
 
-  padding: 28px;
+  padding: 36px 30px;
 
-  box-shadow:
-    0 12px 30px rgba(58,71,60,0.10);
+  box-shadow: 0 14px 32px rgba(58,71,60,0.10);
+
+  display: flex;
+
+  flex-direction: column;
+
+  justify-content: center;
 }
 
-.purpose-box:hover {
+.purpose-box-light h3 {
 
-  transform:
-    translateY(-6px);
-
-  box-shadow:
-    0 18px 42px rgba(58,71,60,0.10);
-}
-
-.purpose-box h3 {
-
-  font-size: 28px;
+  font-size: 24px;
 
   font-weight: 800;
 
   color: #3A473C;
 
-  margin-bottom: 16px;
+  margin-bottom: 14px;
 }
 
-.purpose-box p {
+.purpose-box-light p {
 
-  font-size: 15px;
+  font-size: 14.5px;
 
   line-height: 1.8;
 
   color: #687168;
 
   margin: 0;
+}
+
+.purpose-box-dark {
+
+  background: #3A473C;
+
+  border-radius: 24px;
+
+  padding: 36px 30px;
+
+  position: relative;
+
+  overflow: hidden;
+
+  display: flex;
+
+  flex-direction: column;
+
+  justify-content: center;
+}
+
+.purpose-leaf {
+
+  position: absolute;
+
+  top: -20px;
+
+  right: -20px;
+
+  width: 140px;
+
+  height: 140px;
+
+  opacity: 0.10;
+
+  pointer-events: none;
+}
+
+.purpose-box-dark h3 {
+
+  font-size: 24px;
+
+  font-weight: 800;
+
+  color: white;
+
+  margin-bottom: 14px;
+
+  position: relative;
+
+  z-index: 1;
+}
+
+.purpose-box-dark p {
+
+  font-size: 14.5px;
+
+  line-height: 1.8;
+
+  color: rgba(255,255,255,0.82);
+
+  margin: 0;
+
+  position: relative;
+
+  z-index: 1;
 }
 
 /* TEAM */
@@ -823,14 +887,26 @@ const gallery = [
 
 @media (max-width: 980px) {
 
-  .history-card {
+  .history-layout {
 
     grid-template-columns: 1fr;
   }
 
-  .history-main-image {
+  .history-photo-img {
 
-    height: 420px;
+    height: 340px;
+  }
+
+  .history-panel {
+
+    margin-left: 0;
+
+    margin-top: -50px;
+  }
+
+  .purpose-grid-new {
+
+    grid-template-columns: 1fr;
   }
 
   .team-grid {
@@ -841,16 +917,6 @@ const gallery = [
 }
 
 @media (max-width: 700px) {
-
-    .purpose-grid {
-
-    grid-template-columns: 1fr;
-  }
-
-  .purpose-header h2 {
-
-    font-size: 36px;
-  }
 
   .hero {
 
@@ -878,14 +944,44 @@ const gallery = [
     font-size: 14px;
   }
 
-  .history-content-side {
+  .history-section-new {
 
-    padding: 28px;
+    padding: 24px 16px 40px;
   }
 
-  .history-content-side h2 {
+  .history-photo-img {
 
-    font-size: 36px;
+    height: 240px;
+  }
+
+  .history-panel {
+
+    padding: 28px 22px;
+
+    border-radius: 20px;
+  }
+
+  .history-panel h2 {
+
+    font-size: 28px;
+  }
+
+  .purpose-section-new {
+
+    padding: 16px 16px 56px;
+  }
+
+  .purpose-header-new h2 {
+
+    font-size: 28px;
+  }
+
+  .purpose-box-light,
+  .purpose-box-dark {
+
+    padding: 26px 22px;
+
+    border-radius: 20px;
   }
 
   .team-grid {
@@ -925,56 +1021,6 @@ const gallery = [
     font-size: 14px;
   }
 
-  .history-section {
-    padding: 20px 16px 24px;
-  }
-
-  .history-card {
-    grid-template-columns: 1fr;
-    border-radius: 20px;
-  }
-
-  .history-main-image {
-    height: 240px;
-  }
-
-  .history-content-side {
-    padding: 20px 18px 24px;
-  }
-
-  .history-content-side h2 {
-    font-size: 30px;
-    letter-spacing: -1.5px;
-    margin-bottom: 12px;
-  }
-
-  .history-text p {
-    font-size: 14px;
-  }
-
-  .purpose-section {
-    padding: 20px 16px 56px;
-  }
-
-  .purpose-grid {
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-
-  .purpose-box {
-    padding: 22px 18px;
-    border-radius: 20px;
-  }
-
-  .purpose-box h3 {
-    font-size: 22px;
-    margin-bottom: 10px;
-  }
-
-  .purpose-box p {
-    font-size: 14px;
-  }
-
   .gallery-section {
     padding: 40px 0 60px;
   }
@@ -995,10 +1041,9 @@ const gallery = [
     font-size: 26px;
   }
 
-  .history-content-side h2 {
+  .history-panel h2 {
     font-size: 26px;
   }
 }
-
 
 </style>
