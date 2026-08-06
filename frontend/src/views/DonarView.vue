@@ -1,7 +1,7 @@
 <template>
   <NavBar />
 
-  <!-- HERO -->
+  <!-- HERO — tamaño y proporciones originales -->
   <section class="donate-hero">
     <div class="hero-container">
       <div class="hero-left">
@@ -24,90 +24,64 @@
     <div class="container">
 
       <div class="section-header">
-        <h2>Maneras en las que puedes ayudar</h2>
+        <h2>Elige la forma que prefieras</h2>
         <p>Puedes apoyarnos mediante donaciones, transferencias o suministros.</p>
       </div>
 
-      <!-- PAYPAL -->
-      <div class="paypal-section">
-        <div class="paypal-left">
-          <h3>Donar con PayPal</h3>
-          <p>PayPal es una forma rápida y segura de ayudarnos desde cualquier parte del mundo.</p>
-          <p>Cada contribución nos ayuda a cubrir alimento, rescates, medicamentos y tratamientos veterinarios.</p>
-        </div>
-        <div class="paypal-right">
-          <div class="paypal-grid">
-            <a href="https://www.paypal.me/FundacionAnhelo/5" target="_blank" class="paypal-btn">Donar $5</a>
-            <a href="https://www.paypal.me/FundacionAnhelo/10" target="_blank" class="paypal-btn">Donar $10</a>
-            <a href="https://www.paypal.me/FundacionAnhelo/25" target="_blank" class="paypal-btn">Donar $25</a>
-            <a href="https://www.paypal.me/FundacionAnhelo/50" target="_blank" class="paypal-btn">Donar $50</a>
-          </div>
-          <a href="https://www.paypal.me/FundacionAnhelo" target="_blank" class="other-amount">Elegir otro monto</a>
-        </div>
-      </div>
+      <!-- MÉTODOS — BENTO -->
+      <div class="methods-bento">
 
-      <!-- CUENTAS -->
-      <div class="accounts-grid">
+        <!-- PAYPAL -->
+        <div class="paypal-card">
+          <svg class="paypal-blob" viewBox="0 0 200 200"><path fill="#92A894" fill-opacity="0.15" d="M45,-58C58,-49,68,-34,71,-17C75,0,72,20,61,35C51,50,33,60,13,65C-7,71,-29,72,-45,62C-61,52,-71,32,-73,11C-75,-10,-68,-33,-53,-47C-39,-62,-17,-68,3,-70C22,-72,32,-67,45,-58Z" transform="translate(100 100)"/></svg>
+          <h3>Donar con PayPal</h3>
+          <p>PayPal es una forma rápida y segura de ayudarnos desde cualquier parte del mundo. Cada contribución cubre alimento, rescates, medicamentos y tratamientos veterinarios.</p>
+          <div class="paypal-chips">
+            <a href="https://www.paypal.me/FundacionAnhelo/5" target="_blank" class="paypal-chip">Donar $5</a>
+            <a href="https://www.paypal.me/FundacionAnhelo/10" target="_blank" class="paypal-chip">Donar $10</a>
+            <a href="https://www.paypal.me/FundacionAnhelo/25" target="_blank" class="paypal-chip">Donar $25</a>
+            <a href="https://www.paypal.me/FundacionAnhelo/50" target="_blank" class="paypal-chip">Donar $50</a>
+            <a href="https://www.paypal.me/FundacionAnhelo" target="_blank" class="paypal-chip paypal-chip-solid">Otro monto →</a>
+          </div>
+        </div>
+
         <!-- SINPE -->
-        <div class="account-card">
-          <div class="card-content">
+        <div class="sinpe-card">
+          <div class="sinpe-top">
             <h3>SINPE Móvil</h3>
             <p>La forma más sencilla de ayudarnos desde Costa Rica.</p>
-            <div class="info-box">
-              <span>Número SINPE</span>
-              <strong>+506 8840334</strong>
-            </div>
-            <div class="info-box">
-              <span>Titular</span>
-              <strong>Shirley Valverde Aguilar</strong>
-            </div>
           </div>
-          <button class="copy-btn" :class="{ copied: copiedId === 'sinpe' }" @click="copyToClipboard('+50688840334', 'sinpe')">
-            {{ copiedId === 'sinpe' ? '✓ Copiado' : 'Copiar número' }}
-          </button>
+          <div class="sinpe-bottom">
+            <div class="sinpe-number">+506 8840 334</div>
+            <div class="sinpe-holder">Shirley Valverde Aguilar</div>
+            <button class="copy-btn" :class="{ copied: copiedId === 'sinpe' }" @click="copyToClipboard('+50688840334', 'sinpe')">
+              {{ copiedId === 'sinpe' ? '✓ Copiado' : 'Copiar número' }}
+            </button>
+          </div>
         </div>
 
-        <!-- BCR -->
-        <div class="account-card">
-          <div class="card-content">
-            <h3>Cuenta BCR</h3>
-            <p>Transferencias bancarias en colones.</p>
-            <div class="info-box">
-              <span>Cuenta IBAN</span>
-              <strong>CR28015202280000590991</strong>
-            </div>
-          </div>
-          <button class="copy-btn" :class="{ copied: copiedId === 'bcr' }" @click="copyToClipboard('CR28015202280000590991', 'bcr')">
+      </div>
+
+      <!-- CUENTAS — franja compacta -->
+      <div class="accounts-strip">
+        <div class="account-cell">
+          <span class="account-label">Cuenta BCR (colones)</span>
+          <strong class="account-number">CR28015202280000590991</strong>
+          <button class="strip-copy-btn" :class="{ copied: copiedId === 'bcr' }" @click="copyToClipboard('CR28015202280000590991', 'bcr')">
             {{ copiedId === 'bcr' ? '✓ Copiado' : 'Copiar IBAN' }}
           </button>
         </div>
-
-        <!-- USD -->
-        <div class="account-card">
-          <div class="card-content">
-            <h3>Cuenta en dólares</h3>
-            <p>Para donaciones internacionales.</p>
-            <div class="info-box">
-              <span>Cuenta USD</span>
-              <strong>CR37015202001328713097</strong>
-            </div>
-          </div>
-          <button class="copy-btn" :class="{ copied: copiedId === 'usd' }" @click="copyToClipboard('CR37015202001328713097', 'usd')">
+        <div class="account-cell">
+          <span class="account-label">Cuenta en dólares</span>
+          <strong class="account-number">CR37015202001328713097</strong>
+          <button class="strip-copy-btn" :class="{ copied: copiedId === 'usd' }" @click="copyToClipboard('CR37015202001328713097', 'usd')">
             {{ copiedId === 'usd' ? '✓ Copiado' : 'Copiar cuenta' }}
           </button>
         </div>
-
-        <!-- COOPE -->
-        <div class="account-card">
-          <div class="card-content">
-            <h3>Coopealianza</h3>
-            <p>Otra opción segura para apoyarnos.</p>
-            <div class="info-box">
-              <span>Cuenta</span>
-              <strong>CR98081300210001059638</strong>
-            </div>
-          </div>
-          <button class="copy-btn" :class="{ copied: copiedId === 'coope' }" @click="copyToClipboard('CR98081300210001059638', 'coope')">
+        <div class="account-cell">
+          <span class="account-label">Coopealianza</span>
+          <strong class="account-number">CR98081300210001059638</strong>
+          <button class="strip-copy-btn" :class="{ copied: copiedId === 'coope' }" @click="copyToClipboard('CR98081300210001059638', 'coope')">
             {{ copiedId === 'coope' ? '✓ Copiado' : 'Copiar cuenta' }}
           </button>
         </div>
@@ -115,40 +89,37 @@
 
       <!-- CTA REGISTRO -->
       <div class="registro-cta">
-  <div class="registro-cta-left">
-    <div>
-      <h2>¿Ya realizaste tu donación?</h2>
-      <p>
-        Si realizaste una transferencia, SINPE o depósito,
-        registra tu comprobante para que podamos validar tu aporte.
-      </p>
-    </div>
-  </div>
-
-  <button class="btn-abrir-modal" @click="modalFormulario = true">
-    Registrar comprobante
-    <span class="btn-arrow">→</span>
-  </button>
-</div>
+        <svg class="registro-blob" viewBox="0 0 200 200"><path fill="#D4B06A" fill-opacity="0.15" d="M39,-51C50,-42,58,-28,62,-12C66,4,66,22,58,36C50,50,35,60,17,66C0,72,-20,74,-37,66C-54,58,-68,41,-72,22C-77,3,-71,-18,-59,-34C-48,-50,-31,-61,-13,-65C6,-70,28,-60,39,-51Z" transform="translate(100 100)"/></svg>
+        <div class="registro-content">
+          <h2>¿Ya realizaste tu donación?</h2>
+          <p>
+            Si realizaste una transferencia, SINPE o depósito,
+            registra tu comprobante para que podamos validar tu aporte.
+          </p>
+          <button class="btn-abrir-modal" @click="modalFormulario = true">
+            Registrar comprobante
+            <span class="btn-arrow">→</span>
+          </button>
+        </div>
+      </div>
 
       <!-- MENSAJE ÉXITO -->
-<transition name="fade-up">
-  <div v-if="exito" class="exito-card">
-    <div class="exito-card-left">
-      <div class="exito-card-icon">✓</div>
-
-      <div>
-        <h3>Donación registrada</h3>
-        <p>
-          Revisaremos tu comprobante y validaremos tu aporte pronto.
-        </p>
-      </div>
-    </div>
-  </div>
-</transition>
+      <transition name="fade-up">
+        <div v-if="exito" class="exito-card">
+          <div class="exito-card-left">
+            <div class="exito-card-icon">✓</div>
+            <div>
+              <h3>Donación registrada</h3>
+              <p>
+                Revisaremos tu comprobante y validaremos tu aporte pronto.
+              </p>
+            </div>
+          </div>
+        </div>
+      </transition>
 
       <!-- ══════════════════════════════════════════ -->
-      <!-- MODAL DEL FORMULARIO (REDISEÑADO)          -->
+      <!-- MODAL DEL FORMULARIO                       -->
       <!-- ══════════════════════════════════════════ -->
       <transition name="modal-fade">
         <div v-if="modalFormulario" class="modal-overlay" @click.self="cerrarModalForm">
@@ -461,18 +432,22 @@
           </div>
           <div class="supplies-grid">
             <div class="supply-box">
+              <span class="supply-index">01</span>
               <h4>Alimento</h4>
               <p>Comida para perros y gatos, adultos, cachorros y gatitos.</p>
             </div>
             <div class="supply-box">
+              <span class="supply-index">02</span>
               <h4>Medicamentos</h4>
               <p>Antipulgas, vitaminas, desparasitantes y productos veterinarios básicos.</p>
             </div>
             <div class="supply-box">
+              <span class="supply-index">03</span>
               <h4>Accesorios</h4>
               <p>Correas, arneses, juguetes, camas, mantas y transportadoras.</p>
             </div>
             <div class="supply-box">
+              <span class="supply-index">04</span>
               <h4>Limpieza</h4>
               <p>Jabón, desinfectantes, bolsas, detergente y artículos de limpieza.</p>
             </div>
@@ -485,6 +460,7 @@
 
   <!-- FINAL -->
   <section class="final-section">
+    <svg class="final-blob" viewBox="0 0 200 200"><path fill="#D4B06A" fill-opacity="0.10" d="M39,-51C50,-42,58,-28,62,-12C66,4,66,22,58,36C50,50,35,60,17,66C0,72,-20,74,-37,66C-54,58,-68,41,-72,22C-77,3,-71,-18,-59,-34C-48,-50,-31,-61,-13,-65C6,-70,28,-60,39,-51Z" transform="translate(100 100)"/></svg>
     <div class="final-box">
       <h2>Gracias por ayudar</h2>
       <p>
@@ -773,20 +749,13 @@ async function enviarDonacion() {
 </script>
 
 <style scoped>
-/* ════════════════════════════════════
-   TODO EL CSS ORIGINAL DE LA VISTA
-   (hero, paypal, cuentas, supplies,
-   final-section, registro-cta)
-   SE MANTIENE EXACTAMENTE IGUAL
-════════════════════════════════════ */
-
 .container {
-  max-width: 1180px;
+  max-width: 1100px;
   margin: auto;
   padding: 0 24px;
 }
 
-/* HERO */
+/* HERO — tamaño y proporciones originales, sin cambios */
 .donate-hero {
   height: 430px;
   background-image: url('/img-donacion/donahero.PNG');
@@ -835,193 +804,256 @@ async function enviarDonacion() {
 }
 
 /* SECTION */
-.donation-section { background: #FAFAFA; padding: 40px 0 120px; }
+.donation-section { background: #FAFAFA; padding: 64px 0 110px; }
 
-.section-header { text-align: center; margin-bottom: 60px; }
-.section-header h2 { font-size: 42px; font-weight: 800; color: #3A473C; margin-bottom: 12px; letter-spacing: -1px; }
-.section-header p  { font-size: 15px; color: #6C756D; line-height: 1.7; }
+.section-header { text-align: center; margin-bottom: 48px; }
+.section-header h2 { font-size: 34px; font-weight: 800; color: #3A473C; margin-bottom: 10px; letter-spacing: -0.5px; }
+.section-header p  { font-size: 14px; color: #6C756D; line-height: 1.7; }
 
-/* PAYPAL */
-.paypal-section {
-  background: linear-gradient(135deg, #3A473C, #2D372F);
-  border-radius: 40px;
-  padding: 55px;
+/* MÉTODOS — BENTO */
+.methods-bento {
   display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 50px;
-  margin-bottom: 34px;
+  grid-template-columns: 1.3fr 1fr;
+  gap: 20px;
+  margin-bottom: 20px;
 }
 
-.paypal-left h3 { font-size: 48px; font-weight: 800; color: white; margin-bottom: 24px; line-height: 1; }
-.paypal-left p  { color: rgba(255,255,255,0.90); line-height: 1.9; font-size: 16px; margin-bottom: 18px; }
+.paypal-card {
+  background: linear-gradient(135deg, #3A473C, #232B25);
+  border-radius: 28px;
+  padding: 44px;
+  position: relative;
+  overflow: hidden;
+}
 
-.paypal-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 14px; margin-bottom: 18px; }
+.paypal-blob {
+  position: absolute;
+  top: -40px;
+  right: -40px;
+  width: 220px;
+  height: 220px;
+  pointer-events: none;
+}
 
-.paypal-btn {
-  height: 62px;
-  border-radius: 18px;
-  background: rgba(255,255,255,0.14);
+.paypal-card h3 {
+  font-size: 26px;
+  font-weight: 800;
+  color: white;
+  margin: 0 0 10px;
+  position: relative;
+  z-index: 1;
+}
+
+.paypal-card p {
+  font-size: 13.5px;
+  color: rgba(255,255,255,0.68);
+  line-height: 1.7;
+  margin: 0 0 26px;
+  max-width: 380px;
+  position: relative;
+  z-index: 1;
+}
+
+.paypal-chips {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+  position: relative;
+  z-index: 1;
+}
+
+.paypal-chip {
+  background: rgba(255,255,255,0.10);
   color: white;
   text-decoration: none;
+  padding: 12px 22px;
+  border-radius: 12px;
+  font-size: 13px;
   font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   transition: 0.25s ease;
 }
 
-.paypal-btn:hover { background: white; color: #3A473C; }
+.paypal-chip:hover { background: rgba(255,255,255,0.18); }
 
-.other-amount {
-  width: 100%;
-  height: 60px;
-  border-radius: 18px;
+.paypal-chip-solid {
   background: white;
   color: #3A473C;
-  text-decoration: none;
   font-weight: 800;
-  display: flex;
-  align-items: center;
-  justify-content: center;
 }
 
-/* ACCOUNTS */
-.accounts-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 18px;
-  margin-bottom: 34px;
-  align-items: stretch;
-}
+.paypal-chip-solid:hover { background: #EDEFED; }
 
-.account-card {
+.sinpe-card {
   background: white;
-  border-radius: 26px;
-  padding: 26px 22px;
-  border: 1px solid rgba(146,168,148,0.10);
-  box-shadow: 0 10px 24px rgba(0,0,0,0.04);
+  border: 1px solid rgba(146,168,148,0.14);
+  border-radius: 28px;
+  padding: 32px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.03);
 }
 
-.card-content { flex: 1; display: flex; flex-direction: column; }
-.account-card h3 { font-size: 22px; font-weight: 800; color: #3A473C; margin-bottom: 10px; }
-.account-card p  { font-size: 13px; line-height: 1.75; color: #6C756D; margin-bottom: 18px; flex: 1; }
+.sinpe-top h3 { font-size: 19px; font-weight: 800; color: #3A473C; margin: 0 0 6px; }
+.sinpe-top p  { font-size: 12.5px; color: #6C756D; margin: 0 0 18px; line-height: 1.6; }
 
-.info-box { background: #F4F6F4; border-radius: 16px; padding: 13px 14px; margin-bottom: 10px; }
-.info-box span   { display: block; font-size: 11px; font-weight: 700; color: #3A473C; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 6px; }
-.info-box strong { color: #3A473C; font-size: 13px; line-height: 1.6; word-break: break-word; }
+.sinpe-number { font-size: 21px; font-weight: 800; color: #3A473C; margin-bottom: 3px; white-space: nowrap; }
+.sinpe-holder { font-size: 11.5px; color: #92A894; margin-bottom: 16px; }
 
 .copy-btn {
-  margin-top: 16px;
   width: 100%;
-  height: 44px;
-  border-radius: 14px;
-  border: 1.5px solid rgba(58,71,60,0.20);
+  height: 42px;
+  border-radius: 12px;
+  border: 1.5px solid rgba(58,71,60,0.18);
   background: transparent;
   color: #3A473C;
   font-size: 13px;
   font-weight: 700;
   cursor: pointer;
   transition: all 0.22s ease;
-  flex-shrink: 0;
 }
 
 .copy-btn:hover, .copy-btn.copied { background: #3A473C; color: white; border-color: #3A473C; }
 
-/* REGISTRO CTA */
-.registro-cta {
+/* CUENTAS — franja compacta */
+.accounts-strip {
   background: white;
-  border-radius: 24px;
-  padding: 26px 32px;
+  border: 1px solid rgba(146,168,148,0.14);
+  border-radius: 28px;
+  box-shadow: 0 4px 18px rgba(0,0,0,0.03);
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  margin-bottom: 24px;
+}
+
+.account-cell {
+  padding: 28px 30px;
+  border-right: 1px solid #F1F3F1;
+  display: flex;
+  flex-direction: column;
+}
+
+.account-cell:last-child { border-right: none; }
+
+.account-label {
+  font-size: 10.5px;
+  font-weight: 700;
+  color: #92A894;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 10px;
+}
+
+.account-number {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: #3A473C;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: 16px;
+}
+
+.strip-copy-btn {
+  margin-top: auto;
+  align-self: flex-start;
+  background: none;
+  border: none;
+  padding: 0;
+  color: #3A473C;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 24px;
-
-  max-width: 800px; /* ← evita que ocupe todo el ancho */
-  width: 100%;
-  margin: 0 auto 34px;
-
-  box-shadow: 0 8px 24px rgba(0,0,0,0.05);
-  border: 1px solid rgba(146,168,148,0.10);
+  gap: 6px;
+  transition: 0.2s ease;
 }
 
-.registro-cta-left {
-  flex: 1;
-  min-width: 0;
+.strip-copy-btn::before {
+  content: '';
+  width: 13px;
+  height: 13px;
+  flex-shrink: 0;
+  background: currentColor;
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Crect x='9' y='9' width='13' height='13' rx='2'/%3E%3Cpath d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/%3E%3C/svg%3E") center / contain no-repeat;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2'%3E%3Crect x='9' y='9' width='13' height='13' rx='2'/%3E%3Cpath d='M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1'/%3E%3C/svg%3E") center / contain no-repeat;
 }
+
+.strip-copy-btn:hover { color: #2D372F; }
+.strip-copy-btn.copied { color: #92A894; }
+
+/* REGISTRO CTA — protagonismo total */
+.registro-cta {
+  background: linear-gradient(120deg, #232B25, #3A473C 60%, #4b5c4d);
+  border-radius: 32px;
+  padding: 60px;
+  position: relative;
+  overflow: hidden;
+  text-align: center;
+  margin-bottom: 24px;
+  box-shadow: 0 20px 50px rgba(58,71,60,0.18);
+}
+
+.registro-blob {
+  position: absolute;
+  top: -60px;
+  left: -60px;
+  width: 260px;
+  height: 260px;
+  pointer-events: none;
+}
+
+.registro-content { position: relative; z-index: 1; max-width: 500px; margin: 0 auto; }
 
 .registro-cta h2 {
-  font-size: 24px;
+  font-size: 32px;
   font-weight: 800;
-  color: #3A473C;
-  margin-bottom: 6px;
-  line-height: 1.1;
+  color: white;
+  letter-spacing: -1px;
+  margin: 0 0 12px;
+  line-height: 1.15;
 }
 
 .registro-cta p {
-  font-size: 14px;
-  color: #6C756D;
-  line-height: 1.6;
-  max-width: 420px;
-  margin: 0;
+  font-size: 14.5px;
+  color: rgba(255,255,255,0.68);
+  line-height: 1.7;
+  margin: 0 0 30px;
 }
 
 .btn-abrir-modal {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  padding: 12px 20px;
+  gap: 10px;
+  padding: 16px 32px;
   border-radius: 14px;
   border: none;
-  background: #3A473C;
-  color: white;
+  background: white;
+  color: #3A473C;
   font-size: 14px;
-  font-weight: 700;
+  font-weight: 800;
   cursor: pointer;
   transition: all 0.25s ease;
-  white-space: nowrap;
-  flex-shrink: 0;
 }
 
 .btn-abrir-modal:hover {
-  background: #2D372F;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 20px rgba(58,71,60,0.25);
+  transform: translateY(-1px) scale(1.02);
+  box-shadow: 0 10px 26px rgba(0,0,0,0.20);
 }
 
-.btn-arrow {
-  font-size: 16px;
-}
+.btn-arrow { font-size: 16px; }
 
-/* Responsive */
-@media (max-width: 768px) {
-  .registro-cta {
-    flex-direction: column;
-    text-align: center;
-    max-width: 100%;
-  }
-
-  .registro-cta p {
-    max-width: 100%;
-  }
-}
 /* Banner de éxito */
-
 .exito-card {
   background: #F7F4EC;
   border: 1px solid #E5D8BC;
   border-radius: 24px;
   padding: 24px 30px;
-
-  max-width: 800px;
-  width: 100%;
-  margin: 0 auto 34px;
-
-  box-shadow: 0 8px 24px rgba(0,0,0,0.05);
+  margin-bottom: 24px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.03);
 }
 
 .exito-card-left {
@@ -1034,67 +1066,56 @@ async function enviarDonacion() {
   width: 46px;
   height: 46px;
   border-radius: 14px;
-
   background: #D4B06A;
   color: white;
-
   display: flex;
   align-items: center;
   justify-content: center;
-
   font-size: 20px;
   font-weight: 800;
   flex-shrink: 0;
 }
 
-.exito-card h3 {
-  margin: 0 0 4px;
-  font-size: 20px;
-  font-weight: 800;
-  color: #3A473C;
-}
-
-.exito-card p {
-  margin: 0;
-  font-size: 14px;
-  color: #6C756D;
-  line-height: 1.5;
-}
+.exito-card h3 { margin: 0 0 4px; font-size: 20px; font-weight: 800; color: #3A473C; }
+.exito-card p  { margin: 0; font-size: 14px; color: #6C756D; line-height: 1.5; }
 
 /* SUPPLIES */
 .supplies-wrapper { display: flex; justify-content: center; }
 
 .supplies-section {
-  background: white;
-  border-radius: 40px;
-  padding: 40px;
-  border: 1px solid rgba(146,168,148,0.10);
-  box-shadow: 0 12px 30px rgba(0,0,0,0.04);
-  max-width: 920px;
+  background: transparent;
+  padding: 90px 0 0;
   width: 100%;
 }
 
-.supply-header { text-align: center; margin-bottom: 30px; }
-.supply-header h2 { font-size: 28px; font-weight: 800; color: #3A473C; letter-spacing: -1px; margin-bottom: 12px; }
-.supply-header p  { font-size: 14px; color: #6C756D; line-height: 1.8; }
+.supply-header { text-align: center; margin-bottom: 40px; }
+.supply-header h2 { font-size: 32px; font-weight: 800; color: #3A473C; letter-spacing: -1px; margin-bottom: 10px; }
+.supply-header p  { font-size: 13.5px; color: #6C756D; line-height: 1.8; max-width: 480px; margin: 0 auto; }
 
-.supplies-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; }
+.supplies-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; }
 
 .supply-box {
-  background: #F4F6F4;
-  border-radius: 18px;
-  padding: 22px 16px;
+  background: white;
+  border: 1px solid rgba(146,168,148,0.14);
+  border-radius: 22px;
+  padding: 30px 22px;
   text-align: center;
-  border: 1px solid rgba(146,168,148,0.08);
   transition: 0.25s ease;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
 }
 
 .supply-box:hover { transform: translateY(-6px); box-shadow: 0 14px 30px rgba(0,0,0,0.05); }
-.supply-box h4 { font-size: 16px; font-weight: 800; color: #3A473C; margin-bottom: 8px; }
-.supply-box p  { font-size: 12px; line-height: 1.6; color: #6C756D; }
+
+.supply-index {
+  display: block;
+  font-size: 11px;
+  font-weight: 800;
+  color: #92A894;
+  letter-spacing: 1px;
+  margin-bottom: 10px;
+}
+
+.supply-box h4 { font-size: 15px; font-weight: 800; color: #3A473C; margin-bottom: 6px; }
+.supply-box p  { font-size: 11.5px; line-height: 1.6; color: #6C756D; }
 
 /* FINAL */
 .final-section {
@@ -1102,7 +1123,7 @@ async function enviarDonacion() {
   display: flex;
   justify-content: center;
   align-items: center;
-  padding: 40px 24px 120px;
+  padding: 100px 24px;
   overflow: hidden;
 }
 
@@ -1123,31 +1144,34 @@ async function enviarDonacion() {
   content: '';
   position: absolute;
   inset: 0;
-  background: rgba(244,246,244,0.45);
+  background: linear-gradient(135deg, rgba(92,108,94,0.75), rgba(45,55,47,0.80));
   z-index: 1;
 }
 
+.final-blob {
+  position: absolute;
+  bottom: -100px;
+  right: -60px;
+  width: 360px;
+  height: 360px;
+  pointer-events: none;
+  z-index: 2;
+}
+
 .final-box {
-  max-width: 980px;
+  max-width: 640px;
   width: 100%;
   margin: 0 auto;
-  background: rgba(255,255,255,0.15);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255,255,255,0.25);
-  border-radius: 42px;
-  padding: 90px 70px;
   text-align: center;
   position: relative;
   z-index: 2;
-  box-shadow: 0 24px 60px rgba(0,0,0,0.10);
 }
 
-.final-box h2 { font-size: 48px; font-weight: 800; line-height: 1; letter-spacing: -2px; margin-bottom: 18px; color: white; }
-.final-box p  { font-size: 18px; line-height: 1.95; color: rgba(255,255,255,0.86); max-width: 680px; margin: auto; }
+.final-box h2 { font-size: 34px; font-weight: 800; line-height: 1.1; letter-spacing: -1px; margin-bottom: 16px; color: white; }
+.final-box p  { font-size: 14.5px; line-height: 1.85; color: rgba(255,255,255,0.75); max-width: 560px; margin: auto; }
 
 /* ════════════════════════════════════
-   MODAL DEL FORMULARIO (REDISEÑADO)
+   MODAL DEL FORMULARIO
 ════════════════════════════════════ */
 
 .modal-overlay {
@@ -1164,7 +1188,7 @@ async function enviarDonacion() {
 
 .modal-form-box {
   background: white;
-  border-radius: 28px;
+  border-radius: 24px;
   width: 100%;
   max-width: 680px;
   max-height: 92vh;
@@ -1190,12 +1214,12 @@ async function enviarDonacion() {
   top: 0;
   background: white;
   z-index: 10;
-  border-radius: 28px 28px 0 0;
+  border-radius: 24px 24px 0 0;
 }
 
 .modal-header-icon {
   width: 52px; height: 52px;
-  border-radius: 16px;
+  border-radius: 14px;
   background: #F0F4F0;
   display: flex;
   align-items: center;
@@ -1247,7 +1271,7 @@ async function enviarDonacion() {
 
 .form-section-icon {
   width: 28px; height: 28px;
-  border-radius: 8px;
+  border-radius: 10px;
   background: #EEF1EC;
   display: flex;
   align-items: center;
@@ -1361,7 +1385,7 @@ async function enviarDonacion() {
   font-weight: 600;
   padding: 5px 10px;
   background: #EEF7F0;
-  border-radius: 8px;
+  border-radius: 10px;
   width: fit-content;
 }
 
@@ -1454,7 +1478,7 @@ async function enviarDonacion() {
 
 .upload-zone-icon {
   width: 60px; height: 60px;
-  border-radius: 18px;
+  border-radius: 16px;
   background: #EEF1EC;
   display: flex;
   align-items: center;
@@ -1609,14 +1633,14 @@ async function enviarDonacion() {
 
 /* RESPONSIVE */
 @media (max-width: 1100px) {
-  .paypal-section { grid-template-columns: 1fr; }
-  .accounts-grid  { grid-template-columns: repeat(2, 1fr); }
-  .supplies-grid  { grid-template-columns: repeat(2, 1fr); }
+  .methods-bento { grid-template-columns: 1fr; }
+  .accounts-strip { grid-template-columns: 1fr; }
+  .account-cell { border-right: none; border-bottom: 1px solid #F1F3F1; }
+  .account-cell:last-child { border-bottom: none; }
+  .supplies-grid { grid-template-columns: repeat(2, 1fr); }
 }
 
 @media (max-width: 768px) {
-  .registro-cta { flex-direction: column; text-align: center; }
-  .registro-cta-left { flex-direction: column; text-align: center; }
   .form-row { grid-template-columns: 1fr; }
   .modal-form-header { padding: 20px 20px 16px; }
   .modal-form-body   { padding: 20px 20px 24px; }
@@ -1624,10 +1648,9 @@ async function enviarDonacion() {
 
 @media (max-width: 700px) {
   .hero-left h1 { font-size: 48px; }
-  .section-header h2, .supply-header h2, .final-box h2 { font-size: 40px; }
-  .paypal-grid, .accounts-grid, .supplies-grid { grid-template-columns: 1fr; }
-  .paypal-section, .final-box { padding: 34px; }
-  .supplies-section { padding: 40px 28px; }
+  .section-header h2, .supply-header h2, .final-box h2 { font-size: 32px; }
+  .supplies-grid { grid-template-columns: 1fr; }
+  .paypal-card, .registro-cta { padding: 30px; }
   .moneda-toggle { flex-direction: column; }
 }
 
@@ -1653,72 +1676,44 @@ async function enviarDonacion() {
   }
 
   .donation-section {
-    padding: 28px 0 80px;
+    padding: 40px 0 80px;
   }
 
   .section-header {
-    margin-bottom: 36px;
+    margin-bottom: 32px;
     padding: 0 16px;
   }
 
   .section-header h2 {
-    font-size: 28px;
+    font-size: 26px;
   }
 
-  .paypal-section {
-    grid-template-columns: 1fr;
-    padding: 28px 20px;
-    gap: 28px;
-    border-radius: 24px;
+  .paypal-card {
+    padding: 26px 22px;
+    border-radius: 22px;
   }
 
-  .paypal-left h3 {
-    font-size: 32px;
-    margin-bottom: 14px;
+  .paypal-card h3 { font-size: 22px; }
+
+  .sinpe-card { padding: 26px 22px; border-radius: 22px; }
+  .sinpe-number { font-size: 18px; white-space: normal; }
+
+  .account-cell {
+    padding: 22px 20px;
   }
 
-  .paypal-left p {
-    font-size: 14px;
-    margin-bottom: 12px;
-  }
-
-  .paypal-grid {
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-
-  .paypal-btn {
-    height: 52px;
-    border-radius: 14px;
-    font-size: 14px;
-  }
-
-  .other-amount {
-    height: 50px;
-    font-size: 14px;
-  }
-
-  .accounts-grid {
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-
-  .account-card {
-    padding: 20px 18px;
-    border-radius: 20px;
+  .account-number {
+    white-space: normal;
+    overflow: visible;
+    text-overflow: clip;
   }
 
   .registro-cta {
-    flex-direction: column;
-    text-align: center;
-    padding: 20px;
-    gap: 16px;
-    border-radius: 18px;
+    padding: 34px 22px;
+    border-radius: 22px;
   }
 
-  .registro-cta h2 {
-    font-size: 20px;
-  }
+  .registro-cta h2 { font-size: 24px; }
 
   .btn-abrir-modal {
     width: 100%;
@@ -1736,14 +1731,8 @@ async function enviarDonacion() {
     gap: 12px;
   }
 
-  .supplies-section {
-    padding: 28px 20px;
-    border-radius: 24px;
-  }
-
-  .supply-header h2 {
-    font-size: 22px;
-  }
+  .supplies-section { padding: 56px 0 0; }
+  .supply-header h2 { font-size: 22px; }
 
   .supplies-grid {
     grid-template-columns: 1fr;
@@ -1751,22 +1740,17 @@ async function enviarDonacion() {
   }
 
   .final-section {
-    padding: 32px 16px 80px;
-  }
-
-  .final-box {
-    padding: 40px 24px;
-    border-radius: 24px;
+    padding: 56px 20px;
   }
 
   .final-box h2 {
-    font-size: 32px;
-    letter-spacing: -1px;
-    margin-bottom: 14px;
+    font-size: 26px;
+    letter-spacing: -0.5px;
+    margin-bottom: 12px;
   }
 
   .final-box p {
-    font-size: 15px;
+    font-size: 14px;
   }
 
   /* Modal donación */
@@ -1854,11 +1838,5 @@ async function enviarDonacion() {
   .hero-left h1 {
     font-size: 28px;
   }
-
-  .paypal-grid {
-    grid-template-columns: 1fr;
-  }
 }
-
-
 </style>

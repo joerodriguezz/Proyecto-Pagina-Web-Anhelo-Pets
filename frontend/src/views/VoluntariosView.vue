@@ -406,6 +406,34 @@ const ESTADO_DB_A_VISTA = {
   Pendiente: 'Pendiente'
 }
 
+/* ─── PERMITIR NUEVA SOLICITUD TRAS SER APROBADO ──────── */
+
+// El usuario decide explícitamente que quiere postularse a otro tipo
+// de voluntariado una vez que su solicitud actual fue aprobada.
+const quiereNuevaSolicitud = ref(false)
+
+// Si ya tiene una solicitud aprobada, ese tipo de voluntariado queda
+// bloqueado para no volver a solicitarlo; el resto de tipos sigue disponible.
+const tipoBloqueado = computed(() =>
+  solicitudActual.value?.estado === 'Aprobada' ? solicitudActual.value.tipo : null
+)
+
+const tiposDisponibles = computed(() => {
+  if (!tipoBloqueado.value) return volunteerTypes
+  return volunteerTypes.filter(t => t.value !== tipoBloqueado.value)
+})
+
+// El formulario para una nueva solicitud solo se muestra cuando ya existe
+// una aprobada y el usuario pidió explícitamente enviar otra.
+const mostrarFormularioNuevo = computed(() =>
+  quiereNuevaSolicitud.value && solicitudActual.value?.estado === 'Aprobada'
+)
+
+function iniciarNuevaSolicitud() {
+  quiereNuevaSolicitud.value = true
+  volunteerType.value = ''
+}
+
 async function cargarSolicitudActual() {
   if (!usuarioActivo.value?.correo) {
     solicitudActual.value = null
@@ -578,6 +606,7 @@ async function submitVolunteer() {
     })
 
     submitted.value = true
+    quiereNuevaSolicitud.value = false
     await cargarSolicitudActual()
   } catch (e) {
     errorEnvio.value = e?.response?.data?.message || 'No se pudo enviar la solicitud. Intenta de nuevo.'
@@ -672,7 +701,7 @@ async function submitVolunteer() {
             <div class="types-strip-label">Tipos de voluntariado</div>
             <div class="types-list">
               <div
-                v-for="t in volunteerTypes"
+                v-for="t in tiposDisponibles"
                 :key="t.value"
                 class="type-pill"
                 :class="{ active: volunteerType === t.value }"
@@ -709,8 +738,8 @@ async function submitVolunteer() {
           <p>Debes tener una cuenta activa para enviar una solicitud de voluntariado.</p>
         </div>
 
-        <!-- Ya tiene solicitud -->
-        <div v-else-if="solicitudActual" class="state-box status-box">
+        <!-- Ya tiene solicitud (y no eligió enviar una nueva tras ser aprobado) -->
+        <div v-else-if="solicitudActual && !mostrarFormularioNuevo" class="state-box status-box">
           <div
             class="status-badge-large"
             :class="{
@@ -754,6 +783,17 @@ async function submitVolunteer() {
           <p class="status-msg" v-if="solicitudActual.estado === 'Rechazada'">
             Tu solicitud no fue aprobada en esta ocasión. Puedes contactarnos para más información.
           </p>
+
+          <!-- Solo si ya fue aprobada: puede postularse a otro tipo de voluntariado -->
+          <button
+            v-if="solicitudActual.estado === 'Aprobada'"
+            type="button"
+            class="btn-nueva-solicitud"
+            @click="iniciarNuevaSolicitud"
+          >
+            <i class='bx bx-plus'></i>
+            Enviar otra solicitud de voluntariado
+          </button>
         </div>
 
         <!-- Enviado con éxito -->
@@ -882,9 +922,14 @@ async function submitVolunteer() {
             Tipo de voluntariado
           </div>
 
+          <div v-if="tipoBloqueado" class="info-note">
+            <i class='bx bxs-info-circle'></i>
+            Ya tienes una solicitud aprobada como <strong>{{ tipoBloqueado }}</strong>. Puedes elegir otro tipo de apoyo.
+          </div>
+
           <div class="type-selector-grid">
             <button
-              v-for="t in volunteerTypes"
+              v-for="t in tiposDisponibles"
               :key="t.value"
               type="button"
               class="type-btn"
@@ -1886,6 +1931,31 @@ async function submitVolunteer() {
   line-height: 1.75;
 }
 
+/* Botón "enviar otra solicitud" (solo tras aprobación) */
+.btn-nueva-solicitud {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  padding: 12px 22px;
+  border-radius: 14px;
+  border: 1.5px solid #3A473C;
+  background: transparent;
+  color: #3A473C;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-family: inherit;
+}
+
+.btn-nueva-solicitud:hover {
+  background: #3A473C;
+  color: white;
+}
+
+.btn-nueva-solicitud i { font-size: 16px; }
+
 /* ─── FORM BODY ───────────────────────── */
 .form-header {
   margin-bottom: 30px;
@@ -1930,6 +2000,32 @@ async function submitVolunteer() {
 .section-dot.accent {
   background: #F9C17A;
   box-shadow: 0 0 0 4px rgba(249,193,122,0.18);
+}
+
+/* NOTA: tipo bloqueado por aprobación previa */
+.info-note {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  background: #FFF6E9;
+  border: 1px solid rgba(249,193,122,0.35);
+  border-radius: 14px;
+  padding: 12px 16px;
+  font-size: 12.5px;
+  color: #6C756D;
+  line-height: 1.6;
+  margin-bottom: 14px;
+}
+
+.info-note i {
+  font-size: 16px;
+  color: #D18C3A;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.info-note strong {
+  color: #3A473C;
 }
 
 /* FORM LAYOUT */

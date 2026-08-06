@@ -4,8 +4,7 @@ import {
 } from 'vue-router'
 
 import HomeView from '../views/HomeView.vue'
-import { isLoggedIn, clearToken } from '../utils/tokenStorage'
-import { getCurrentUser } from '../services/authServices'
+
 
 const routes = [
 
@@ -136,7 +135,16 @@ const routes = [
   name: 'admin-voluntarios',
   component: () =>
     import('../views/admin/VoluntariosAdminView.vue')
+},
+
+{
+  path: 'auditoria',
+  name: 'admin-auditoria',
+  component: () =>
+    import('../views/admin/Auditoria.vue')
 }
+
+
 
 ]
 
@@ -214,30 +222,83 @@ router.afterEach(() => {
    PROTEGER RUTAS
 ───────────────────────────── */
 
-const rutasProtegidas = ['/perfil']
+router.beforeEach((to, from, next) => {
 
-router.beforeEach(async (to, from, next) => {
-  const requiresAuth = to.path.startsWith('/adoptar') || rutasProtegidas.includes(to.path)
-  const requiresAdmin = to.path.startsWith('/admin')
+  const usuario = JSON.parse(
 
-  if (!requiresAuth && !requiresAdmin) {
-    return next()
-  }
+    localStorage.getItem(
+      'anhelo_usuario_actual'
+    )
 
-  if (!isLoggedIn()) {
-    return next('/login')
-  }
+  )
 
-  try {
-    const user = await getCurrentUser()
-    if (requiresAdmin && !user.roles?.includes('Admin')) {
-      return next('/')
+  /* RUTAS QUE NECESITAN LOGIN */
+
+  const rutasProtegidas = [
+
+    '/perfil',
+    '/mis-adopciones'
+
+  ]
+
+  /* PROTEGER ADOPTAR */
+
+  if (
+
+    to.path.startsWith('/adoptar')
+
+  ) {
+
+    if (!usuario) {
+
+      return next('/login')
+
     }
-    next()
-  } catch {
-    clearToken()
-    next('/login')
+
   }
+
+  /* PROTEGER ADMIN */
+
+  if (
+
+    to.path.startsWith('/admin')
+
+  ) {
+
+    if (
+
+      !usuario ||
+
+      usuario.rol !== 'Admin'
+
+    ) {
+
+      return next('/login')
+
+    }
+
+  }
+
+  /* PROTEGER PERFIL */
+
+  if (
+
+    rutasProtegidas.includes(
+      to.path
+    )
+
+  ) {
+
+    if (!usuario) {
+
+      return next('/login')
+
+    }
+
+  }
+
+  next()
+
 })
 
 export default router

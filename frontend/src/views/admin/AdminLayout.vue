@@ -1,53 +1,38 @@
 <script setup>
 import { ref } from 'vue'
-import { RouterLink, useRoute, useRouter } from 'vue-router'
+import { RouterLink, useRoute } from 'vue-router'
+import {
+  LayoutDashboard,
+  PawPrint,
+  House,
+  Ambulance,
+  Stethoscope,
+  Users,
+  HeartHandshake,
+  UserPlus,
+  ShieldCheck, 
+  Globe,
+  LogOut,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Menu,
+  X
+} from 'lucide-vue-next'
 
 const route = useRoute()
-const router = useRouter()
 const sidebarOpen = ref(true)
 const mobileMenuOpen = ref(false)
 
 const navItems = [
-  {
-    to: '/admin',
-    label: 'Dashboard',
-    icon: '/img-voluntarios/dashboard.svg'
-  },
-  {
-    to: '/admin/mascotas',
-    label: 'Mascotas',
-    icon: '/img-voluntarios/mascotas.svg'
-  },
-  {
-    to: '/admin/adopciones',
-    label: 'Adopciones',
-    icon: '/img-voluntarios/adopciones.svg'
-  },
-  {
-    to: '/admin/rescates',
-    label: 'Rescates',
-    icon: '/img-voluntarios/rescates.svg'
-  },
-  {
-    to: '/admin/salud',
-    label: 'Salud',
-    icon: '/img-voluntarios/salud.svg'
-  },
-  {
-    to: '/admin/usuarios',
-    label: 'Usuarios',
-    icon: '/img-voluntarios/usuarios.svg'
-  },
-  {
-    to: '/admin/donaciones',
-    label: 'Donaciones',
-    icon: '/img-voluntarios/donacion.svg'
-  },
-  {
-    to: '/admin/voluntarios',
-    label: 'Voluntarios',
-    icon: '/img-voluntarios/voluntario.svg'
-  }
+  { to: '/admin', label: 'Dashboard', icon: LayoutDashboard },
+  { to: '/admin/mascotas', label: 'Mascotas', icon: PawPrint },
+  { to: '/admin/adopciones', label: 'Adopciones', icon: House },
+  { to: '/admin/rescates', label: 'Rescates', icon: Ambulance },
+  { to: '/admin/salud', label: 'Salud', icon: Stethoscope },
+  { to: '/admin/usuarios', label: 'Usuarios', icon: Users },
+  { to: '/admin/donaciones', label: 'Donaciones', icon: HeartHandshake },
+  { to: '/admin/voluntarios', label: 'Voluntarios', icon: UserPlus },
+  { to: '/admin/auditoria', label: 'Auditoría', icon: ShieldCheck }
 ]
 
 const isActive = (to) => {
@@ -74,10 +59,17 @@ const handleMobileNavClick = () => {
           <span v-if="sidebarOpen" class="logo-text">Anhelo<span class="peach">Pets</span></span>
           <span v-else class="logo-text-short">A</span>
         </RouterLink>
-        <button class="toggle-btn" @click="sidebarOpen = !sidebarOpen" :class="{ rotated: !sidebarOpen }">
-          <span class="arrow-char">‹</span>
+        <button
+          class="toggle-btn"
+          @click="sidebarOpen = !sidebarOpen"
+          :aria-label="sidebarOpen ? 'Contraer menú' : 'Expandir menú'"
+        >
+          <PanelLeftClose v-if="sidebarOpen" :size="16" :stroke-width="2" />
+          <PanelLeftOpen v-else :size="16" :stroke-width="2" />
         </button>
       </div>
+
+      <div v-if="sidebarOpen" class="sidebar-section-label">Menú principal</div>
 
       <nav class="sidebar-nav">
         <RouterLink
@@ -87,18 +79,18 @@ const handleMobileNavClick = () => {
           class="nav-item"
           :class="{ active: isActive(item.to) }"
         >
-          <img :src="item.icon" :alt="item.label" class="nav-icon">
+          <component :is="item.icon" class="nav-icon" :size="19" :stroke-width="1.9" />
           <span v-if="sidebarOpen" class="nav-label">{{ item.label }}</span>
         </RouterLink>
       </nav>
 
       <div class="sidebar-footer">
         <RouterLink to="/" class="nav-item-footer">
-          <img src="/img-voluntarios/web.svg" alt="Web" class="footer-icon">
+          <Globe class="footer-icon" :size="17" :stroke-width="1.9" />
           <span v-if="sidebarOpen">Ver sitio web</span>
         </RouterLink>
         <RouterLink to="/login" class="nav-item-footer logout">
-          <img src="/img-voluntarios/cerrar.svg" alt="Cerrar sesión" class="footer-icon">
+          <LogOut class="footer-icon" :size="17" :stroke-width="1.9" />
           <span v-if="sidebarOpen">Cerrar sesión</span>
         </RouterLink>
       </div>
@@ -108,9 +100,7 @@ const handleMobileNavClick = () => {
     <div class="mobile-topbar">
       <div class="mobile-topbar-left">
         <button class="hamburger-btn" @click="mobileMenuOpen = true" aria-label="Abrir menú">
-          <span class="hamburger-line"></span>
-          <span class="hamburger-line"></span>
-          <span class="hamburger-line"></span>
+          <Menu :size="20" :stroke-width="2" />
         </button>
         <RouterLink to="/" class="mobile-logo">
           Anhelo<span class="peach">Pets</span>
@@ -139,11 +129,11 @@ const handleMobileNavClick = () => {
             <span class="logo-text">Anhelo<span class="peach">Pets</span></span>
           </RouterLink>
           <button class="close-btn" @click="closeMobileMenu" aria-label="Cerrar menú">
-            <svg width="20" height="20" viewBox="0 0 20 20" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M15 5L5 15M5 5L15 15" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            </svg>
+            <X :size="18" :stroke-width="2" />
           </button>
         </div>
+
+        <div class="sidebar-section-label mobile">Menú principal</div>
 
         <nav class="mobile-drawer-nav">
           <RouterLink
@@ -154,18 +144,18 @@ const handleMobileNavClick = () => {
             :class="{ active: isActive(item.to) }"
             @click="handleMobileNavClick"
           >
-            <img :src="item.icon" :alt="item.label" class="nav-icon">
+            <component :is="item.icon" class="nav-icon" :size="20" :stroke-width="1.9" />
             <span class="nav-label">{{ item.label }}</span>
           </RouterLink>
         </nav>
 
         <div class="mobile-drawer-footer">
           <RouterLink to="/" class="mobile-nav-item-footer" @click="closeMobileMenu">
-            <img src="/img-voluntarios/web.svg" alt="Web" class="footer-icon">
+            <Globe class="footer-icon" :size="17" :stroke-width="1.9" />
             <span>Ver sitio web</span>
           </RouterLink>
           <RouterLink to="/login" class="mobile-nav-item-footer logout" @click="closeMobileMenu">
-            <img src="/img-voluntarios/cerrar.svg" alt="Cerrar sesión" class="footer-icon">
+            <LogOut class="footer-icon" :size="17" :stroke-width="1.9" />
             <span>Cerrar sesión</span>
           </RouterLink>
         </div>
@@ -206,8 +196,8 @@ const handleMobileNavClick = () => {
    DESKTOP SIDEBAR
 ══════════════════════════════════════════ */
 .sidebar {
-  width: 260px;
-  background: #3A473C;
+  width: 272px;
+  background: #2E3A30;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
@@ -216,20 +206,27 @@ const handleMobileNavClick = () => {
   top: 0;
   height: 100vh;
   z-index: 101;
+  padding: 28px 18px;
+  box-sizing: border-box;
 }
 
 .admin-shell.collapsed .sidebar {
-  width: 72px;
+  width: 84px;
+  padding: 28px 14px;
 }
 
 .sidebar-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 24px 20px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  min-height: 76px;
-  box-sizing: border-box;
+  padding: 0 8px 28px 8px;
+  margin-bottom: 20px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.admin-shell.collapsed .sidebar-header {
+  justify-content: center;
+  padding: 0 0 28px 0;
 }
 
 .sidebar-logo {
@@ -237,89 +234,88 @@ const handleMobileNavClick = () => {
 }
 
 .logo-text {
-  font-size: 20px;
-  font-weight: 800;
+  font-size: 19px;
+  font-weight: 500;
   color: white;
-  letter-spacing: -1px;
+  letter-spacing: -0.3px;
 }
 
 .logo-text-short {
-  font-size: 22px;
-  font-weight: 800;
-  color: #F9C17A;
-  padding-left: 6px;
+  font-size: 20px;
+  font-weight: 500;
+  color: #F4B565;
 }
 
 .peach {
-  color: #F9C17A;
+  color: #F4B565;
 }
 
 .toggle-btn {
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.05);
   border: none;
-  color: rgba(255, 255, 255, 0.7);
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
+  color: rgba(255, 255, 255, 0.55);
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease;
+  flex-shrink: 0;
+}
+
+.admin-shell.collapsed .toggle-btn {
+  display: none;
 }
 
 .toggle-btn:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.1);
   color: white;
 }
 
-.arrow-char {
-  font-size: 20px;
-  line-height: 1;
-  margin-top: -2px;
-  transition: transform 0.3s;
+.sidebar-section-label {
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.32);
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  padding: 0 12px 10px;
 }
 
-.toggle-btn.rotated .arrow-char {
-  transform: rotate(180deg);
+.admin-shell.collapsed .sidebar-section-label {
+  display: none;
 }
 
 .sidebar-nav {
   flex: 1;
-  padding: 24px 14px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
-}
-
-.admin-shell.collapsed .sidebar-nav {
-  padding: 24px 10px;
+  gap: 3px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
   gap: 12px;
-  padding: 12px 16px;
-  border-radius: 12px;
-  color: rgba(255, 255, 255, 0.65);
+  padding: 11px 14px;
+  border-radius: 11px;
+  color: rgba(255, 255, 255, 0.62);
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 400;
   text-decoration: none;
-  transition: all 0.25s ease;
+  transition: background 0.2s ease, color 0.2s ease;
   white-space: nowrap;
 }
 
 .nav-icon {
-  width: 24px;
-  height: 24px;
-  object-fit: contain;
   flex-shrink: 0;
+  color: inherit;
 }
 
 .admin-shell.collapsed .nav-item {
   justify-content: center;
-  padding: 12px 0;
+  padding: 11px 0;
 }
 
 .nav-item:hover {
@@ -328,57 +324,52 @@ const handleMobileNavClick = () => {
 }
 
 .nav-item.active {
-  background: #92A894;
-  color: white;
-  font-weight: 700;
-}
-
-.admin-shell.collapsed .nav-item.active {
-  background: transparent;
-  color: #F9C17A;
-  font-weight: 800;
+  background: rgba(244, 181, 101, 0.14);
+  color: #F4B565;
+  font-weight: 500;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
 }
 
 .sidebar-footer {
-  padding: 14px;
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
+  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  padding-top: 14px;
+  margin-top: 14px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 2px;
 }
 
 .nav-item-footer {
   display: flex;
   align-items: center;
-  padding: 10px 16px;
+  gap: 12px;
+  padding: 9px 14px;
   border-radius: 10px;
   color: rgba(255, 255, 255, 0.4);
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 400;
   text-decoration: none;
-  transition: all 0.2s ease;
-  gap: 12px;
+  transition: background 0.2s ease, color 0.2s ease;
 }
 
 .admin-shell.collapsed .nav-item-footer {
   justify-content: center;
-  padding: 8px 0;
+  padding: 9px 0;
 }
 
 .nav-item-footer:hover {
   color: white;
-  background: rgba(255, 255, 255, 0.03);
+  background: rgba(255, 255, 255, 0.04);
 }
 
 .logout:hover {
-  color: #EB7777;
-  background: rgba(235, 119, 119, 0.08);
+  color: #E28080;
+  background: rgba(226, 128, 128, 0.08);
 }
 
 .footer-icon {
-  width: 20px;
-  height: 20px;
   flex-shrink: 0;
+  color: inherit;
 }
 
 /* ══════════════════════════════════════════
@@ -470,12 +461,10 @@ const handleMobileNavClick = () => {
 ══════════════════════════════════════════ */
 @media (max-width: 768px) {
 
-  /* Ocultar sidebar de escritorio */
   .sidebar {
     display: none;
   }
 
-  /* Layout en columna para móvil */
   .admin-shell {
     flex-direction: column;
   }
@@ -485,7 +474,7 @@ const handleMobileNavClick = () => {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: #3A473C;
+    background: #2E3A30;
     height: 60px;
     padding: 0 16px;
     position: sticky;
@@ -513,19 +502,17 @@ const handleMobileNavClick = () => {
     letter-spacing: -0.5px;
   }
 
-  /* Botón hamburguesa */
   .hamburger-btn {
     background: rgba(255, 255, 255, 0.08);
     border: none;
+    color: white;
     width: 38px;
     height: 38px;
     border-radius: 10px;
     cursor: pointer;
     display: flex;
-    flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 5px;
     padding: 0;
     transition: background 0.2s ease;
     flex-shrink: 0;
@@ -533,14 +520,6 @@ const handleMobileNavClick = () => {
 
   .hamburger-btn:hover {
     background: rgba(255, 255, 255, 0.15);
-  }
-
-  .hamburger-line {
-    display: block;
-    width: 18px;
-    height: 2px;
-    background: white;
-    border-radius: 2px;
   }
 
   /* ── Overlay oscuro ── */
@@ -561,30 +540,31 @@ const handleMobileNavClick = () => {
     top: 0;
     left: 0;
     bottom: 0;
-    width: 280px;
-    background: #3A473C;
+    width: 288px;
+    background: #2E3A30;
     z-index: 400;
     overflow-y: auto;
+    padding: 24px 16px;
+    box-sizing: border-box;
   }
 
   .mobile-drawer-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 20px 20px;
+    padding: 0 6px 22px 6px;
+    margin-bottom: 16px;
     border-bottom: 1px solid rgba(255, 255, 255, 0.07);
-    min-height: 68px;
-    box-sizing: border-box;
     flex-shrink: 0;
   }
 
   .close-btn {
     background: rgba(255, 255, 255, 0.08);
     border: none;
-    color: rgba(255, 255, 255, 0.7);
-    width: 34px;
-    height: 34px;
-    border-radius: 8px;
+    color: rgba(255, 255, 255, 0.65);
+    width: 32px;
+    height: 32px;
+    border-radius: 9px;
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -598,46 +578,50 @@ const handleMobileNavClick = () => {
     color: white;
   }
 
+  .sidebar-section-label.mobile {
+    padding: 0 10px 10px;
+  }
+
   /* Nav items del drawer */
   .mobile-drawer-nav {
     flex: 1;
-    padding: 20px 14px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 3px;
   }
 
   .mobile-nav-item {
     display: flex;
     align-items: center;
-    gap: 14px;
-    padding: 13px 16px;
-    border-radius: 12px;
-    color: rgba(255, 255, 255, 0.65);
-    font-size: 15px;
-    font-weight: 600;
+    gap: 13px;
+    padding: 12px 14px;
+    border-radius: 11px;
+    color: rgba(255, 255, 255, 0.62);
+    font-size: 14.5px;
+    font-weight: 400;
     text-decoration: none;
-    transition: all 0.2s ease;
+    transition: background 0.2s ease, color 0.2s ease;
   }
 
   .mobile-nav-item:hover {
-    background: rgba(255, 255, 255, 0.06);
+    background: rgba(255, 255, 255, 0.05);
     color: white;
   }
 
   .mobile-nav-item.active {
-    background: #92A894;
-    color: white;
-    font-weight: 700;
+    background: rgba(244, 181, 101, 0.14);
+    color: #F4B565;
+    font-weight: 500;
   }
 
   /* Footer del drawer */
   .mobile-drawer-footer {
-    padding: 14px;
     border-top: 1px solid rgba(255, 255, 255, 0.07);
+    padding-top: 14px;
+    margin-top: 14px;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 2px;
     flex-shrink: 0;
   }
 
@@ -645,13 +629,13 @@ const handleMobileNavClick = () => {
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 11px 16px;
+    padding: 10px 14px;
     border-radius: 10px;
     color: rgba(255, 255, 255, 0.4);
     font-size: 13px;
-    font-weight: 600;
+    font-weight: 400;
     text-decoration: none;
-    transition: all 0.2s ease;
+    transition: background 0.2s ease, color 0.2s ease;
   }
 
   .mobile-nav-item-footer:hover {
@@ -660,15 +644,15 @@ const handleMobileNavClick = () => {
   }
 
   .mobile-nav-item-footer.logout:hover {
-    color: #EB7777;
-    background: rgba(235, 119, 119, 0.08);
+    color: #E28080;
+    background: rgba(226, 128, 128, 0.08);
   }
 
   /* Ajustes de la topbar del contenido principal en móvil */
   .admin-topbar {
     height: 56px;
     padding: 0 16px;
-    top: 60px; /* Debajo del mobile topbar */
+    top: 60px;
   }
 
   .page-title {
@@ -679,7 +663,6 @@ const handleMobileNavClick = () => {
     display: none;
   }
 
-  /* El avatar del topbar principal se oculta en móvil (ya está en mobile-topbar) */
   .topbar-right .admin-avatar {
     display: none;
   }
