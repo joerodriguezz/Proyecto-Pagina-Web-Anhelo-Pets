@@ -1,458 +1,303 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-
+import { usePetsStore } from '../../stores/usePetsStore'
 import { registrarAuditoria } from '../../composables/useAuditLog'
-import { getDonations, updateDonationStatus } from '../../services/donationServices'
+import {
+  getAdoptionRequests,
+  updateAdoptionRequestStatus,
+  mapAdoptionRequestDtoToRow,
+} from '../../services/adoptionServices'
 
-// ─── Datos desde el backend ────────────────────────────────────
-// (Antes esta vista leía/escribía en localStorage bajo la clave
-// 'anhelo_donaciones'. Ahora se conecta al backend a través de
-// services/donationServices.js, siguiendo el mismo patrón que usan
-// los demás módulos del proyecto.)
-const todasDonaciones = ref([])
-const cargando   = ref(false)
-const errorCarga = ref('')
 
-// NOTA / SUPUESTO DE INTEGRACIÓN:
-// No se pudo verificar el contrato exacto de la respuesta de
-// GET /api/donations (nombres de campo en el backend). Este mapeo
-// asume que el modelo "Donation" usa los mismos nombres que
-// submitDonation() en donationServices.js (donorName, email, phone,
-// method, currency, amount, donatedAt, message, proofFile) más un
-// campo "status" y timestamps (_id/createdAt). Si el backend responde
-// con otros nombres, ajusta únicamente esta función — el resto de la
-// vista sigue trabajando con los mismos nombres en español de siempre
-// (nombre, correo, telefono, metodo, moneda, monto, fechaDonacion,
-// fechaRegistro, mensaje, comprobante, estado) para no tocar el
-// template ni los estilos.
-function mapDonacion(d) {
-  return {
-    id: d._id || d.id,
-    nombre: d.donorName ?? d.nombre,
-    correo: d.email ?? d.correo,
-    telefono: d.phone ?? d.telefono,
-    metodo: d.method ?? d.metodo,
-    moneda: d.currency ?? d.moneda,
-    monto: d.amount ?? d.monto,
-    fechaDonacion: d.donatedAt ?? d.fechaDonacion,
-    fechaRegistro: d.createdAt ?? d.fechaRegistro,
-    mensaje: d.message ?? d.mensaje ?? '',
-    comprobante: d.proofFile ?? d.comprobante ?? '',
-    // El backend recibe la acción como 'Aprobar' / 'Rechazar' (ver
-    // updateDonationStatus más abajo), así que se asume que también
-    // devuelve el estado ya en español ('Pendiente' | 'Aprobada' | 'Rechazada').
-    // Si el backend usa otros valores (p. ej. 'pending'/'approved'/'rejected'),
-    // traduce aquí.
-    estado: d.status ?? d.estado ?? 'Pendiente',
-  }
+const store = usePetsStore()
+
+// ─── Filtros ─────────────────────────────────────────────────────────────────
+const filterStatus      = ref('Todos')
+const filterSolicitante = ref('')
+const filterMascota     = ref('')
+const filterFecha       = ref('Todas')
+
+function limpiarFiltros() {
+  filterStatus.value      = 'Todos'
+  filterSolicitante.value = ''
+  filterMascota.value     = ''
+  filterFecha.value       = 'Todas'
 }
 
-async function cargarDonaciones() {
-  cargando.value   = true
+// ─── Solicitudes (conectadas a la BD vía adoptionServices) ──────────────────
+const solicitudes = ref([])
+const cargando    = ref(false)
+const errorCarga  = ref('')
+
+async function cargarSolicitudes() {
+  cargando.value = true
   errorCarga.value = ''
   try {
-    const data  = await getDonations()
-    // Tolerante a distintas formas comunes de respuesta del backend:
-    // un array plano, o un objeto envolvente { donations: [...] } / { data: [...] }.
-    const lista = Array.isArray(data) ? data : (data?.donations || data?.data || [])
-    todasDonaciones.value = lista.map(mapDonacion)
-
-    registrarAuditoria({
-      modulo: 'Donaciones',
-      accion: 'Consultó el listado de donaciones',
-      // AUDIT_TIPOS_ACCION no incluye un tipo "consultar"; se usa 'editar'
-      // como el más cercano disponible sin modificar useAuditLog.js.
-      tipoAccion: 'editar',
-      elemento: 'Listado de donaciones',
-      descripcion: `Se cargaron ${todasDonaciones.value.length} donaciones desde el servidor.`,
-      estado: 'Exitoso',
-    })
+    const { data } = await getAdoptionRequests()
+    solicitudes.value = (data || []).map(mapAdoptionRequestDtoToRow)
   } catch (e) {
-    console.error('Error al cargar donaciones:', e)
-    errorCarga.value = 'No se pudieron cargar las donaciones. Intenta de nuevo más tarde.'
-    todasDonaciones.value = []
-
-    registrarAuditoria({
-      modulo: 'Donaciones',
-      accion: 'Consultó el listado de donaciones',
-      tipoAccion: 'editar',
-      elemento: 'Listado de donaciones',
-      descripcion: `Falló la carga de donaciones: ${e?.message || 'error desconocido'}.`,
-      estado: 'Fallido',
-    })
+    console.error('No se pudieron cargar las solicitudes de adopción:', e)
+    errorCarga.value = 'No se pudieron cargar las solicitudes de adopción.'
+    solicitudes.value = []
   } finally {
     cargando.value = false
   }
 }
 
-onMounted(() => {
-  cargarDonaciones()
+onMounted(() => { cargarSolicitudes() })
+
+// ─── Helpers de fecha ────────────────────────────────────────────────────────
+function parseDate(fechaStr) {
+  if (!fechaStr) return null
+  if (/^\d{2}\/\d{2}\/\d{4}$/.test(fechaStr)) {
+    const [d, m, y] = fechaStr.split('/')
+    return new Date(Number(y), Number(m) - 1, Number(d))
+  }
+  const d = new Date(fechaStr)
+  return isNaN(d.getTime()) ? null : d
+}
+
+function startOfDay(date) {
+  const d = new Date(date)
+  d.setHours(0, 0, 0, 0)
+  return d
+}
+
+// ─── Computed filtrado ────────────────────────────────────────────────────────
+const filtered = computed(() => {
+  const hoy    = startOfDay(new Date())
+  const hace7  = new Date(hoy); hace7.setDate(hoy.getDate() - 6)
+  const hace30 = new Date(hoy); hace30.setDate(hoy.getDate() - 29)
+  const busqSol  = filterSolicitante.value.trim().toLowerCase()
+  const busqMasc = filterMascota.value.trim().toLowerCase()
+
+  return solicitudes.value.filter(s => {
+    // 1. Estado
+    if (filterStatus.value !== 'Todos' && s.estado !== filterStatus.value) return false
+
+    // 2. Solicitante: nombre, cédula o correo
+    if (busqSol) {
+      const campos = [s.solicitante, s.cedula, s.email].filter(Boolean).map(v => v.toLowerCase())
+      if (!campos.some(c => c.includes(busqSol))) return false
+    }
+
+    // 3. Mascota
+    if (busqMasc) {
+      if (!(s.mascota || '').toLowerCase().includes(busqMasc)) return false
+    }
+
+    // 4. Fecha
+    if (filterFecha.value !== 'Todas') {
+      const fecha = parseDate(s.fecha)
+      if (!fecha) return false
+      const d = startOfDay(fecha)
+      if (filterFecha.value === 'Hoy'            && d.getTime() !== hoy.getTime()) return false
+      if (filterFecha.value === 'Últimos 7 días'  && d < hace7)                    return false
+      if (filterFecha.value === 'Últimos 30 días' && d < hace30)                   return false
+    }
+
+    return true
+  })
 })
 
-const TIPO_CAMBIO = 485
-function montoEnCRC(donacion) {
-  const monto = Number(donacion.monto || 0)
-  if (donacion.moneda === 'USD') {
-    return monto * TIPO_CAMBIO
-  }
-  return monto
+// ─── Acciones (ahora contra la BD, con auditoría de éxito y de fallo) ───────
+function sincronizarMascota(solicitud, nuevoEstadoMascota) {
+  const mascota = solicitud.petId
+    ? store.pets.find(p => p.id === solicitud.petId)
+    : store.pets.find(p => p.name === solicitud.mascota)
+  if (mascota) store.changeStatus(mascota.id, nuevoEstadoMascota)
 }
-function montoFiltrado(donacion) {
-  const monto = Number(donacion.monto || 0)
-  if (filtroMoneda.value === 'CRC') {
-    return donacion.moneda === 'CRC' ? monto : 0
-  }
-  if (filtroMoneda.value === 'USD') {
-    return donacion.moneda === 'USD' ? monto : 0
-  }
-  // Sin filtro → convierte USD a CRC
-  return montoEnCRC(donacion)
-}
-// ─── Estadísticas calculadas ──────────────────────────────────
-const ahora = new Date()
-const mesActual = ahora.getMonth()
-const añoActual = ahora.getFullYear()
-const totalMes = computed(() => {
-  return todasDonaciones.value
-    .filter(d => {
-      const f = new Date(d.fechaDonacion || d.fechaRegistro)
-      if (d.estado !== 'Aprobada') return false
-      if (fechaMes.value !== null) {
-        return (
-          f.getMonth() === fechaMes.value &&
-          f.getFullYear() === fechaAño.value
-        )
-      }
-      return (
-        f.getMonth() === mesActual &&
-        f.getFullYear() === añoActual
-      )
-    })
-    .reduce((s, d) => s + montoFiltrado(d), 0)
-})
-const totalAño = computed(() => {
-  return todasDonaciones.value
-    .filter(d => {
-      const f = new Date(d.fechaDonacion || d.fechaRegistro)
-      if (d.estado !== 'Aprobada') return false
-      if (fechaAño.value !== null) {
-        return f.getFullYear() === fechaAño.value
-      }
-      return f.getFullYear() === añoActual
-    })
-    .reduce((s, d) => s + montoFiltrado(d), 0)
-})
-const totalCRC = computed(() => {
-  return todasDonaciones.value
-    .filter(d => d.estado === 'Aprobada' && d.moneda === 'CRC')
-    .reduce((s, d) => s + Number(d.monto || 0), 0)
-})
-const totalUSD = computed(() => {
-  return todasDonaciones.value
-    .filter(d => d.estado === 'Aprobada' && d.moneda === 'USD')
-    .reduce((s, d) => s + Number(d.monto || 0), 0)
-})
-const simboloEstadisticas = computed(() => {
-  if (filtroMoneda.value === 'USD') {
-    return '$'
-  }
-  return '₡'
-})
-const totalDonaciones = computed(() => todasDonaciones.value.length)
-const totalPendientes = computed(() => todasDonaciones.value.filter(d => d.estado === 'Pendiente').length)
-const totalAprobadas  = computed(() => todasDonaciones.value.filter(d => d.estado === 'Aprobada').length)
-// ─── Filtros ──────────────────────────────────────────────────
-const filtroEstado = ref('')
-const filtroMetodo = ref('')
-const filtroNombre = ref('')
-const filtroMoneda = ref('')
-// Fecha: manejada por el calendario custom
-const MESES_LABEL = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic']
-const calAbierto    = ref(false)
-const calYear       = ref(new Date().getFullYear())
-const fechaMes      = ref(null)   // 0-11
-const fechaAño      = ref(null)
-const fechaLabel = computed(() => {
-  if (fechaMes.value === null) return null
-  return MESES_LABEL[fechaMes.value] + ' ' + fechaAño.value
-})
-function toggleCal() { calAbierto.value = !calAbierto.value }
-function closeCal()  { calAbierto.value = false }
-function seleccionarMes(i) {
-  fechaMes.value  = i
-  fechaAño.value  = calYear.value
-  calAbierto.value = false
-}
-// Filtro de fecha: comparar con fechaDonacion que empieza con "YYYY-MM"
-const filtroFechaStr = computed(() => {
-  if (fechaMes.value === null) return ''
-  const mm = String(fechaMes.value + 1).padStart(2, '0')
-  return `${fechaAño.value}-${mm}`
-})
-const donacionesFiltradas = computed(() => {
-  let lista = [...todasDonaciones.value]
-  if (filtroNombre.value.trim()) {
-    const q = filtroNombre.value.toLowerCase()
-    lista = lista.filter(d => d.nombre?.toLowerCase().includes(q))
-  }
-  if (filtroEstado.value) lista = lista.filter(d => d.estado === filtroEstado.value)
-  if (filtroMetodo.value) lista = lista.filter(d => d.metodo === filtroMetodo.value)
-  if (filtroMoneda.value) lista = lista.filter(d => d.moneda === filtroMoneda.value)
-  if (filtroFechaStr.value) lista = lista.filter(d => d.fechaDonacion?.startsWith(filtroFechaStr.value))
-  lista.sort((a, b) => new Date(b.fechaRegistro || 0) - new Date(a.fechaRegistro || 0))
-  return lista
-})
-const hayFiltros = computed(() =>
-  filtroNombre.value || filtroEstado.value || filtroMetodo.value ||
-  filtroMoneda.value || fechaMes.value !== null
-)
-function limpiarFiltros() {
-  filtroNombre.value = ''
-  filtroEstado.value = ''
-  filtroMetodo.value = ''
-  filtroMoneda.value = ''
-  fechaMes.value  = null
-  fechaAño.value  = null
-  calYear.value   = new Date().getFullYear()
-}
-// ─── Modal de detalle ─────────────────────────────────────────
-const modalAbierto   = ref(false)
-const donacionActual = ref(null)
-const imagenAmpliada = ref(false)
-function abrirModal(d) {
-  donacionActual.value = { ...d }
-  modalAbierto.value   = true
-  imagenAmpliada.value = false
-}
-function cerrarModal() {
-  modalAbierto.value   = false
-  donacionActual.value = null
-}
-// ─── Aprobar / Rechazar ───────────────────────────────────────
-async function cambiarEstado(nuevoEstado) {
-  if (!donacionActual.value) return
-  const idx = todasDonaciones.value.findIndex(d => d.id === donacionActual.value.id)
-  if (idx === -1) return
 
-  const estadoAnterior = donacionActual.value.estado
-  // El backend espera la acción como 'Aprobar' / 'Rechazar'
-  // (ver donationServices.updateDonationStatus).
-  const accionBackend = nuevoEstado === 'Aprobada' ? 'Aprobar' : 'Rechazar'
-
+async function procesoSolicitud(id) {
+  const s = solicitudes.value.find(s => s.id === id)
+  if (!s) return
+  const estadoAnterior = s.estado
   try {
-    await updateDonationStatus(donacionActual.value.id, accionBackend)
-
-    todasDonaciones.value[idx].estado = nuevoEstado
-    donacionActual.value.estado = nuevoEstado
-
+    await updateAdoptionRequestStatus(id, 'Proceso')
+    s.estado = 'En proceso'
+    sincronizarMascota(s, 'En proceso')
     registrarAuditoria({
-      modulo: 'Donaciones',
-      accion: nuevoEstado === 'Aprobada' ? 'Aprobó una donación' : 'Rechazó una donación',
-      tipoAccion: nuevoEstado === 'Aprobada' ? 'aprobar' : 'rechazar',
-      elemento: donacionActual.value.nombre || 'Anónimo',
-      elementoId: donacionActual.value.id,
-      descripcion: `Donación de ${simboloMoneda(donacionActual.value.moneda)} ${formatMonto(donacionActual.value.monto)} marcada como ${nuevoEstado}.`,
-      estado: 'Exitoso',
+      modulo: 'Adopciones', accion: 'Puso en proceso una solicitud de adopción', tipoAccion: 'estado',
+      elemento: s.mascota, elementoId: s.id,
+      descripcion: `Solicitud de ${s.solicitante} para "${s.mascota}" pasó de "${estadoAnterior}" a "En proceso".`,
       valoresAnteriores: { estado: estadoAnterior },
-      valoresNuevos: { estado: nuevoEstado },
+      valoresNuevos: { estado: 'En proceso' },
     })
   } catch (e) {
-    console.error('Error al actualizar el estado de la donación:', e)
-
+    console.error('No se pudo poner en proceso la solicitud:', e)
     registrarAuditoria({
-      modulo: 'Donaciones',
-      accion: nuevoEstado === 'Aprobada' ? 'Aprobó una donación' : 'Rechazó una donación',
-      tipoAccion: nuevoEstado === 'Aprobada' ? 'aprobar' : 'rechazar',
-      elemento: donacionActual.value.nombre || 'Anónimo',
-      elementoId: donacionActual.value.id,
-      descripcion: `Falló el cambio de estado a "${nuevoEstado}": ${e?.message || 'error desconocido'}.`,
+      modulo: 'Adopciones', accion: 'Puso en proceso una solicitud de adopción', tipoAccion: 'estado',
+      elemento: s.mascota, elementoId: s.id,
+      descripcion: `Falló el intento de pasar a "En proceso" la solicitud de ${s.solicitante} para "${s.mascota}".`,
       estado: 'Fallido',
-      valoresAnteriores: { estado: estadoAnterior },
     })
-    // No se rompe la interfaz: el modal permanece abierto y el estado
-    // local no se toca si la llamada al backend falla.
   }
 }
-// ─── Helpers de formato ───────────────────────────────────────
-function formatMonto(n) {
-  return Number(n || 0).toLocaleString('es-CR')
+
+async function aprobarSolicitud(id) {
+  const s = solicitudes.value.find(s => s.id === id)
+  if (!s) return
+  const estadoAnterior = s.estado
+  try {
+    await updateAdoptionRequestStatus(id, 'Aprobar')
+    s.estado = 'Aprobada'
+    sincronizarMascota(s, 'Adoptada')
+    registrarAuditoria({
+      modulo: 'Adopciones', accion: 'Aprobó una solicitud de adopción', tipoAccion: 'aprobar',
+      elemento: s.mascota, elementoId: s.id,
+      descripcion: `Se aprobó la adopción de "${s.mascota}" para ${s.solicitante}.`,
+      valoresAnteriores: { estado: estadoAnterior },
+      valoresNuevos: { estado: 'Aprobada' },
+    })
+  } catch (e) {
+    console.error('No se pudo aprobar la solicitud:', e)
+    registrarAuditoria({
+      modulo: 'Adopciones', accion: 'Aprobó una solicitud de adopción', tipoAccion: 'aprobar',
+      elemento: s.mascota, elementoId: s.id,
+      descripcion: `Falló el intento de aprobar la adopción de "${s.mascota}" para ${s.solicitante}.`,
+      estado: 'Fallido',
+    })
+  }
 }
-function formatFecha(f) {
-  if (!f) return '—'
-  const d = new Date(f)
-  return isNaN(d) ? f : d.toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' })
+
+async function rechazarSolicitud(id) {
+  const s = solicitudes.value.find(s => s.id === id)
+  if (!s) return
+  const estadoAnterior = s.estado
+  try {
+    await updateAdoptionRequestStatus(id, 'Rechazar')
+    s.estado = 'Rechazada'
+    sincronizarMascota(s, 'Disponible')
+    registrarAuditoria({
+      modulo: 'Adopciones', accion: 'Rechazó una solicitud de adopción', tipoAccion: 'rechazar',
+      elemento: s.mascota, elementoId: s.id,
+      descripcion: `Se rechazó la solicitud de ${s.solicitante} para "${s.mascota}".`,
+      valoresAnteriores: { estado: estadoAnterior },
+      valoresNuevos: { estado: 'Rechazada' },
+    })
+  } catch (e) {
+    console.error('No se pudo rechazar la solicitud:', e)
+    registrarAuditoria({
+      modulo: 'Adopciones', accion: 'Rechazó una solicitud de adopción', tipoAccion: 'rechazar',
+      elemento: s.mascota, elementoId: s.id,
+      descripcion: `Falló el intento de rechazar la solicitud de ${s.solicitante} para "${s.mascota}".`,
+      estado: 'Fallido',
+    })
+  }
 }
-function esImagen(comprobante) {
-  return comprobante?.startsWith('data:image')
+
+// ─── Modal ───────────────────────────────────────────────────────────────────
+const showDetailModal = ref(false)
+const selectedRequest = ref(null)
+// Pestaña activa del expediente — únicamente controla qué bloque se muestra,
+// mismo patrón presentacional que "expedienteTab" en el módulo de Mascotas.
+const expedienteTab = ref('general')
+
+function verDetalle(solicitud) {
+  selectedRequest.value = solicitud
+  expedienteTab.value = 'general'
+  showDetailModal.value = true
 }
-function esPDF(comprobante) {
-  return comprobante?.startsWith('data:application/pdf')
-}
-function abrirPDF(comprobante) {
-  const win = window.open()
-  win.document.write(`<iframe src="${comprobante}" style="width:100%;height:100vh;border:none;"></iframe>`)
-}
-function estadoClass(estado) {
-  if (estado === 'Aprobada')  return 'badge-aprobada'
-  if (estado === 'Rechazada') return 'badge-rechazada'
-  return 'badge-pendiente'
-}
-function simboloMoneda(moneda) {
-  return moneda === 'USD' ? '$' : '₡'
-}
-// ─── Iniciales del donante (avatar del expediente) ─────────────
-function inicialesDonante(nombre) {
-  if (!nombre) return '?'
-  return nombre.trim().split(' ').map(p => p[0]).slice(0, 2).join('').toUpperCase()
-}
+
+const statusClass = (estado) => ({
+  'Pendiente':  'badge-pendiente',
+  'En proceso': 'badge-proceso',
+  'Aprobada':   'badge-aprobada',
+  'Rechazada':  'badge-rechazada',
+}[estado] || 'badge-neutral')
 </script>
 
 <template>
-  <div class="view-container" @click.self="closeCal">
+  <div class="view-container">
 
     <!-- CABECERA -->
     <header class="page-header">
       <div class="brand-row">
         <div class="brand-mark">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8"/><path d="M16.5 8a2.5 2.5 0 0 0 0-5C13 3 12 8 12 8"/></svg>
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
         </div>
         <div>
-          <h1 class="admin-page-title">Donaciones</h1>
-          <p class="admin-page-sub">Historial y control de donaciones recibidas</p>
+          <h1 class="admin-page-title">Solicitudes de Adopción</h1>
+          <p class="admin-page-sub">Gestión y seguimiento de solicitudes recibidas</p>
         </div>
       </div>
     </header>
 
     <!-- TARJETAS RESUMEN -->
     <div class="don-summary">
-      <div class="don-card">
-        <div class="don-icon total-mes-icon">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-        </div>
-        <strong class="don-value">{{ simboloEstadisticas }} {{ formatMonto(totalMes) }}</strong>
-        <span class="don-label">Total aprobado este mes</span>
-        <span class="don-desc">Ingresos aprobados</span>
-      </div>
-      <div class="don-card">
-        <div class="don-icon total-anio-icon">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/></svg>
-        </div>
-        <!-- CORRECCIÓN: antes mostraba formatMonto(totalMes) — duplicaba
-             el valor del mes. Ahora usa totalAño, el computed correcto
-             que ya existía pero nunca se estaba usando aquí. -->
-        <strong class="don-value">{{ simboloEstadisticas }} {{ formatMonto(totalAño) }}</strong>
-        <span class="don-label">Total aprobado este año</span>
-        <span class="don-desc">Acumulado del año</span>
-      </div>
-      <div class="don-card">
-        <div class="don-icon total-icon">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-        </div>
-        <strong class="don-value">{{ totalDonaciones }}</strong>
-        <span class="don-label">Total donaciones</span>
-        <span class="don-desc">En el sistema</span>
-      </div>
-      <div class="don-card">
+      <div class="don-card pendiente-card">
         <div class="don-icon pendiente-icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 16 14"/></svg>
         </div>
-        <strong class="don-value">{{ totalPendientes }}</strong>
+        <strong class="don-value">{{ solicitudes.filter(s => s.estado === 'Pendiente').length }}</strong>
         <span class="don-label">Pendientes</span>
         <span class="don-desc">Por revisar</span>
       </div>
-      <div class="don-card">
+      <div class="don-card proceso-card">
+        <div class="don-icon proceso-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        </div>
+        <strong class="don-value">{{ solicitudes.filter(s => s.estado === 'En proceso').length }}</strong>
+        <span class="don-label">En proceso</span>
+        <span class="don-desc">En evaluación</span>
+      </div>
+      <div class="don-card aprobada-card">
         <div class="don-icon aprobada-icon">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
         </div>
-        <strong class="don-value">{{ totalAprobadas }}</strong>
+        <strong class="don-value">{{ solicitudes.filter(s => s.estado === 'Aprobada').length }}</strong>
         <span class="don-label">Aprobadas</span>
-        <span class="don-desc">Donaciones confirmadas</span>
+        <span class="don-desc">Adopciones confirmadas</span>
+      </div>
+      <div class="don-card rechazada-card">
+        <div class="don-icon rechazada-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>
+        </div>
+        <strong class="don-value">{{ solicitudes.filter(s => s.estado === 'Rechazada').length }}</strong>
+        <span class="don-label">Rechazadas</span>
+        <span class="don-desc">No procedieron</span>
+      </div>
+      <div class="don-card total-card">
+        <div class="don-icon total-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+        </div>
+        <strong class="don-value">{{ solicitudes.length }}</strong>
+        <span class="don-label">Total</span>
+        <span class="don-desc">En el sistema</span>
       </div>
     </div>
 
     <!-- FILTROS -->
     <div class="filtros-panel">
+
       <div class="filtros-row">
-        <!-- Estado — tabs, como en Mascotas -->
+        <!-- Estado tabs -->
         <div class="filtro-group filtro-group--tabs">
           <label class="filtro-label">Estado</label>
           <div class="tabs-wrap">
-            <button type="button" class="tab-btn" :class="{ active: filtroEstado === '' }" @click="filtroEstado = ''">Todos</button>
-            <button type="button" class="tab-btn" :class="{ active: filtroEstado === 'Pendiente' }" @click="filtroEstado = 'Pendiente'">Pendiente</button>
-            <button type="button" class="tab-btn" :class="{ active: filtroEstado === 'Aprobada' }" @click="filtroEstado = 'Aprobada'">Aprobada</button>
-            <button type="button" class="tab-btn" :class="{ active: filtroEstado === 'Rechazada' }" @click="filtroEstado = 'Rechazada'">Rechazada</button>
-          </div>
-        </div>
-
-        <!-- Moneda — tabs, como en Mascotas -->
-        <div class="filtro-group filtro-group--tabs">
-          <label class="filtro-label">Moneda</label>
-          <div class="tabs-wrap">
-            <button type="button" class="tab-btn" :class="{ active: filtroMoneda === '' }" @click="filtroMoneda = ''">Todas</button>
-            <button type="button" class="tab-btn" :class="{ active: filtroMoneda === 'CRC' }" @click="filtroMoneda = 'CRC'">CRC</button>
-            <button type="button" class="tab-btn" :class="{ active: filtroMoneda === 'USD' }" @click="filtroMoneda = 'USD'">USD</button>
-          </div>
-        </div>
-
-        <!-- Método — select (5 valores, no cabe cómodo en tabs) -->
-        <div class="filtro-group">
-          <label class="filtro-label">Método</label>
-          <div class="filtro-input-wrap">
-            <select v-model="filtroMetodo" class="filtro-input filtro-select">
-              <option value="">Todos</option>
-              <option value="PayPal">PayPal</option>
-              <option value="SINPE Móvil">SINPE Móvil</option>
-              <option value="BCR">BCR</option>
-              <option value="Cuenta USD">Cuenta USD</option>
-              <option value="Coopealianza">Coopealianza</option>
-            </select>
-          </div>
-        </div>
-
-        <!-- Fecha donación — calendario custom -->
-        <div class="filtro-group">
-          <label class="filtro-label">Fecha donación</label>
-          <div class="filtro-input-wrap cal-wrap">
             <button
+              v-for="s in ['Todos', 'Pendiente', 'En proceso', 'Aprobada', 'Rechazada']"
+              :key="s"
               type="button"
-              class="filtro-input filtro-date-btn"
-              :class="{ 'filtro-date-btn--activa': fechaLabel }"
-              @click.stop="toggleCal"
-            >
-              <span :class="fechaLabel ? '' : 'placeholder-color'">{{ fechaLabel || 'Mes y año' }}</span>
-              <span class="filtro-icon-cal">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
-              </span>
-            </button>
-            <!-- Dropdown calendario -->
-            <transition name="cal-drop">
-              <div v-if="calAbierto" class="cal-dropdown" @click.stop>
-                <div class="cal-nav">
-                  <button type="button" class="cal-nav-btn" @click="calYear--">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-                  </button>
-                  <span class="cal-year">{{ calYear }}</span>
-                  <button type="button" class="cal-nav-btn" @click="calYear++">
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
-                  </button>
-                </div>
-                <div class="cal-grid">
-                  <button
-                    v-for="(mes, i) in MESES_LABEL"
-                    :key="i"
-                    type="button"
-                    class="cal-mes-btn"
-                    :class="{ 'cal-mes-btn--sel': fechaMes === i && fechaAño === calYear }"
-                    @click="seleccionarMes(i)"
-                  >{{ mes }}</button>
-                </div>
-                <div v-if="fechaLabel" class="cal-clear">
-                  <button type="button" class="cal-clear-btn" @click="fechaMes = null; fechaAño = null; calAbierto = false">
-                    Quitar fecha
-                  </button>
-                </div>
-              </div>
-            </transition>
+              class="tab-btn"
+              :class="{ active: filterStatus === s }"
+              @click="filterStatus = s"
+            >{{ s }}</button>
+          </div>
+        </div>
+
+        <!-- Fecha tabs -->
+        <div class="filtro-group filtro-group--tabs">
+          <label class="filtro-label">Fecha</label>
+          <div class="tabs-wrap">
+            <button
+              v-for="f in ['Todas', 'Hoy', 'Últimos 7 días', 'Últimos 30 días']"
+              :key="f"
+              type="button"
+              class="tab-btn"
+              :class="{ active: filterFecha === f }"
+              @click="filterFecha = f"
+            >{{ f }}</button>
           </div>
         </div>
       </div>
@@ -460,69 +305,99 @@ function inicialesDonante(nombre) {
       <div class="filtros-divider"></div>
 
       <div class="filtros-row filtros-row--end">
-        <!-- Buscar donante -->
+        <!-- Solicitante -->
         <div class="filtro-group filtro-group--search">
-          <label class="filtro-label">Buscar donante</label>
+          <label class="filtro-label">Solicitante</label>
           <div class="filtro-input-wrap">
             <span class="filtro-icon filtro-icon--left">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
             </span>
             <input
-              v-model="filtroNombre"
+              v-model="filterSolicitante"
               type="text"
               class="filtro-input filtro-input--icon-left"
-              placeholder="Nombre..."
+              placeholder="Nombre, cédula o correo"
             />
           </div>
         </div>
 
-        <!-- Limpiar — mismo botón exacto que Mascotas -->
+        <!-- Mascota -->
+        <div class="filtro-group filtro-group--search">
+          <label class="filtro-label">Mascota</label>
+          <div class="filtro-input-wrap">
+            <span class="filtro-icon filtro-icon--left">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </span>
+            <input
+              v-model="filterMascota"
+              type="text"
+              class="filtro-input filtro-input--icon-left"
+              placeholder="Nombre de la mascota"
+            />
+          </div>
+        </div>
+
+        <!-- Limpiar -->
         <div class="filtro-group filtro-group--btn">
-          <button type="button" class="btn btn--ghost" :class="{ 'btn--ghost-active': hayFiltros }" @click="limpiarFiltros">Limpiar filtros</button>
+          <button
+            type="button"
+            class="btn btn--ghost"
+            :class="{ 'btn--ghost-active': filterStatus !== 'Todos' || filterSolicitante.trim() !== '' || filterMascota.trim() !== '' || filterFecha !== 'Todas' }"
+            @click="limpiarFiltros"
+          >Limpiar filtros</button>
         </div>
       </div>
     </div>
 
     <!-- ESTADO VACÍO -->
-    <div v-if="donacionesFiltradas.length === 0" class="empty-state">
-      <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8"/><path d="M16.5 8a2.5 2.5 0 0 0 0-5C13 3 12 8 12 8"/></svg>
-      <!-- Texto ajustado mínimamente para reflejar carga/error del backend,
-           sin tocar la estructura ni los estilos del bloque. -->
-      <p class="empty-title">{{ errorCarga ? 'No se pudo cargar la información' : (cargando ? 'Cargando donaciones...' : 'No hay donaciones registradas') }}</p>
-      <p class="empty-sub">{{ errorCarga || 'Ajusta los filtros o espera nuevas donaciones.' }}</p>
+    <div v-if="filtered.length === 0" class="empty-state">
+      <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+      <p class="empty-title">No hay solicitudes que coincidan con el filtro</p>
+      <p class="empty-sub">Ajusta los filtros para ver más resultados.</p>
     </div>
 
-    <!-- TABLA PRINCIPAL -->
+    <!-- TABLA -->
     <div v-else class="table-wrapper">
       <div class="table-scroll">
         <table class="don-table">
           <thead>
             <tr>
               <th>ID</th>
-              <th>Donante</th>
-              <th>Método</th>
-              <th>Monto</th>
-              <th>Fecha donación</th>
+              <th>Solicitante</th>
+              <th>Mascota</th>
+              <th>Fecha</th>
+              <th>Teléfono</th>
               <th>Estado</th>
               <th>Acciones</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="d in donacionesFiltradas" :key="d.id" class="don-row">
-              <td><span class="id-pill">{{ d.id }}</span></td>
+            <tr v-for="s in filtered" :key="s.id" class="don-row">
+              <td><span class="id-pill">{{ s.id }}</span></td>
+              <td><span class="donor-name">{{ s.solicitante }}</span></td>
+              <td><span class="type-chip">{{ s.mascota }}</span></td>
+              <td><span class="fecha-text">{{ s.fecha }}</span></td>
+              <td><span class="fecha-text">{{ s.telefono }}</span></td>
+              <td><span class="estado-badge" :class="statusClass(s.estado)">{{ s.estado }}</span></td>
               <td>
-                <span class="donor-name">{{ d.nombre || 'Anónimo' }}</span>
-                <span class="donor-mail">{{ d.correo || '—' }}</span>
-              </td>
-              <td><span class="metodo-text">{{ d.metodo }}</span></td>
-              <td><span class="monto-text">{{ simboloMoneda(d.moneda) }} {{ formatMonto(d.monto) }}</span></td>
-              <td><span class="fecha-text">{{ formatFecha(d.fechaDonacion) }}</span></td>
-              <td><span class="estado-badge" :class="estadoClass(d.estado)">{{ d.estado }}</span></td>
-              <td>
+                <!-- Acciones — mismo componente icon-only que Mascotas / Voluntarios -->
                 <div class="action-group">
-                  <button type="button" class="icon-only icon-only--ver" @click="abrirModal(d)" data-tooltip="Ver detalle">
+                  <button type="button" class="icon-only icon-only--ver" @click="verDetalle(s)" data-tooltip="Ver detalle">
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                   </button>
+
+                  <button v-if="s.estado === 'Pendiente'" type="button" class="icon-only icon-only--revisar" @click="procesoSolicitud(s.id)" data-tooltip="Poner en proceso">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M9 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-4"/><path d="M9 12l2 2 4-4"/></svg>
+                  </button>
+
+                  <template v-if="s.estado === 'En proceso'">
+                    <button type="button" class="icon-only icon-only--activar" @click="aprobarSolicitud(s.id)" data-tooltip="Aprobar">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    </button>
+                    <button type="button" class="icon-only icon-only--inactivar" @click="rechazarSolicitud(s.id)" data-tooltip="Rechazar">
+                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    </button>
+                  </template>
                 </div>
               </td>
             </tr>
@@ -530,123 +405,164 @@ function inicialesDonante(nombre) {
         </table>
       </div>
       <div class="table-footer">
-        {{ donacionesFiltradas.length }} donación{{ donacionesFiltradas.length !== 1 ? 'es' : '' }} encontrada{{ donacionesFiltradas.length !== 1 ? 's' : '' }}
+        {{ filtered.length }} solicitud{{ filtered.length !== 1 ? 'es' : '' }} encontrada{{ filtered.length !== 1 ? 's' : '' }}
       </div>
     </div>
 
-    <!-- ═══════════ MODAL DE DETALLE (expediente, mismo sistema que Mascotas) ═══════════ -->
+    <!-- ══════════════════════════════════════
+         MODAL — VER EXPEDIENTE
+         Mismo componente .modal-box--uniform (hero + tabs + bloques) que Mascotas / Voluntarios
+    ══════════════════════════════════════ -->
     <Teleport to="body">
       <Transition name="modal-fade">
-        <div v-if="modalAbierto && donacionActual" class="modal-overlay" @click.self="cerrarModal">
+        <div v-if="showDetailModal && selectedRequest" class="modal-overlay" @click.self="showDetailModal = false">
           <div class="modal-box modal-box--uniform">
-            <button type="button" class="close-btn close-btn--hero" @click="cerrarModal">
+            <button type="button" class="close-btn close-btn--hero" @click="showDetailModal = false">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
             </button>
 
             <div class="hero">
               <div class="hero-photo">
-                <span class="hero-photo-ini">{{ inicialesDonante(donacionActual.nombre) }}</span>
+                <span class="hero-photo-ini">{{ selectedRequest.solicitante?.charAt(0) }}</span>
               </div>
               <div class="hero-info">
                 <div class="hero-name-row">
-                  <h2 class="hero-name">{{ donacionActual.nombre || 'Anónimo' }}</h2>
-                  <span class="estado-badge badge-status-hero" :class="estadoClass(donacionActual.estado)">{{ donacionActual.estado }}</span>
+                  <h2 class="hero-name">{{ selectedRequest.solicitante }}</h2>
+                  <span class="estado-badge badge-status-hero" :class="statusClass(selectedRequest.estado)">{{ selectedRequest.estado }}</span>
                 </div>
                 <div class="hero-meta">
                   <span class="hero-meta-chip">
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/></svg>
-                    {{ donacionActual.id }}
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                    {{ selectedRequest.mascota }}
                   </span>
-                  <span class="hero-meta-chip">{{ donacionActual.correo || '—' }}</span>
-                  <span class="hero-meta-chip hero-meta-chip--monto">{{ simboloMoneda(donacionActual.moneda) }} {{ formatMonto(donacionActual.monto) }}</span>
+                  <span class="hero-meta-chip">{{ selectedRequest.id }}</span>
+                  <span class="hero-meta-chip">{{ selectedRequest.fecha }}</span>
                 </div>
               </div>
+            </div>
+
+            <div class="tabs">
+              <button type="button" class="tab" :class="{ active: expedienteTab === 'general' }" @click="expedienteTab = 'general'">General</button>
+              <button type="button" class="tab" :class="{ active: expedienteTab === 'hogar' }" @click="expedienteTab = 'hogar'">Ubicación y hogar</button>
+              <button type="button" class="tab" :class="{ active: expedienteTab === 'solicitud' }" @click="expedienteTab = 'solicitud'">Solicitud</button>
+              <button type="button" class="tab" :class="{ active: expedienteTab === 'motivos' }" @click="expedienteTab = 'motivos'">Motivos</button>
             </div>
 
             <div class="uniform-scroll">
               <div class="body">
-                <div class="grid-2col">
-                  <div>
-                    <div class="block">
-                      <h4 class="block-title">
-                        <span class="block-title-icon">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
-                        </span>
-                        Información personal
-                      </h4>
-                      <div class="fields-row">
-                        <div class="field-col"><span class="field-label-row">Nombre</span><span class="field-value">{{ donacionActual.nombre || '—' }}</span></div>
-                        <div class="field-col"><span class="field-label-row">Correo</span><span class="field-value">{{ donacionActual.correo || '—' }}</span></div>
-                        <div class="field-col"><span class="field-label-row">Teléfono</span><span class="field-value">{{ donacionActual.telefono || '—' }}</span></div>
-                      </div>
-                    </div>
 
-                    <div class="block">
-                      <h4 class="block-title">
-                        <span class="block-title-icon">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
-                        </span>
-                        Información financiera
-                      </h4>
-                      <div class="fields-row">
-                        <div class="field-col"><span class="field-label-row">Método</span><span class="field-value">{{ donacionActual.metodo || '—' }}</span></div>
-                        <div class="field-col"><span class="field-label-row">Moneda</span><span class="field-value">{{ donacionActual.moneda || '—' }}</span></div>
-                        <div class="field-col"><span class="field-label-row">Monto</span><span class="field-value field-value--highlight">{{ simboloMoneda(donacionActual.moneda) }} {{ formatMonto(donacionActual.monto) }}</span></div>
-                        <div class="field-col"><span class="field-label-row">Fecha de donación</span><span class="field-value">{{ formatFecha(donacionActual.fechaDonacion) }}</span></div>
-                        <div class="field-col"><span class="field-label-row">Fecha de registro</span><span class="field-value">{{ formatFecha(donacionActual.fechaRegistro) }}</span></div>
-                      </div>
-                    </div>
-
-                    <div class="block block-wide" v-if="donacionActual.mensaje">
-                      <h4 class="block-title">
-                        <span class="block-title-icon">
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-                        </span>
-                        Mensaje
-                      </h4>
-                      <div class="tint-box tint-box--desc">
-                        <span>{{ donacionActual.mensaje }}</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <div class="block" style="margin-bottom:0;">
+                <!-- TAB: General -->
+                <template v-if="expedienteTab === 'general'">
+                  <div class="block">
                     <h4 class="block-title">
                       <span class="block-title-icon">
-                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
                       </span>
-                      Comprobante
+                      Datos personales
                     </h4>
-                    <p v-if="!donacionActual.comprobante" class="modal-empty-text">Sin comprobante adjunto</p>
-                    <div v-else-if="esImagen(donacionActual.comprobante)" class="comprobante-img-wrap">
-                      <img
-                        :src="donacionActual.comprobante"
-                        class="comprobante-thumb"
-                        :class="{ ampliada: imagenAmpliada }"
-                        alt="Comprobante"
-                        @click="imagenAmpliada = !imagenAmpliada"
-                        :title="imagenAmpliada ? 'Clic para reducir' : 'Clic para ampliar'"
-                      />
-                      <p class="comprobante-hint">{{ imagenAmpliada ? 'Clic para reducir' : 'Clic para ampliar' }}</p>
-                    </div>
-                    <div v-else-if="esPDF(donacionActual.comprobante)" class="tint-box">
-                      <p class="pdf-label">Documento PDF adjunto</p>
-                      <button type="button" class="btn-abrir-pdf" @click="abrirPDF(donacionActual.comprobante)">Abrir PDF</button>
+                    <div class="fields-row">
+                      <div class="field-col"><span class="field-label-row">Cédula</span><span class="field-value">{{ selectedRequest.cedula || '—' }}</span></div>
+                      <div class="field-col"><span class="field-label-row">Edad</span><span class="field-value">{{ selectedRequest.edad || '—' }}</span></div>
+                      <div class="field-col"><span class="field-label-row">Profesión</span><span class="field-value">{{ selectedRequest.profesion || '—' }}</span></div>
                     </div>
                   </div>
-                </div>
+                  <div class="block">
+                    <h4 class="block-title">
+                      <span class="block-title-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
+                      </span>
+                      Contacto
+                    </h4>
+                    <div class="fields-row">
+                      <div class="field-col"><span class="field-label-row">Teléfono</span><span class="field-value">{{ selectedRequest.telefono || '—' }}</span></div>
+                      <div class="field-col"><span class="field-label-row">WhatsApp</span><span class="field-value">{{ selectedRequest.whatsapp || '—' }}</span></div>
+                      <div class="field-col"><span class="field-label-row">Correo</span><span class="field-value">{{ selectedRequest.email || '—' }}</span></div>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- TAB: Ubicación y hogar -->
+                <template v-if="expedienteTab === 'hogar'">
+                  <div class="block">
+                    <h4 class="block-title">
+                      <span class="block-title-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                      </span>
+                      Ubicación y hogar
+                    </h4>
+                    <div class="info-subsection" style="margin-top:0;padding-top:0;border-top:none;">
+                      <span class="field-label-row">Ubicación</span>
+                      <p class="info-subsection-text">{{ selectedRequest.direccion || '—' }}</p>
+                    </div>
+                    <div class="fields-row" style="margin-top:14px">
+                      <div class="field-col"><span class="field-label-row">Personas del hogar</span><span class="field-value">{{ selectedRequest.hogar || '—' }}</span></div>
+                      <div class="field-col"><span class="field-label-row">Otras mascotas</span><span class="field-value">{{ selectedRequest.otrasMascotas || '—' }}</span></div>
+                      <div class="field-col"><span class="field-label-row">Horas sola</span><span class="field-value">{{ selectedRequest.horasSola || '—' }}</span></div>
+                    </div>
+                  </div>
+                  <div class="block" v-if="selectedRequest.rutina">
+                    <h4 class="block-title">
+                      <span class="block-title-icon">
+  <i class='bx bx-calendar'></i>
+</span>
+                      Rutina diaria
+                    </h4>
+                    <div class="tint-box tint-box--desc">
+                      <span>{{ selectedRequest.rutina }}</span>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- TAB: Solicitud -->
+                <template v-if="expedienteTab === 'solicitud'">
+                  <div class="block">
+                    <h4 class="block-title">
+                      <span class="block-title-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg>
+                      </span>
+                      Estado de la solicitud
+                    </h4>
+                    <div class="fields-row">
+                      <div class="field-col"><span class="field-label-row">Mascota</span><span class="field-value">{{ selectedRequest.mascota || '—' }}</span></div>
+                      <div class="field-col"><span class="field-label-row">Fecha recibida</span><span class="field-value">{{ selectedRequest.fecha || '—' }}</span></div>
+                      <div class="field-col"><span class="field-label-row">Estado</span><span class="estado-badge" :class="statusClass(selectedRequest.estado)">{{ selectedRequest.estado }}</span></div>
+                    </div>
+                  </div>
+                </template>
+
+                <!-- TAB: Motivos -->
+                <template v-if="expedienteTab === 'motivos'">
+                  <div class="block">
+                    <h4 class="block-title">
+                      <span class="block-title-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+                      </span>
+                      ¿Por qué desea adoptar esta mascota?
+                    </h4>
+                    <div class="tint-box tint-box--desc">
+                      <span>{{ selectedRequest.porqueMascota || '—' }}</span>
+                    </div>
+                  </div>
+                  <div class="block">
+                    <h4 class="block-title">
+                      <span class="block-title-icon">
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+                      </span>
+                      Motivos de adopción
+                    </h4>
+                    <div class="tint-box tint-box--desc">
+                      <span>{{ selectedRequest.motivos || '—' }}</span>
+                    </div>
+                  </div>
+                </template>
+
               </div>
             </div>
 
             <div class="footer">
-              <template v-if="donacionActual.estado === 'Pendiente'">
-                <button type="button" class="btn-footer-success" @click="cambiarEstado('Aprobada')">Aprobar donación</button>
-                <button type="button" class="btn-footer-danger" @click="cambiarEstado('Rechazada')">Rechazar donación</button>
-              </template>
-              <p v-else-if="donacionActual.estado === 'Aprobada'" class="estado-final-msg estado-final-msg--ok">Esta donación ha sido aprobada.</p>
-              <p v-else-if="donacionActual.estado === 'Rechazada'" class="estado-final-msg estado-final-msg--bad">Esta donación ha sido rechazada.</p>
-              <button type="button" class="btn-ghost-red" @click="cerrarModal">Cerrar expediente</button>
+              <button type="button" class="btn-ghost-red" @click="showDetailModal = false">Cerrar expediente</button>
             </div>
+
           </div>
         </div>
       </Transition>
@@ -656,7 +572,7 @@ function inicialesDonante(nombre) {
 </template>
 
 <style scoped>
-/* ── Variables — idénticas al sistema de diseño de Mascotas ── */
+/* ── Variables (idénticas a Mascotas / Voluntarios) ─────────────────────── */
 .view-container {
   --verde:       #3A473C;
   --verde-sec:   #92A894;
@@ -681,16 +597,13 @@ function inicialesDonante(nombre) {
   --btn-font-size:   12.5px;
   --btn-font-weight: 600;
   --btn-transition:  0.16s ease;
-  --select-arrow: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%237A827B" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>');
-  --select-arrow-focus: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="%233A473C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>');
-
   background:
     radial-gradient(ellipse 800px 420px at 12% 0%, rgba(146,168,148,.07), transparent),
     var(--fondo);
   padding-bottom: 40px;
 }
 
-/* ── Sistema de botones ── */
+/* ── Sistema de botones (idéntico a Mascotas / Voluntarios) ── */
 .btn { display:inline-flex; align-items:center; justify-content:center; gap:var(--btn-icon-gap); height:var(--btn-height); padding:0 var(--btn-pad-x); border-radius:var(--btn-radius); border:1px solid transparent; font-family:inherit; font-size:var(--btn-font-size); font-weight:var(--btn-font-weight); line-height:1; white-space:nowrap; cursor:pointer; user-select:none; transition:background-color var(--btn-transition), border-color var(--btn-transition), color var(--btn-transition), box-shadow var(--btn-transition); }
 .btn:active:not(:disabled) { transform:translateY(1px); }
 .btn:focus-visible { outline:none; box-shadow:0 0 0 3px rgba(58,71,60,.16); }
@@ -711,11 +624,11 @@ function inicialesDonante(nombre) {
 .don-card { background:var(--blanco); border-radius:16px; padding:16px 15px; border:1px solid var(--borde); box-shadow:var(--sombra-sm); display:flex; flex-direction:column; transition:box-shadow .18s ease, border-color .18s ease; }
 .don-card:hover { border-color:#D7DED8; box-shadow:var(--sombra-md); }
 .don-icon { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:12px; border:1px solid transparent; }
-.total-mes-icon  { background:#EAF2F6; border-color:#C7DCE6; color:#3C6E85; }
-.total-anio-icon { background:#EDF6EF; border-color:#C9E4CE; color:#2E7D45; }
-.total-icon      { background:#F2F3F2; border-color:#DFE2DF; color:#616861; }
-.pendiente-icon  { background:#FDF6E8; border-color:#F2E1B8; color:#A97A0C; }
-.aprobada-icon   { background:#EDF6EF; border-color:#C9E4CE; color:#2E7D45; }
+.pendiente-icon { background:#FDF6E8; border-color:#F2E1B8; color:#A97A0C; }
+.proceso-icon   { background:#EEF1FB; border-color:#CBD5F2; color:#4F73B8; }
+.aprobada-icon  { background:#EDF6EF; border-color:#C9E4CE; color:#2E7D45; }
+.rechazada-icon { background:#FBEDEC; border-color:#F1C7C3; color:#B71C1C; }
+.total-icon     { background:#F2F3F2; border-color:#DFE2DF; color:#616861; }
 .don-value { font-size:21px; font-weight:700; color:var(--texto); line-height:1; letter-spacing:-0.4px; font-variant-numeric:tabular-nums; }
 .don-label { font-size:10.5px; color:var(--texto-ter); font-weight:700; text-transform:uppercase; letter-spacing:0.5px; margin-top:7px; }
 .don-desc { font-size:11px; color:var(--texto-sec); margin-top:2px; }
@@ -730,7 +643,7 @@ function inicialesDonante(nombre) {
 .filtro-group--btn { flex:0 0 auto; }
 .filtro-group--search { flex:1; min-width:220px; max-width:340px; }
 .filtro-label { font-size:10.5px; font-weight:700; color:var(--texto-ter); text-transform:uppercase; letter-spacing:0.6px; }
-.tabs-wrap { display:flex; gap:3px; background:var(--fondo); border:1px solid var(--borde-suave); border-radius:10px; padding:3px; }
+.tabs-wrap { display:flex; gap:3px; background:var(--fondo); border:1px solid var(--borde-suave); border-radius:10px; padding:3px; flex-wrap:wrap; }
 .tab-btn { padding:7px 13px; border-radius:7px; border:none; background:transparent; color:var(--texto-sec); font-size:12px; font-weight:700; cursor:pointer; transition:all 0.18s; white-space:nowrap; font-family:inherit; }
 .tab-btn:hover { color:var(--texto); }
 .tab-btn.active { background:var(--blanco); color:var(--texto); box-shadow:var(--sombra-sm); border:1px solid var(--borde); }
@@ -739,38 +652,8 @@ function inicialesDonante(nombre) {
 .filtro-input:focus { border-color:var(--verde-sec); background:var(--blanco); }
 .filtro-input::placeholder { color:var(--texto-ter); }
 .filtro-input--icon-left { padding-left:36px; }
-/* Select — una sola flecha (antes había un ícono SVG duplicado
-   superpuesto en el HTML; se retiró y se dejó únicamente esta). */
-.filtro-select { appearance:none; -webkit-appearance:none; cursor:pointer; padding-right:34px; background-image:var(--select-arrow); background-repeat:no-repeat; background-position:right 12px center; }
-.filtro-select:focus { background-image:var(--select-arrow-focus); }
 .filtro-icon { position:absolute; display:flex; align-items:center; color:var(--texto-sec); }
 .filtro-icon--left { left:12px; }
-.filtro-icon--no-events { pointer-events:none; }
-
-/* Botón calendario — mismo aspecto que los inputs */
-.cal-wrap { position:relative; }
-.filtro-date-btn { display:flex; align-items:center; justify-content:space-between; text-align:left; cursor:pointer; }
-.filtro-date-btn:hover, .filtro-date-btn:focus { border-color:var(--verde-sec); background:var(--blanco); outline:none; }
-.filtro-date-btn--activa { border-color:var(--verde-sec); color:var(--texto); }
-.placeholder-color { color:var(--texto-ter); }
-.filtro-icon-cal { color:var(--texto-sec); display:flex; align-items:center; flex-shrink:0; margin-left:8px; }
-
-/* Dropdown del calendario */
-.cal-dropdown { position:absolute; top:calc(100% + 6px); left:0; z-index:200; background:var(--blanco); border:1px solid var(--borde); border-radius:12px; padding:16px; min-width:220px; box-shadow:var(--sombra-md); }
-.cal-nav { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
-.cal-nav-btn { background:none; border:none; cursor:pointer; color:var(--verde); padding:4px 6px; border-radius:6px; display:flex; align-items:center; transition:background 0.15s; font-family:inherit; }
-.cal-nav-btn:hover { background:var(--fondo); }
-.cal-year { font-size:13px; font-weight:700; color:var(--texto); }
-.cal-grid { display:grid; grid-template-columns:repeat(3, 1fr); gap:6px; }
-.cal-mes-btn { padding:8px 4px; font-size:12px; font-weight:600; color:var(--texto); background:none; border:1px solid transparent; border-radius:7px; cursor:pointer; transition:all 0.15s; font-family:inherit; }
-.cal-mes-btn:hover { background:var(--fondo); border-color:var(--borde); }
-.cal-mes-btn--sel { background:var(--verde); color:var(--blanco); border-color:var(--verde); }
-.cal-mes-btn--sel:hover { background:var(--verde); border-color:var(--verde); }
-.cal-clear { margin-top:10px; padding-top:10px; border-top:1px solid var(--borde-suave); text-align:center; }
-.cal-clear-btn { background:none; border:none; font-size:12px; color:var(--texto-sec); cursor:pointer; font-weight:600; font-family:inherit; transition:color 0.15s; }
-.cal-clear-btn:hover { color:#B71C1C; }
-.cal-drop-enter-active, .cal-drop-leave-active { transition:opacity 0.15s, transform 0.15s; }
-.cal-drop-enter-from, .cal-drop-leave-to { opacity:0; transform:translateY(-4px); }
 
 /* ── Estado vacío ── */
 .empty-state { text-align:center; padding:72px 24px; background:var(--blanco); border-radius:16px; border:1px solid var(--borde); color:var(--verde-sec); display:flex; flex-direction:column; align-items:center; gap:10px; }
@@ -781,33 +664,40 @@ function inicialesDonante(nombre) {
 /* ── Tabla ── */
 .table-wrapper { background:var(--blanco); border-radius:16px; border:1px solid var(--borde); overflow:hidden; box-shadow:var(--sombra-sm); }
 .table-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
-.don-table { width:100%; border-collapse:collapse; min-width:700px; }
+.don-table { width:100%; border-collapse:collapse; min-width:760px; }
 .don-table thead th { padding:12px 16px; text-align:left; color:var(--texto-ter); font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; white-space:nowrap; }
 .don-table tbody tr { border-top:1px solid var(--borde-suave); transition:background 0.15s; }
 .don-table tbody tr:hover { background:#FAFBFA; }
 .don-table tbody td { padding:12px 16px; vertical-align:middle; }
 .id-pill { font-size:11px; font-family:ui-monospace, Menlo, Consolas, monospace; background:var(--fondo); border:1px solid var(--borde); padding:3px 9px; border-radius:6px; color:var(--texto); font-weight:700; white-space:nowrap; }
 .donor-name { display:block; font-size:12.5px; font-weight:700; color:var(--texto); line-height:1.3; }
-.donor-mail { display:block; font-size:11px; color:var(--texto-sec); margin-top:2px; }
-.metodo-text { font-size:12.5px; color:var(--texto-sec); }
-.monto-text { font-size:12.5px; font-weight:700; color:var(--texto); }
 .fecha-text { font-size:12.5px; color:var(--texto-sec); white-space:nowrap; }
+.type-chip { display:inline-block; font-size:11.5px; font-weight:600; color:#4E6E51; background:#F1F5F1; padding:3px 10px; border-radius:7px; white-space:nowrap; }
 .estado-badge { display:inline-block; font-size:10.5px; font-weight:700; padding:4px 11px; border-radius:20px; white-space:nowrap; }
 .badge-pendiente { background:#FDF6E8; color:#96650A; }
-.badge-aprobada { background:#EDF6EF; color:#2E7D32; }
+.badge-proceso   { background:#EEF1FB; color:#4F73B8; }
+.badge-aprobada  { background:#EDF6EF; color:#2E7D32; }
 .badge-rechazada { background:#FBEDEC; color:#B71C1C; }
+.badge-neutral   { background:#F2F3F2; color:#7A827B; }
 .table-footer { padding:12px 16px; border-top:1px solid var(--borde-suave); font-size:12px; color:var(--texto-sec); font-weight:500; }
 
-/* Botones de acción de la tabla — mismo componente icon-only de Mascotas */
+/* Botones de acción — mismo componente icon-only que Mascotas / Voluntarios */
 .action-group { display:flex; gap:8px; align-items:center; }
 .icon-only {
   width:38px; height:38px; border-radius:8px; border:1px solid var(--borde);
   background:var(--blanco); display:flex; align-items:center; justify-content:center;
   cursor:pointer; transition:background-color .16s ease, border-color .16s ease; position:relative;
+  flex-shrink:0;
 }
 .icon-only svg { width:16px; height:16px; }
 .icon-only--ver { color:#3D453B; }
 .icon-only--ver:hover { border-color:#C7D3C8; background:#FAFCFA; }
+.icon-only--revisar { color:#4F73B8; border-color:#CBD5F2; }
+.icon-only--revisar:hover { background:#EEF1FB; border-color:#4F73B8; }
+.icon-only--activar { color:#2E7D45; border-color:#CFE8D6; }
+.icon-only--activar:hover { background:#F3FAF5; border-color:#2E7D45; }
+.icon-only--inactivar { color:#C0392B; border-color:#F0CFC9; }
+.icon-only--inactivar:hover { background:#FDF4F3; border-color:#C0392B; }
 .icon-only::before {
   content:attr(data-tooltip); position:absolute; bottom:calc(100% + 8px); left:50%;
   transform:translateX(-50%) translateY(4px); background:var(--verde); color:#fff;
@@ -817,24 +707,13 @@ function inicialesDonante(nombre) {
 .icon-only:hover::before { opacity:1; visibility:visible; transform:translateX(-50%) translateY(0); }
 
 /* ══════════════════════════════════════════════
-   MODAL BASE — overlay y contenedor
+   MODAL BASE (idéntico a Mascotas / Voluntarios)
    ══════════════════════════════════════════════ */
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.35); backdrop-filter:blur(4px); z-index:1000; display:flex; align-items:center; justify-content:center; padding:24px; }
 .modal-box { background:var(--blanco); border-radius:22px; box-shadow:var(--sombra-md); position:relative; }
-
-/* ══════════════════════════════════════════════
-   .modal-box--uniform — mismo tamaño exacto que el
-   expediente de "Ver mascota" en Mascotas
-   ══════════════════════════════════════════════ */
 .modal-box--uniform {
-  width:880px;
-  max-width:92vw;
-  height:660px;
-  max-height:90vh;
-  display:flex;
-  flex-direction:column;
-  overflow:hidden;
-  border:1px solid var(--borde-suave);
+  width:880px; max-width:92vw; height:660px; max-height:90vh;
+  display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--borde-suave);
 }
 .uniform-scroll { flex:1; min-height:0; overflow-y:auto; }
 .close-btn {
@@ -844,10 +723,11 @@ function inicialesDonante(nombre) {
   transition:background-color .16s ease, color .16s ease, border-color .16s ease;
 }
 .close-btn svg { width:16px; height:16px; }
+.close-btn:hover { background:var(--verde); color:#fff; border-color:var(--verde); }
 .close-btn--hero { background:var(--fondo); }
 .close-btn--hero:hover { background:var(--verde); color:#fff; }
 
-/* ── HERO (Ver donación) — mismo estilo que el hero de Mascotas ── */
+/* ── HERO (Ver expediente) ── */
 .hero {
   flex-shrink:0;
   background:linear-gradient(165deg, #FFFFFF 0%, #F7FAF7 55%, #F1F7F2 100%);
@@ -862,7 +742,7 @@ function inicialesDonante(nombre) {
   display:flex; align-items:center; justify-content:center;
   box-shadow:0 1px 2px rgba(58,71,60,.04), 0 10px 22px -12px rgba(58,71,60,.28);
 }
-.hero-photo-ini { font-size:20px; font-weight:700; color:#3E7A45; letter-spacing:-.3px; }
+.hero-photo-ini { font-size:20px; font-weight:700; color:#3E7A45; letter-spacing:-.3px; text-transform:uppercase; }
 .hero-info { flex:1; min-width:0; display:flex; flex-direction:column; gap:8px; }
 .hero-name-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
 .hero-name { font-size:21px; font-weight:700; color:var(--texto); margin:0; letter-spacing:-.4px; }
@@ -872,56 +752,45 @@ function inicialesDonante(nombre) {
   background:var(--blanco); border:1px solid var(--borde-suave); padding:4px 10px 4px 9px; border-radius:20px;
 }
 .hero-meta-chip svg { color:var(--verde-sec); flex-shrink:0; }
-.hero-meta-chip--monto { font-weight:700; color:#2E7D45; background:#EDF6EF; border-color:#C9E4CE; }
 .badge-status-hero { padding:5px 12px !important; font-size:10.5px !important; }
 
-/* ── BODY (Ver donación) ── */
+/* ── TABS ── */
+.tabs { flex-shrink:0; display:flex; gap:2px; padding:0 40px; border-bottom:1px solid var(--borde); overflow-x:auto; }
+.tab { padding:11px 13px 9px; font-size:12px; font-weight:700; color:var(--texto-sec); border:none; background:transparent; cursor:pointer; border-bottom:2.5px solid transparent; margin-bottom:-1px; display:flex; align-items:center; gap:6px; white-space:nowrap; font-family:inherit; transition:color .15s ease; }
+.tab:hover { color:var(--texto); }
+.tab.active { color:var(--texto); border-bottom-color:var(--verde); }
+
+/* ── BODY ── */
 .body { padding:18px 40px 10px; }
-.grid-2col { display:grid; grid-template-columns:1.6fr 1fr; gap:14px; align-items:start; margin-bottom:0; }
 .block { background:var(--blanco); border:1px solid var(--borde-suave); border-radius:14px; padding:18px 20px; margin-bottom:14px; box-shadow:var(--sombra-sm); }
 .block:last-child { margin-bottom:0; }
 .block-title { display:flex; align-items:center; gap:10px; font-size:12.5px; font-weight:700; color:var(--texto); text-transform:uppercase; letter-spacing:.4px; margin:0 0 14px; }
-.block-title-icon { width:24px; height:24px; border-radius:50%; background:#F0F5F0; color:#4E7A54; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.block-title-icon { width:24px; height:24px; border-radius:50%; background:#F0F5F0; color:#4E7A54; display:flex; align-items:center; justify-content:center; flex-shrink:0; font-size:12px; }
 .fields-row { display:grid; grid-template-columns:repeat(3, 1fr); gap:14px 16px; }
 .field-col { display:flex; flex-direction:column; gap:5px; }
 .field-label-row { font-size:10px; font-weight:700; color:var(--texto-ter); text-transform:uppercase; letter-spacing:.4px; }
-.field-value { font-size:14px; font-weight:600; color:var(--texto); word-break:break-word; }
-.field-value--highlight { font-size:15px; font-weight:800; }
-.block-wide { margin-top:0; }
+.field-value { font-size:14px; font-weight:600; color:var(--texto); }
+.info-subsection { margin-top:16px; padding-top:16px; border-top:1px solid var(--borde-suave); }
+.info-subsection .field-label-row { display:block; margin-bottom:7px; }
+.info-subsection-text { font-size:13px; font-weight:500; color:#4B534A; line-height:1.6; margin:0; }
 .tint-box { background:var(--fondo); border-radius:10px; padding:13px 15px; }
 .tint-box span { font-size:13px; font-weight:600; color:var(--texto); line-height:1.55; }
-.tint-box--desc span { font-weight:500; color:#4B534A; }
-.modal-empty-text { font-size:13px; color:var(--texto-ter); background:var(--fondo); border:1px dashed var(--borde); border-radius:10px; padding:18px 16px; margin:0; text-align:center; }
-.comprobante-img-wrap { display:flex; flex-direction:column; align-items:flex-start; gap:8px; }
-.comprobante-thumb { border-radius:10px; border:1px solid var(--borde); max-width:100%; max-height:200px; object-fit:cover; cursor:zoom-in; transition:all 0.3s ease; box-shadow:var(--sombra-sm); }
-.comprobante-thumb.ampliada { max-height:420px; cursor:zoom-out; }
-.comprobante-hint { font-size:11px; color:var(--texto-ter); }
-.pdf-label { font-size:13px; color:var(--texto); font-weight:600; margin-bottom:10px; }
-.btn-abrir-pdf { padding:7px 16px; border-radius:8px; border:none; background:var(--verde); color:var(--blanco); font-size:12px; font-weight:700; cursor:pointer; transition:background 0.2s; font-family:inherit; }
-.btn-abrir-pdf:hover { background:#2D372F; }
+.tint-box--desc span { font-weight:500; color:#4B534A; font-style:italic; }
 
-/* ── FOOTER (Ver donación) ── */
-.footer { flex-shrink:0; display:flex; align-items:center; justify-content:flex-end; gap:8px; padding:14px 40px 18px; border-top:1px solid var(--borde-suave); }
-.estado-final-msg { flex:1; margin:0; font-size:12.5px; font-weight:700; }
-.estado-final-msg--ok { color:#2E7D32; }
-.estado-final-msg--bad { color:#B71C1C; }
+/* ── FOOTER ── */
+.footer { flex-shrink:0; display:flex; justify-content:flex-end; padding:14px 40px 18px; border-top:1px solid var(--borde-suave); }
 .btn-ghost-red { display:flex; align-items:center; gap:6px; height:29px; padding:0 12px; border-radius:8px; background:var(--blanco); border:1px solid var(--borde); color:var(--texto-sec); font-size:11.5px; font-weight:600; cursor:pointer; transition:background-color .16s ease, border-color .16s ease, color .16s ease; }
 .btn-ghost-red:hover { background:#FDF4F3; border-color:#E8B9B2; color:var(--rojo); }
-.btn-footer-danger { display:flex; align-items:center; height:29px; padding:0 12px; border-radius:8px; background:var(--rojo-bg); border:none; color:var(--rojo); font-size:11.5px; font-weight:600; cursor:pointer; transition:background-color .16s ease, color .16s ease; }
-.btn-footer-danger:hover { background:var(--rojo); color:#fff; }
-.btn-footer-success { display:flex; align-items:center; height:29px; padding:0 12px; border-radius:8px; background:#EDF6EF; border:none; color:#2E7D32; font-size:11.5px; font-weight:600; cursor:pointer; transition:background-color .16s ease, color .16s ease; }
-.btn-footer-success:hover { background:#2E7D32; color:#fff; }
 
-/* Animaciones modal */
+/* Animaciones */
 .modal-fade-enter-active, .modal-fade-leave-active { transition:opacity 0.22s ease; }
 .modal-fade-enter-from, .modal-fade-leave-to { opacity:0; }
 
-/* ── Responsive ── */
+/* ── Responsive (mismos breakpoints que Mascotas / Voluntarios) ── */
 @media (max-width:1100px) { .don-summary { grid-template-columns:repeat(3, 1fr); } }
 @media (max-width:900px) {
   .don-summary { grid-template-columns:repeat(2, 1fr); }
   .modal-box--uniform { width:94vw; height:88vh; }
-  .grid-2col { grid-template-columns:1fr; }
   .fields-row { grid-template-columns:repeat(2, 1fr); }
 }
 @media (max-width:640px) {
@@ -931,10 +800,11 @@ function inicialesDonante(nombre) {
   .filtro-group { min-width:100%; }
   .filtro-group--search { max-width:none; }
   .don-summary { grid-template-columns:1fr 1fr; }
+  .don-table th:nth-child(4), .don-table td:nth-child(4) { display:none; }
   .modal-box--uniform { width:96vw; height:92vh; border-radius:18px; }
   .hero, .body, .footer { padding-left:20px; padding-right:20px; }
+  .tabs { padding:0 20px; }
   .fields-row { grid-template-columns:1fr; }
-  .cal-dropdown { min-width:200px; width:100%; max-width:280px; }
 }
 @media (max-width:480px) { .don-summary { grid-template-columns:1fr; } }
 </style>
