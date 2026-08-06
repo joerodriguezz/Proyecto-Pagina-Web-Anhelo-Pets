@@ -2,27 +2,93 @@
 import { ref, computed, onMounted } from 'vue'
 
 import { registrarAuditoria } from '../../composables/useAuditLog'
+import { getDonations, updateDonationStatus } from '../../services/donationServices'
 
-
-// ─── Datos desde localStorage ─────────────────────────────────
+// ─── Datos desde el backend ────────────────────────────────────
+// (Antes esta vista leía/escribía en localStorage bajo la clave
+// 'anhelo_donaciones'. Ahora se conecta al backend a través de
+// services/donationServices.js, siguiendo el mismo patrón que usan
+// los demás módulos del proyecto.)
 const todasDonaciones = ref([])
-function cargarDonaciones() {
-  try {
-    const raw = localStorage.getItem('anhelo_donaciones')
-    todasDonaciones.value = raw ? JSON.parse(raw) : []
-  } catch {
-    todasDonaciones.value = []
+const cargando   = ref(false)
+const errorCarga = ref('')
+
+// NOTA / SUPUESTO DE INTEGRACIÓN:
+// No se pudo verificar el contrato exacto de la respuesta de
+// GET /api/donations (nombres de campo en el backend). Este mapeo
+// asume que el modelo "Donation" usa los mismos nombres que
+// submitDonation() en donationServices.js (donorName, email, phone,
+// method, currency, amount, donatedAt, message, proofFile) más un
+// campo "status" y timestamps (_id/createdAt). Si el backend responde
+// con otros nombres, ajusta únicamente esta función — el resto de la
+// vista sigue trabajando con los mismos nombres en español de siempre
+// (nombre, correo, telefono, metodo, moneda, monto, fechaDonacion,
+// fechaRegistro, mensaje, comprobante, estado) para no tocar el
+// template ni los estilos.
+function mapDonacion(d) {
+  return {
+    id: d._id || d.id,
+    nombre: d.donorName ?? d.nombre,
+    correo: d.email ?? d.correo,
+    telefono: d.phone ?? d.telefono,
+    metodo: d.method ?? d.metodo,
+    moneda: d.currency ?? d.moneda,
+    monto: d.amount ?? d.monto,
+    fechaDonacion: d.donatedAt ?? d.fechaDonacion,
+    fechaRegistro: d.createdAt ?? d.fechaRegistro,
+    mensaje: d.message ?? d.mensaje ?? '',
+    comprobante: d.proofFile ?? d.comprobante ?? '',
+    // El backend recibe la acción como 'Aprobar' / 'Rechazar' (ver
+    // updateDonationStatus más abajo), así que se asume que también
+    // devuelve el estado ya en español ('Pendiente' | 'Aprobada' | 'Rechazada').
+    // Si el backend usa otros valores (p. ej. 'pending'/'approved'/'rejected'),
+    // traduce aquí.
+    estado: d.status ?? d.estado ?? 'Pendiente',
   }
 }
-function guardarDonaciones() {
-  localStorage.setItem('anhelo_donaciones', JSON.stringify(todasDonaciones.value))
+
+async function cargarDonaciones() {
+  cargando.value   = true
+  errorCarga.value = ''
+  try {
+    const data  = await getDonations()
+    // Tolerante a distintas formas comunes de respuesta del backend:
+    // un array plano, o un objeto envolvente { donations: [...] } / { data: [...] }.
+    const lista = Array.isArray(data) ? data : (data?.donations || data?.data || [])
+    todasDonaciones.value = lista.map(mapDonacion)
+
+    registrarAuditoria({
+      modulo: 'Donaciones',
+      accion: 'Consultó el listado de donaciones',
+      // AUDIT_TIPOS_ACCION no incluye un tipo "consultar"; se usa 'editar'
+      // como el más cercano disponible sin modificar useAuditLog.js.
+      tipoAccion: 'editar',
+      elemento: 'Listado de donaciones',
+      descripcion: `Se cargaron ${todasDonaciones.value.length} donaciones desde el servidor.`,
+      estado: 'Exitoso',
+    })
+  } catch (e) {
+    console.error('Error al cargar donaciones:', e)
+    errorCarga.value = 'No se pudieron cargar las donaciones. Intenta de nuevo más tarde.'
+    todasDonaciones.value = []
+
+    registrarAuditoria({
+      modulo: 'Donaciones',
+      accion: 'Consultó el listado de donaciones',
+      tipoAccion: 'editar',
+      elemento: 'Listado de donaciones',
+      descripcion: `Falló la carga de donaciones: ${e?.message || 'error desconocido'}.`,
+      estado: 'Fallido',
+    })
+  } finally {
+    cargando.value = false
+  }
 }
+
 onMounted(() => {
   cargarDonaciones()
-  window.addEventListener('storage', (e) => {
-    if (e.key === 'anhelo_donaciones') cargarDonaciones()
-  })
 })
+
 const TIPO_CAMBIO = 485
 function montoEnCRC(donacion) {
   const monto = Number(donacion.monto || 0)
@@ -163,21 +229,49 @@ function cerrarModal() {
   donacionActual.value = null
 }
 // ─── Aprobar / Rechazar ───────────────────────────────────────
-function cambiarEstado(nuevoEstado) {
+async function cambiarEstado(nuevoEstado) {
   if (!donacionActual.value) return
   const idx = todasDonaciones.value.findIndex(d => d.id === donacionActual.value.id)
   if (idx === -1) return
-  todasDonaciones.value[idx].estado = nuevoEstado
-  donacionActual.value.estado = nuevoEstado
-  guardarDonaciones()
-  registrarAuditoria({
-    modulo: 'Donaciones',
-    accion: nuevoEstado === 'Aprobada' ? 'Aprobó una donación' : 'Rechazó una donación',
-    tipoAccion: nuevoEstado === 'Aprobada' ? 'aprobar' : 'rechazar',
-    elemento: donacionActual.value.nombre || 'Anónimo',
-    elementoId: donacionActual.value.id,
-    descripcion: `Donación de ${simboloMoneda(donacionActual.value.moneda)} ${formatMonto(donacionActual.value.monto)} marcada como ${nuevoEstado}.`,
-  })
+
+  const estadoAnterior = donacionActual.value.estado
+  // El backend espera la acción como 'Aprobar' / 'Rechazar'
+  // (ver donationServices.updateDonationStatus).
+  const accionBackend = nuevoEstado === 'Aprobada' ? 'Aprobar' : 'Rechazar'
+
+  try {
+    await updateDonationStatus(donacionActual.value.id, accionBackend)
+
+    todasDonaciones.value[idx].estado = nuevoEstado
+    donacionActual.value.estado = nuevoEstado
+
+    registrarAuditoria({
+      modulo: 'Donaciones',
+      accion: nuevoEstado === 'Aprobada' ? 'Aprobó una donación' : 'Rechazó una donación',
+      tipoAccion: nuevoEstado === 'Aprobada' ? 'aprobar' : 'rechazar',
+      elemento: donacionActual.value.nombre || 'Anónimo',
+      elementoId: donacionActual.value.id,
+      descripcion: `Donación de ${simboloMoneda(donacionActual.value.moneda)} ${formatMonto(donacionActual.value.monto)} marcada como ${nuevoEstado}.`,
+      estado: 'Exitoso',
+      valoresAnteriores: { estado: estadoAnterior },
+      valoresNuevos: { estado: nuevoEstado },
+    })
+  } catch (e) {
+    console.error('Error al actualizar el estado de la donación:', e)
+
+    registrarAuditoria({
+      modulo: 'Donaciones',
+      accion: nuevoEstado === 'Aprobada' ? 'Aprobó una donación' : 'Rechazó una donación',
+      tipoAccion: nuevoEstado === 'Aprobada' ? 'aprobar' : 'rechazar',
+      elemento: donacionActual.value.nombre || 'Anónimo',
+      elementoId: donacionActual.value.id,
+      descripcion: `Falló el cambio de estado a "${nuevoEstado}": ${e?.message || 'error desconocido'}.`,
+      estado: 'Fallido',
+      valoresAnteriores: { estado: estadoAnterior },
+    })
+    // No se rompe la interfaz: el modal permanece abierto y el estado
+    // local no se toca si la llamada al backend falla.
+  }
 }
 // ─── Helpers de formato ───────────────────────────────────────
 function formatMonto(n) {
@@ -392,8 +486,10 @@ function inicialesDonante(nombre) {
     <!-- ESTADO VACÍO -->
     <div v-if="donacionesFiltradas.length === 0" class="empty-state">
       <svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5C11 3 12 8 12 8"/><path d="M16.5 8a2.5 2.5 0 0 0 0-5C13 3 12 8 12 8"/></svg>
-      <p class="empty-title">No hay donaciones registradas</p>
-      <p class="empty-sub">Ajusta los filtros o espera nuevas donaciones.</p>
+      <!-- Texto ajustado mínimamente para reflejar carga/error del backend,
+           sin tocar la estructura ni los estilos del bloque. -->
+      <p class="empty-title">{{ errorCarga ? 'No se pudo cargar la información' : (cargando ? 'Cargando donaciones...' : 'No hay donaciones registradas') }}</p>
+      <p class="empty-sub">{{ errorCarga || 'Ajusta los filtros o espera nuevas donaciones.' }}</p>
     </div>
 
     <!-- TABLA PRINCIPAL -->
