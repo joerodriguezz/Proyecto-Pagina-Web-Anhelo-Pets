@@ -90,7 +90,6 @@ const SECCION_TABS = [
 /* ─── Modales ─────────────────────────────────────────────── */
 const showModalRegistrar    = ref(false)
 const showModalVer          = ref(false)
-const showModalConfirm      = ref(false)
 const showPetDropdown       = ref(false)
 const showVetDropdown       = ref(false)
 const showVetDropdownVacuna = ref(false)
@@ -109,6 +108,80 @@ function showToast(type, message) {
 /* ─── Mascota seleccionada / errores (form de registro) ──── */
 const petSeleccionada = ref(null)
 const errores = ref({})
+
+/* ─── Wizard paso a paso (mismo patrón que existía antes del
+     rediseño, commit 3b63de0): las 4 secciones del formulario se
+     recorren una por una y una quinta de resumen reemplaza al
+     modal de confirmación aparte. ─────────────────────────── */
+const PASOS = [
+  { n: 1, titulo: 'Mascota',      desc: 'Selecciona la mascota' },
+  { n: 2, titulo: 'Historial',    desc: 'Historial médico' },
+  { n: 3, titulo: 'Vacuna',       desc: 'Datos de la vacuna' },
+  { n: 4, titulo: 'Tratamiento',  desc: 'Datos del tratamiento' },
+  { n: 5, titulo: 'Resumen',      desc: 'Revisa y guarda' },
+]
+const TOTAL_PASOS = PASOS.length
+const pasoActual = ref(1)
+const pasoMaximo  = ref(1)
+
+const pasoInfo    = computed(() => PASOS.find(p => p.n === pasoActual.value) || PASOS[0])
+const esUltimoPaso = computed(() => pasoActual.value === TOTAL_PASOS)
+const progreso     = computed(() => ((pasoActual.value - 1) / (TOTAL_PASOS - 1)) * 100)
+
+const CAMPOS_POR_PASO = {
+  1: ['pet'],
+  2: ['fecha', 'vet', 'diagnostico'],
+  3: ['tipoVacuna', 'fechaAplicacion'],
+  4: ['tipoTratamiento', 'fechaTrat'],
+  5: [],
+}
+
+function pasoCompleto(n) {
+  if (n === 1) return !!petSeleccionada.value
+  if (n === 2) return !!(form.value.fecha && form.value.vet?.trim() && form.value.diagnostico?.trim())
+  if (n === 3) return !!(form.value.tipoVacuna?.trim() && form.value.fechaAplicacion)
+  if (n === 4) return !!(form.value.tipoTratamiento?.trim() && form.value.fechaTrat)
+  return true
+}
+
+function validarPaso(n) {
+  const e = { ...errores.value }
+  const campos = CAMPOS_POR_PASO[n] || []
+  campos.forEach(c => delete e[c])
+
+  if (n === 1 && !petSeleccionada.value) e.pet = 'Selecciona una mascota'
+  if (n === 2) {
+    if (!form.value.fecha)               e.fecha       = 'Obligatorio'
+    if (!form.value.vet?.trim())         e.vet         = 'Obligatorio'
+    if (!form.value.diagnostico?.trim()) e.diagnostico = 'Obligatorio'
+  }
+  if (n === 3) {
+    if (!form.value.tipoVacuna?.trim()) e.tipoVacuna      = 'Obligatorio'
+    if (!form.value.fechaAplicacion)    e.fechaAplicacion = 'Obligatorio'
+  }
+  if (n === 4) {
+    if (!form.value.tipoTratamiento?.trim()) e.tipoTratamiento = 'Obligatorio'
+    if (!form.value.fechaTrat)               e.fechaTrat       = 'Obligatorio'
+  }
+
+  errores.value = e
+  return campos.every(c => !e[c])
+}
+
+function irAPaso(n) {
+  if (n > pasoMaximo.value) return
+  pasoActual.value = n
+}
+function pasoSiguiente() {
+  if (!validarPaso(pasoActual.value)) return
+  if (pasoActual.value < TOTAL_PASOS) {
+    pasoActual.value += 1
+    if (pasoActual.value > pasoMaximo.value) pasoMaximo.value = pasoActual.value
+  }
+}
+function pasoAnterior() {
+  if (pasoActual.value > 1) pasoActual.value -= 1
+}
 
 /* ─── Datos del expediente médico (ahora respaldados por el
      backend a través de HealthService, en lugar de localStorage).
@@ -219,6 +292,8 @@ function resetForm() {
   showVetDropdown.value = false
   showVetDropdownVacuna.value = false
   errores.value = {}
+  pasoActual.value = 1
+  pasoMaximo.value = 1
 }
 
 /* ─── Filtros de la tabla ─────────────────────────────────── */
@@ -284,20 +359,6 @@ function limpiarFiltros() {
   filterTo.value = ''
 }
 
-/* ─── Validación del formulario de registro ──────────────── */
-function validar() {
-  const e = {}
-  if (!petSeleccionada.value)               e.pet             = 'Selecciona una mascota'
-  if (!form.value.fecha)                    e.fecha           = 'Obligatorio'
-  if (!form.value.vet?.trim())              e.vet             = 'Obligatorio'
-  if (!form.value.diagnostico?.trim())      e.diagnostico     = 'Obligatorio'
-  if (!form.value.tipoVacuna?.trim())       e.tipoVacuna      = 'Obligatorio'
-  if (!form.value.fechaAplicacion)          e.fechaAplicacion = 'Obligatorio'
-  if (!form.value.tipoTratamiento?.trim())  e.tipoTratamiento = 'Obligatorio'
-  if (!form.value.fechaTrat)                e.fechaTrat       = 'Obligatorio'
-  errores.value = e
-  return Object.keys(e).length === 0
-}
 function clearErr(campo) {
   if (errores.value[campo]) {
     const e = { ...errores.value }
@@ -306,13 +367,16 @@ function clearErr(campo) {
   }
 }
 
-function intentarGuardar() {
-  if (!validar()) return
-  showModalConfirm.value = true
+/* Validación completa (los 4 pasos con datos) antes de guardar desde
+   el resumen — en el flujo normal ya se validó paso a paso al avanzar
+   con "Siguiente", pero se repite por seguridad. */
+function guardarDesdeResumen() {
+  const ok = [1, 2, 3, 4].every(n => validarPaso(n))
+  if (!ok) return
+  confirmarGuardar()
 }
 
 async function confirmarGuardar() {
-  showModalConfirm.value = false
   const pid = petSeleccionada.value?.id
   if (!pid) return
 
@@ -548,14 +612,53 @@ function iniciales(nombre) {
             <div class="form-header">
               <p class="form-eyebrow">Expediente médico</p>
               <h2 class="form-title">Nuevo registro completo</h2>
-              <p class="form-sub">Registra historial, vacuna y tratamiento en un mismo expediente</p>
+
+              <div class="wiz-steps" role="list">
+                <div class="wiz-track">
+                  <div class="wiz-track-fill" :style="{ width: progreso + '%' }"></div>
+                </div>
+                <button
+                  v-for="p in PASOS"
+                  :key="p.n"
+                  type="button"
+                  role="listitem"
+                  class="wiz-step"
+                  :class="{
+                    'is-active': pasoActual === p.n,
+                    'is-done':   p.n < pasoActual && pasoCompleto(p.n),
+                    'is-locked': p.n > pasoMaximo
+                  }"
+                  :disabled="p.n > pasoMaximo"
+                  :aria-current="pasoActual === p.n ? 'step' : undefined"
+                  @click="irAPaso(p.n)"
+                >
+                  <span class="wiz-bullet">
+                    <svg v-if="p.n < pasoActual && pasoCompleto(p.n)" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <template v-else>{{ p.n }}</template>
+                  </span>
+                  <span class="wiz-step-label">{{ p.titulo }}</span>
+                </button>
+              </div>
+
+              <div class="wiz-context">
+                <span class="wiz-context-count">Paso {{ pasoActual }} de {{ TOTAL_PASOS }}</span>
+                <span class="wiz-context-sep">·</span>
+                <span class="wiz-context-desc">{{ pasoInfo.desc }}</span>
+                <span v-if="petSeleccionada && pasoActual > 1" class="wiz-context-pet">
+                  <span class="pet-avatar pet-avatar--xs">
+                    <img v-if="petSeleccionada.images?.[0]?.preview" :src="petSeleccionada.images[0].preview" class="pet-avatar-img" />
+                    <span v-else class="pet-avatar-ini">{{ iniciales(petSeleccionada.name) }}</span>
+                  </span>
+                  {{ petSeleccionada.name }}
+                </span>
+              </div>
             </div>
 
-            <div class="uniform-scroll">
+            <div class="uniform-scroll wiz-body">
               <div class="form-body">
 
                 <!-- Sección 1: Mascota -->
-                <div class="form-section">
+                <div v-show="pasoActual === 1" class="form-section wiz-pane">
                   <div class="form-section-label"><span class="form-num">1</span> Mascota</div>
                   <div class="form-grid">
                     <div class="fg fg--full">
@@ -595,7 +698,7 @@ function iniciales(nombre) {
                 </div>
 
                 <!-- Sección 2: Historial médico -->
-                <div class="form-section">
+                <div v-show="pasoActual === 2" class="form-section wiz-pane">
                   <div class="form-section-label"><span class="form-num">2</span> Historial médico</div>
                   <div class="form-grid">
                     <div class="fg">
@@ -647,7 +750,7 @@ function iniciales(nombre) {
                 </div>
 
                 <!-- Sección 3: Vacuna -->
-                <div class="form-section">
+                <div v-show="pasoActual === 3" class="form-section wiz-pane">
                   <div class="form-section-label"><span class="form-num">3</span> Vacuna</div>
                   <div class="form-grid">
                     <div class="fg fg--span2">
@@ -694,7 +797,7 @@ function iniciales(nombre) {
                 </div>
 
                 <!-- Sección 4: Tratamiento -->
-                <div class="form-section">
+                <div v-show="pasoActual === 4" class="form-section wiz-pane">
                   <div class="form-section-label"><span class="form-num">4</span> Tratamiento</div>
                   <div class="form-grid">
                     <div class="fg fg--span2">
@@ -722,20 +825,88 @@ function iniciales(nombre) {
                   </div>
                 </div>
 
-                <div class="immutable-note">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
-                  Los registros médicos son permanentes y no pueden editarse ni eliminarse una vez guardados.
+                <!-- Sección 5: Resumen -->
+                <div v-show="pasoActual === 5" class="form-section wiz-pane">
+                  <div class="form-section-label"><span class="form-num">5</span> Resumen</div>
+
+                  <div class="wiz-resumen">
+                    <div class="wiz-res-card">
+                      <div class="wiz-res-head">
+                        <span class="wiz-res-title">Mascota</span>
+                        <button type="button" class="wiz-res-edit" @click="irAPaso(1)">Editar</button>
+                      </div>
+                      <div class="wiz-res-pet">
+                        <div class="pet-avatar pet-avatar--sm">
+                          <img v-if="petSeleccionada?.images?.[0]?.preview" :src="petSeleccionada.images[0].preview" class="pet-avatar-img" />
+                          <span v-else class="pet-avatar-ini">{{ iniciales(petSeleccionada?.name) }}</span>
+                        </div>
+                        <div>
+                          <span class="wiz-res-value">{{ petSeleccionada?.name || '—' }}</span>
+                          <span class="wiz-res-sub">{{ petSeleccionada?.type }}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div class="wiz-res-card">
+                      <div class="wiz-res-head">
+                        <span class="wiz-res-title">Historial médico</span>
+                        <button type="button" class="wiz-res-edit" @click="irAPaso(2)">Editar</button>
+                      </div>
+                      <dl class="wiz-res-list">
+                        <div><dt>Fecha</dt><dd>{{ formatFecha(form.fecha) }}</dd></div>
+                        <div><dt>Veterinario</dt><dd>{{ form.vet || '—' }}</dd></div>
+                        <div class="wiz-res-full"><dt>Diagnóstico</dt><dd>{{ form.diagnostico || '—' }}</dd></div>
+                      </dl>
+                    </div>
+
+                    <div class="wiz-res-card">
+                      <div class="wiz-res-head">
+                        <span class="wiz-res-title">Vacuna</span>
+                        <button type="button" class="wiz-res-edit" @click="irAPaso(3)">Editar</button>
+                      </div>
+                      <dl class="wiz-res-list">
+                        <div><dt>Tipo</dt><dd>{{ form.tipoVacuna || '—' }}</dd></div>
+                        <div><dt>Fecha de aplicación</dt><dd>{{ formatFecha(form.fechaAplicacion) }}</dd></div>
+                      </dl>
+                    </div>
+
+                    <div class="wiz-res-card">
+                      <div class="wiz-res-head">
+                        <span class="wiz-res-title">Tratamiento</span>
+                        <button type="button" class="wiz-res-edit" @click="irAPaso(4)">Editar</button>
+                      </div>
+                      <dl class="wiz-res-list">
+                        <div><dt>Tipo</dt><dd>{{ form.tipoTratamiento || '—' }}</dd></div>
+                        <div><dt>Fecha</dt><dd>{{ formatFecha(form.fechaTrat) }}</dd></div>
+                      </dl>
+                    </div>
+                  </div>
+
+                  <div class="immutable-note">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+                    Los registros médicos son permanentes y no pueden editarse ni eliminarse una vez guardados.
+                  </div>
                 </div>
 
               </div>
             </div>
 
-            <div class="form-footer">
+            <div class="form-footer wiz-footer">
               <button class="btn-cancel" @click="cerrarModalRegistrar">Cancelar</button>
-              <button class="btn-save" @click="intentarGuardar">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                <span>Guardar expediente</span>
-              </button>
+              <div class="wiz-nav">
+                <button v-if="pasoActual > 1" class="btn-cancel btn-back" @click="pasoAnterior">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                  Atrás
+                </button>
+                <button v-if="!esUltimoPaso" class="btn-save" @click="pasoSiguiente">
+                  Siguiente
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+                <button v-else class="btn-save" @click="guardarDesdeResumen">
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>Guardar expediente</span>
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -1129,39 +1300,6 @@ function iniciales(nombre) {
             <div class="footer">
               <button class="btn-ghost-red" @click="showModalVer = false">
                 Cerrar expediente
-              </button>
-            </div>
-          </div>
-        </div>
-      </Transition>
-    </Teleport>
-
-    <!-- ══════════════════════════════════════
-         MODAL 3/3 — CONFIRMAR GUARDADO
-         Misma arquitectura que "Cambiar estado" en Mascotas.vue
-         (.modal-box--sm, modal-header, modal-section, modal-acciones)
-    ══════════════════════════════════════ -->
-    <Teleport to="body">
-      <Transition name="modal-fade">
-        <div v-if="showModalConfirm" class="modal-overlay modal-overlay--top" @click.self="showModalConfirm = false">
-          <div class="modal-box modal-box--sm">
-            <button class="btn btn--icon btn--icon-close" @click="showModalConfirm = false">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-            </button>
-            <div class="modal-header">
-              <div class="modal-header-info">
-                <p class="modal-eyebrow">Confirmar guardado</p>
-                <h2 class="modal-title">{{ petSeleccionada?.name }}</h2>
-              </div>
-            </div>
-            <div class="modal-section">
-              <p class="confirm-desc">Se registrará el historial médico, la vacuna y el tratamiento para <strong>{{ petSeleccionada?.name }}</strong>. Esta acción es permanente y no podrá modificarse.</p>
-            </div>
-            <div class="modal-acciones">
-              <button class="btn btn--ghost" @click="showModalConfirm = false">Cancelar</button>
-              <button class="btn btn--primary" @click="confirmarGuardar">
-                <svg class="btn-ico" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                <span>Confirmar y guardar</span>
               </button>
             </div>
           </div>
@@ -1564,6 +1702,64 @@ function iniciales(nombre) {
   .fields-row { grid-template-columns:1fr; }
 }
 @media (max-width:480px) { .don-summary { grid-template-columns:1fr; } }
+
+/* ══════════════════════════════════════════════
+   WIZARD PASO A PASO (recuperado del commit 3b63de0)
+   ══════════════════════════════════════════════ */
+.wiz-steps { position:relative; display:flex; justify-content:space-between; gap:6px; margin-top:18px; }
+.wiz-track { position:absolute; top:15px; left:6%; right:6%; height:2px; background:var(--borde-suave); border-radius:2px; }
+.wiz-track-fill { height:100%; background:var(--verde); border-radius:2px; transition:width .32s cubic-bezier(.4,0,.2,1); }
+.wiz-step { position:relative; z-index:1; flex:1; display:flex; flex-direction:column; align-items:center; gap:7px; background:transparent; border:none; padding:0; cursor:pointer; font-family:inherit; min-width:0; }
+.wiz-step.is-locked { cursor:default; }
+.wiz-bullet { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; background:var(--blanco); border:2px solid var(--borde-suave); color:var(--texto-sec); transition:all .22s ease; flex-shrink:0; }
+.wiz-step-label { font-size:11px; font-weight:700; color:var(--texto-sec); text-align:center; letter-spacing:.2px; transition:color .22s ease; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wiz-step.is-done .wiz-bullet { background:var(--verde); border-color:var(--verde); color:#FFFFFF; }
+.wiz-step.is-done .wiz-step-label { color:var(--verde); }
+.wiz-step.is-active .wiz-bullet { background:var(--verde); border-color:var(--verde); color:#FFFFFF; box-shadow:0 0 0 4px rgba(58,71,60,.12); }
+.wiz-step.is-active .wiz-step-label { color:var(--verde); font-weight:800; }
+.wiz-step:not(.is-locked):not(.is-active):hover .wiz-bullet { border-color:var(--verde-sec); }
+
+.wiz-context { display:flex; align-items:center; gap:7px; margin-top:16px; font-size:12px; color:var(--texto-sec); flex-wrap:wrap; }
+.wiz-context-count { font-weight:800; color:var(--verde); text-transform:uppercase; letter-spacing:.5px; font-size:11px; }
+.wiz-context-sep { opacity:.5; }
+.wiz-context-desc { font-weight:500; }
+.wiz-context-pet { display:inline-flex; align-items:center; gap:6px; margin-left:auto; padding:4px 10px 4px 4px; background:var(--fondo); border:1px solid var(--borde-suave); border-radius:20px; font-size:12px; font-weight:700; color:var(--verde); }
+.pet-avatar--xs { width:22px; height:22px; border-radius:50%; background:#DDE6DE; display:inline-flex; align-items:center; justify-content:center; flex-shrink:0; overflow:hidden; }
+.pet-avatar--xs .pet-avatar-ini { font-size:10px; }
+
+.wiz-body { min-height:260px; }
+.wiz-pane { animation:wiz-in .26s ease; }
+@keyframes wiz-in { from { opacity:0; transform:translateX(10px); } to { opacity:1; transform:translateX(0); } }
+
+.wiz-resumen { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+.wiz-res-card { border:1.5px solid var(--borde-suave); border-radius:12px; padding:16px; background:var(--blanco); }
+.wiz-res-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--borde-suave); }
+.wiz-res-title { font-size:11px; font-weight:800; color:var(--verde); text-transform:uppercase; letter-spacing:.5px; }
+.wiz-res-edit { border:none; background:transparent; color:var(--texto-sec); font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; text-decoration:underline; padding:0; }
+.wiz-res-edit:hover { color:var(--verde); }
+.wiz-res-pet { display:flex; align-items:center; gap:10px; }
+.wiz-res-value { display:block; font-size:14px; font-weight:700; color:var(--texto); }
+.wiz-res-sub { display:block; font-size:11px; color:var(--texto-sec); margin-top:2px; }
+.wiz-res-list { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin:0; }
+.wiz-res-list > div { min-width:0; }
+.wiz-res-full { grid-column:1 / -1; }
+.wiz-res-list dt { font-size:10px; font-weight:700; color:var(--texto-sec); text-transform:uppercase; letter-spacing:.4px; }
+.wiz-res-list dd { font-size:13px; font-weight:600; color:var(--texto); margin:3px 0 0; word-break:break-word; }
+
+.wiz-footer { justify-content:space-between; align-items:center; }
+.wiz-nav { display:flex; gap:10px; }
+.btn-back { display:flex; align-items:center; gap:6px; }
+
+@media (max-width:768px) {
+  .wiz-step-label { display:none; }
+  .wiz-steps { justify-content:center; gap:0; }
+  .wiz-track { top:15px; left:10%; right:10%; }
+  .wiz-context-pet { margin-left:0; }
+  .wiz-resumen { grid-template-columns:1fr; }
+  .wiz-footer { flex-direction:column-reverse; align-items:stretch; gap:8px; }
+  .wiz-nav { width:100%; }
+  .wiz-nav .btn-cancel, .wiz-nav .btn-save { flex:1; justify-content:center; }
+}
 </style>
 <style>
 /* ── Variables globales (para contenido teletransportado) — idéntico a Mascotas.vue ── */
