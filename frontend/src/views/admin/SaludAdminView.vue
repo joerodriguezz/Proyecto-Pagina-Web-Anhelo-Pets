@@ -5,6 +5,8 @@ import {
   getHealthRecords,
   createHealthRecord,
 } from '../../services/healthServices'
+import { getVeterinarians } from '../../services/veterinarianServices'
+import { getFosterHomes } from '../../services/fosterHomeServices'
 import { registrarAuditoria } from '../../composables/useAuditLog'
 
 const store = usePetsStore()
@@ -24,16 +26,20 @@ function getUsuarioActual() {
 
 /* ─── Veterinarios ────────────────────────────────────────── */
 const veterinarios = ref([])
-function cargarVeterinarios() {
-  const usuarios = JSON.parse(localStorage.getItem('anhelo_usuarios')) || []
-  veterinarios.value = usuarios.filter(
-    u =>
-      u.rol === 'Voluntario' &&
-      u.solicitudVoluntario?.estado === 'Aprobada' &&
-      (u.tipoVoluntario === 'Veterinaria' || u.solicitudVoluntario?.tipo === 'Veterinaria')
-  )
+async function cargarVeterinarios() {
+  try {
+    const { data } = await getVeterinarians()
+    veterinarios.value = (data || [])
+      .filter(v => v.active)
+      .map(v => ({
+        id: v.veterinarianId,
+        veterinarianId: v.veterinarianId,
+        nombre: v.fullName,
+      }))
+  } catch {
+    veterinarios.value = []
+  }
 }
-cargarVeterinarios()
 
 /* Resuelve el veterinarianId (formato requerido por el backend) a
    partir del nombre seleccionado en el formulario. No existe un
@@ -51,14 +57,18 @@ function resolverVeterinarianId(nombre) {
 /* ─── Casas cuna (mismo patrón de Mascotas.vue, para poder
      mostrar la asignación de casa cuna en el expediente "Ver",
      igual que hace Mascotas.vue) ───────────────────────────── */
-const casasCuna = computed(() => {
-  const usuarios = JSON.parse(localStorage.getItem('anhelo_usuarios')) || []
-  return usuarios.filter(u =>
-    (u.rol === 'Voluntario' || u.tipoVoluntario === 'Casa cuna' || u.solicitudVoluntario?.tipo === 'Casa cuna') &&
-    (u.activo === true || u.activo === 'true' || u.estado === 'Activo' || u.solicitudVoluntario?.estado === 'Aprobada') &&
-    (u.tipoVoluntario === 'Casa cuna' || u.solicitudVoluntario?.tipo === 'Casa cuna')
-  )
-})
+const casasCuna = ref([])
+async function cargarCasasCuna() {
+  try {
+    const { data } = await getFosterHomes()
+    casasCuna.value = (data || []).map(fh => ({
+      id: fh.fosterHomeId,
+      nombre: fh.name,
+    }))
+  } catch {
+    casasCuna.value = []
+  }
+}
 function getNombreCasaCuna(pet) {
   if (!pet) return 'Sin asignar'
   if (pet.casaCunaNombre) return pet.casaCunaNombre
@@ -180,7 +190,11 @@ async function cargarDatosBackend() {
   }
 }
 
-onMounted(cargarDatosBackend)
+onMounted(() => {
+  cargarDatosBackend()
+  cargarVeterinarios()
+  cargarCasasCuna()
+})
 
 // Si cambia la lista de mascotas (carga asíncrona del store), se
 // vuelve a consultar el backend para incluir/mantener sus expedientes.

@@ -5,36 +5,49 @@ import { usePetsStore } from '../../stores/usePetsStore'
 import { useRescuesStore } from '../../stores/useRescuesStore'
 import { createAnimals, uploadAnimalPhoto, getAnimalPhotos, deleteAnimalPhoto } from '../../services/petServices.js'
 import { registrarAuditoria } from '../../composables/useAuditLog'
+import { getFosterHomes } from '../../services/fosterHomeServices'
+import { getAdoptionRequests, mapAdoptionRequestDtoToRow } from '../../services/adoptionServices'
 
 const store        = usePetsStore()
 const rescuesStore = useRescuesStore()
 
-onMounted(() => store.fetchPets({ status: 'Todos' }))
-
-// ─────────────────────────────────────────────
-// Casas cuna — cargadas desde voluntarios registrados
-// ⚠️ No se identificó un endpoint equivalente en la versión
-// funcional del proyecto para "voluntarios / casas cuna",
-// por lo que se mantiene igual que antes (localStorage).
-// Si existe un servicio para esto, indícalo y lo conecto.
-// ─────────────────────────────────────────────
-const casasCuna = computed(() => {
-  const usuarios = JSON.parse(localStorage.getItem('anhelo_usuarios')) || []
-  return usuarios.filter(u =>
-    (u.rol === 'Voluntario' || u.tipoVoluntario === 'Casa cuna' || u.solicitudVoluntario?.tipo === 'Casa cuna') &&
-    (u.activo === true || u.activo === 'true' || u.estado === 'Activo' || u.solicitudVoluntario?.estado === 'Aprobada') &&
-    (u.tipoVoluntario === 'Casa cuna' || u.solicitudVoluntario?.tipo === 'Casa cuna')
-  )
+onMounted(() => {
+  store.fetchPets({ status: 'Todos' })
+  cargarCasasCuna()
+  cargarSolicitudesAdopcion()
 })
 
 // ─────────────────────────────────────────────
-// Solicitudes por mascota
-// ⚠️ Sin endpoint equivalente identificado; se mantiene igual.
+// Casas cuna
 // ─────────────────────────────────────────────
+const casasCuna = ref([])
+async function cargarCasasCuna() {
+  try {
+    const { data } = await getFosterHomes()
+    casasCuna.value = (data || []).map(fh => ({
+      id: fh.fosterHomeId,
+      nombre: fh.name,
+    }))
+  } catch {
+    casasCuna.value = []
+  }
+}
+
+// ─────────────────────────────────────────────
+// Solicitudes por mascota (solicitudes de adopción reales)
+// ─────────────────────────────────────────────
+const todasLasSolicitudes = ref([])
+async function cargarSolicitudesAdopcion() {
+  try {
+    const { data } = await getAdoptionRequests()
+    todasLasSolicitudes.value = (data || []).map(mapAdoptionRequestDtoToRow)
+  } catch {
+    todasLasSolicitudes.value = []
+  }
+}
 const solicitudesMascota = computed(() => {
   if (!requestsTarget.value) return []
-  const solicitudes = JSON.parse(localStorage.getItem('anhelo_solicitudes')) || []
-  return solicitudes.filter(
+  return todasLasSolicitudes.value.filter(
     s => s.petId === requestsTarget.value.id || s.mascota === requestsTarget.value.name
   )
 })

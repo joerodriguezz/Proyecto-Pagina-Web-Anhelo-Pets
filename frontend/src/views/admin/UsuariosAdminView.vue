@@ -1,9 +1,9 @@
 <script setup>
-import { ref, computed } from 'vue'
-
-const ADMIN_ID = 'ADMIN-001'
+import { ref, computed, onMounted } from 'vue'
+import { getUsers, updateUserStatus } from '../../services/usersAdminServices'
 
 const usuarios = ref([])
+const cargando = ref(false)
 const showModal = ref(false)
 const selectedUser = ref(null)
 
@@ -17,59 +17,57 @@ const mensajeConfirm = ref('')
 
 const toast = ref({ visible: false, tipo: 'exito', texto: '' })
 
-function adminPorDefecto() {
+// Traduce el UserAdminDto (camelCase) del backend a las claves en español
+// que ya usa esta vista.
+function mapUsuario(dto) {
+  const nombresRol = (dto.roles || []).map(r => r.roleName)
+  const rol = nombresRol.includes('Admin')
+    ? 'Admin'
+    : nombresRol.includes('Voluntario')
+      ? 'Voluntario'
+      : 'Usuario'
+
   return {
-    id: 'ADMIN-001',
-    nombre: 'Shirley Valverde',
-    cedula: '1-0932-0528',
-    correo: 'shirley@anhelopets.cr',
-    telefono: '+506 8840-3334',
-    password: 'Anhelo123',
-    rol: 'Admin',
-    tipoVoluntario: '',
-    direccion: 'Quepos',
-    pais: 'Costa Rica',
-    solicitudVoluntario: null,
-    activo: true
+    id: dto.userId,
+    codigoVoluntario: dto.userId,
+    nombre: dto.fullName,
+    cedula: dto.nationalId || '',
+    correo: dto.email,
+    telefono: dto.phonePrimary,
+    rol,
+    roleIds: (dto.roles || []).map(r => r.roleId),
+    tipoVoluntario: dto.volunteerType || '',
+    direccion: dto.addressLine || '',
+    pais: dto.nationality || '',
+    activo: dto.active,
+    solicitudVoluntario: dto.isVolunteer
+      ? { estado: dto.volunteerValidationStatus }
+      : null,
   }
 }
 
-function cargarUsuarios() {
+async function cargarUsuarios() {
+  cargando.value = true
   try {
-    const raw = localStorage.getItem('anhelo_usuarios')
-    const guardados = raw ? JSON.parse(raw) : null
-    const admin = adminPorDefecto()
-    if (Array.isArray(guardados) && guardados.length > 0) {
-      const idx = guardados.findIndex(u => u.id === ADMIN_ID)
-      if (idx >= 0) guardados[idx] = admin
-      else guardados.unshift(admin)
-      usuarios.value = guardados
-    } else {
-      usuarios.value = [admin]
-    }
-    guardarUsuarios()
+    const { data } = await getUsers()
+    usuarios.value = (data || []).map(mapUsuario)
   } catch {
-    localStorage.removeItem('anhelo_usuarios')
-    usuarios.value = [adminPorDefecto()]
+    usuarios.value = []
+    mostrarToast('No se pudieron cargar los usuarios.', 'error')
+  } finally {
+    cargando.value = false
   }
 }
 
-function guardarUsuarios() {
-  localStorage.setItem('anhelo_usuarios', JSON.stringify(usuarios.value))
-}
+onMounted(cargarUsuarios)
 
-cargarUsuarios()
-
-function toggleEstado(user) {
-  if (user.id === ADMIN_ID) return
-  const todos = JSON.parse(localStorage.getItem('anhelo_usuarios')) || []
-  const i = todos.findIndex(u => u.id === user.id)
-  if (i !== -1) {
-    todos[i].activo = !todos[i].activo
-    localStorage.setItem('anhelo_usuarios', JSON.stringify(todos))
-    user.activo = todos[i].activo
-    cargarUsuarios()
+async function toggleEstado(user) {
+  try {
+    await updateUserStatus(user.id, !user.activo)
+    user.activo = !user.activo
     mostrarToast(user.activo ? 'Usuario activado.' : 'Usuario desactivado.')
+  } catch {
+    mostrarToast('No se pudo actualizar el estado del usuario.', 'error')
   }
 }
 
@@ -116,24 +114,15 @@ function cerrarModal() {
   selectedUser.value = null
 }
 
-/* ── CORRECCIÓN DE GUARDADO ──────────────────────────────────
-   selectedUser es una COPIA (verDetalle hace `{ ...user }`), no
-   una referencia al objeto dentro de usuarios.value. Antes, los
-   botones "Activar/Desactivar usuario" del modal de detalle
-   mutaban esa copia directamente (`selectedUser.activo = true`)
-   y luego llamaban guardarUsuarios() — pero guardarUsuarios()
-   serializa usuarios.value, que nunca fue modificado. El cambio
-   se veía en el modal un instante y se perdía por completo al
-   guardar: no se escribía en localStorage.
-   Esta función localiza al usuario REAL dentro de usuarios.value
-   por id, lo modifica ahí, y recién entonces guarda. */
-function setEstadoUsuario(activo) {
+async function setEstadoUsuario(activo) {
   if (!selectedUser.value) return
-  const idx = usuarios.value.findIndex(u => u.id === selectedUser.value.id)
-  if (idx !== -1) {
-    usuarios.value[idx].activo = activo
-    guardarUsuarios()
+  try {
+    await updateUserStatus(selectedUser.value.id, activo)
+    const idx = usuarios.value.findIndex(u => u.id === selectedUser.value.id)
+    if (idx !== -1) usuarios.value[idx].activo = activo
     mostrarToast(activo ? 'Usuario activado.' : 'Usuario desactivado.')
+  } catch {
+    mostrarToast('No se pudo actualizar el estado del usuario.', 'error')
   }
   cerrarModal()
 }
@@ -399,7 +388,6 @@ const ESTADO_TAB_LABEL = {
                     type="button"
                     class="icon-only"
                     :class="u.activo ? 'icon-only--inactivar' : 'icon-only--activar'"
-                    :disabled="u.id === ADMIN_ID"
                     @click="pedirConfirmacionEstado(u)"
                     :data-tooltip="u.activo ? 'Desactivar usuario' : 'Activar usuario'"
                   >
@@ -517,11 +505,8 @@ const ESTADO_TAB_LABEL = {
             </div>
 
             <div class="footer">
-              <template v-if="selectedUser.id !== ADMIN_ID">
-                <button type="button" class="btn-footer-success" :disabled="selectedUser.activo" @click="setEstadoUsuario(true)">Activar usuario</button>
-                <button type="button" class="btn-footer-danger" :disabled="!selectedUser.activo" @click="setEstadoUsuario(false)">Desactivar usuario</button>
-              </template>
-              <p v-else class="estado-final-msg estado-final-msg--ok">Esta es la cuenta de administrador principal.</p>
+              <button type="button" class="btn-footer-success" :disabled="selectedUser.activo" @click="setEstadoUsuario(true)">Activar usuario</button>
+              <button type="button" class="btn-footer-danger" :disabled="!selectedUser.activo" @click="setEstadoUsuario(false)">Desactivar usuario</button>
               <button type="button" class="btn-ghost-red" @click="cerrarModal">Cerrar expediente</button>
             </div>
           </div>
