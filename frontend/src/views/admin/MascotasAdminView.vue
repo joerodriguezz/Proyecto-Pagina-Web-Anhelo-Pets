@@ -5,8 +5,9 @@ import { usePetsStore } from '../../stores/usePetsStore'
 import { useRescuesStore } from '../../stores/useRescuesStore'
 import { createAnimals, uploadAnimalPhoto, getAnimalPhotos, deleteAnimalPhoto } from '../../services/petServices.js'
 import { registrarAuditoria } from '../../composables/useAuditLog'
-import { getFosterHomes } from '../../services/fosterHomeServices'
+import { getFosterHomes, createFosterHome } from '../../services/fosterHomeServices'
 import { getAdoptionRequests, mapAdoptionRequestDtoToRow } from '../../services/adoptionServices'
+import { getHealthRecords } from '../../services/healthServices'
 
 const store        = usePetsStore()
 const rescuesStore = useRescuesStore()
@@ -15,6 +16,7 @@ onMounted(() => {
   store.fetchPets({ status: 'Todos' })
   cargarCasasCuna()
   cargarSolicitudesAdopcion()
+  cargarDatosSalud()
 })
 
 // ─────────────────────────────────────────────
@@ -30,6 +32,49 @@ async function cargarCasasCuna() {
     }))
   } catch {
     casasCuna.value = []
+  }
+}
+
+// ─────────────────────────────────────────────
+// Alta rápida de casa cuna (desde el selector del wizard)
+// ─────────────────────────────────────────────
+const showAltaCasaCuna  = ref(false)
+const guardandoCasaCuna = ref(false)
+const errorCasaCuna     = ref('')
+function altaCasaCunaInicial() {
+  return { nombre: '', direccion: '', telefono: '', responsable: '', capacidad: 1 }
+}
+const nuevaCasaCuna = ref(altaCasaCunaInicial())
+function cerrarAltaCasaCuna() {
+  showAltaCasaCuna.value = false
+  errorCasaCuna.value = ''
+  nuevaCasaCuna.value = altaCasaCunaInicial()
+}
+async function guardarCasaCunaRapida() {
+  const c = nuevaCasaCuna.value
+  if (!c.nombre.trim() || !c.direccion.trim() || !c.telefono.trim() || !c.responsable.trim()) {
+    errorCasaCuna.value = 'Nombre, dirección, teléfono y responsable son obligatorios.'
+    return
+  }
+  errorCasaCuna.value = ''
+  guardandoCasaCuna.value = true
+  try {
+    const { data: creada } = await createFosterHome({
+      name: c.nombre.trim(),
+      address: c.direccion.trim(),
+      phone: c.telefono.trim(),
+      responsible: c.responsable.trim(),
+      capacity: Number(c.capacidad) || 1,
+    })
+    await cargarCasasCuna()
+    formData.value.casaCunaId = creada.fosterHomeId
+    formData.value.casaCunaNombre = creada.name
+    cerrarAltaCasaCuna()
+    showToast('success', 'Casa cuna agregada correctamente.')
+  } catch (e) {
+    errorCasaCuna.value = e?.response?.data?.message || 'No se pudo guardar la casa cuna. Intenta de nuevo.'
+  } finally {
+    guardandoCasaCuna.value = false
   }
 }
 
@@ -199,13 +244,16 @@ const stats = computed(() => ({
 }))
 
 // ─────────────────────────────────────────────
-// Lista filtrada — activas primero, inactivas siempre al final.
-// Se usa un sort estable (spec ES2019 / V8) que solo reordena
-// según el criterio "es Inactiva o no": el resto del orden
-// (por tipo, búsqueda, fecha de creación, etc.) no se altera.
+// Lista filtrada — activas primero; las archivadas (Inactiva) se
+// agrupan aparte y quedan colapsadas hasta que el usuario las
+// despliega. Si el filtro de estado ya pide explícitamente
+// "Inactiva" (u otro estado puntual), no tiene sentido volver a
+// separarlas: se muestra la lista tal cual.
 // ─────────────────────────────────────────────
-const filteredPets = computed(() => {
-  const filtered = store.pets.filter(p => {
+const mostrarArchivadas = ref(false)
+
+const filteredPetsBase = computed(() => {
+  return store.pets.filter(p => {
     const matchStatus = filterStatus.value === 'Todos' || p.status === filterStatus.value
     const matchType   = filterType.value === 'Todos' || p.type === filterType.value
     const q = searchQuery.value.toLowerCase()
@@ -215,11 +263,30 @@ const filteredPets = computed(() => {
       p.breed.toLowerCase().includes(q)
     return matchStatus && matchType && matchSearch
   })
-  return [...filtered].sort((a, b) => {
-    const aInactiva = a.status === 'Inactiva' ? 1 : 0
-    const bInactiva = b.status === 'Inactiva' ? 1 : 0
-    return aInactiva - bInactiva
-  })
+})
+const agrupaArchivadas = computed(() => filterStatus.value === 'Todos')
+const activePets = computed(() =>
+  agrupaArchivadas.value
+    ? filteredPetsBase.value.filter(p => p.status !== 'Inactiva')
+    : filteredPetsBase.value
+)
+const archivedPets = computed(() =>
+  agrupaArchivadas.value
+    ? filteredPetsBase.value.filter(p => p.status === 'Inactiva')
+    : []
+)
+// Se mantiene por compatibilidad con el resto de la vista (conteo total).
+const filteredPets = computed(() => filteredPetsBase.value)
+
+// Fila especial "divisora" que se intercala entre activas y archivadas
+// para no duplicar la plantilla de la fila de mascota.
+const filasParaMostrar = computed(() => {
+  if (!agrupaArchivadas.value) return filteredPetsBase.value
+  if (archivedPets.value.length === 0) return activePets.value
+  const divisor = { __divisorArchivadas: true, count: archivedPets.value.length }
+  return mostrarArchivadas.value
+    ? [...activePets.value, divisor, ...archivedPets.value]
+    : [...activePets.value, divisor]
 })
 const hayFiltros = computed(() =>
   searchQuery.value.trim() !== '' ||
@@ -314,7 +381,9 @@ async function subirFotosNuevas(animalId, petName) {
 // ─────────────────────────────────────────────
 // Guardar mascota
 // ─────────────────────────────────────────────
+const guardandoPet = ref(false)
 async function savePet() {
+  guardandoPet.value = true
   const petData = { ...formData.value, images: [...formData.value.images] }
 
   if (editMode.value && editingPetId.value !== null) {
@@ -331,18 +400,19 @@ async function savePet() {
     } catch (err) {
       console.error('Error al actualizar mascota:', err)
       showToast('error', 'Error al actualizar la mascota')
+      guardandoPet.value = false
       return
     }
   } else {
     try {
       const { data: created } = await createAnimals(petData)
-      if (created?.animalId) {
-        await subirFotosNuevas(created.animalId, petData.name)
+      if (created?.id) {
+        await subirFotosNuevas(created.id, petData.name)
       }
       await store.fetchPets({ status: 'Todos' })
       registrarAuditoria({
         modulo: 'Mascotas', accion: 'Registró una mascota', tipoAccion: 'crear',
-        elemento: petData.name, elementoId: created?.animalId,
+        elemento: petData.name, elementoId: created?.id,
         descripcion: `Se registró la mascota "${petData.name}" (${petData.type}, ${petData.breed}).`,
       })
       showToast('success', 'Mascota registrada correctamente')
@@ -350,9 +420,11 @@ async function savePet() {
       const detail = err.response?.data?.message || err.response?.data || err.message
       console.error('Error al crear mascota:', detail)
       showToast('error', 'Error al registrar la mascota')
+      guardandoPet.value = false
       return
     }
   }
+  guardandoPet.value = false
   closeForm()
 }
 
@@ -441,8 +513,10 @@ function openStatusModal(pet) {
   pendingStatus.value   = pet.status
   showStatusModal.value = true
 }
+const guardandoEstado = ref(false)
 async function confirmStatusChange() {
   if (!statusTargetPet.value) return
+  guardandoEstado.value = true
   const estadoAnterior = statusTargetPet.value.status
   try {
     await store.changeStatus(statusTargetPet.value.id, pendingStatus.value)
@@ -457,6 +531,7 @@ async function confirmStatusChange() {
     console.error('Error al cambiar el estado:', err)
     showToast('error', 'No se pudo cambiar el estado')
   }
+  guardandoEstado.value = false
   showStatusModal.value = false
   statusTargetPet.value = null
 }
@@ -464,8 +539,10 @@ async function confirmStatusChange() {
 // ─────────────────────────────────────────────
 // Activar / Inactivar rápido
 // ─────────────────────────────────────────────
+const reactivandoId = ref(null)
 async function toggleActive(pet) {
   if (pet.status === 'Inactiva') {
+    reactivandoId.value = pet.id
     try {
       await store.changeStatus(pet.id, 'Disponible')
       await store.fetchPets({ status: 'Todos' })
@@ -478,6 +555,7 @@ async function toggleActive(pet) {
       console.error('Error al reactivar la mascota:', err)
       showToast('error', 'No se pudo reactivar la mascota')
     }
+    reactivandoId.value = null
   } else {
     deactivateTarget.value    = pet
     showDeactivateModal.value = true
@@ -487,8 +565,10 @@ async function toggleActive(pet) {
 // ─────────────────────────────────────────────
 // Desactivar
 // ─────────────────────────────────────────────
+const desactivando = ref(false)
 async function confirmDeactivate() {
   if (!deactivateTarget.value) return
+  desactivando.value = true
   try {
     await store.deactivatePet(deactivateTarget.value.id)
     await store.fetchPets({ status: 'Todos' })
@@ -501,6 +581,7 @@ async function confirmDeactivate() {
     console.error('Error al desactivar la mascota:', err)
     showToast('error', 'No se pudo desactivar la mascota')
   }
+  desactivando.value = false
   showDeactivateModal.value = false
   deactivateTarget.value    = null
 }
@@ -526,38 +607,88 @@ function getNombreCasaCuna(pet) {
 }
 
 // ─────────────────────────────────────────────
-// EXPEDIENTE COMPLETO
-// - Mascotas, fotos y rescates: ahora leen del backend real
-//   (store / servicios), reutilizando lo que ya usa la
-//   versión funcional del proyecto.
-// - Salud (historial, vacunas, tratamientos) y solicitudes de
-//   adopción: no se identificó un endpoint equivalente, por lo
-//   que se mantienen igual (localStorage) hasta que se indique
-//   el servicio correspondiente.
+// EXPEDIENTE COMPLETO — mascota, fotos, rescates, salud y solicitudes
+// de adopción, todos desde el backend real (store / servicios). Salud
+// y solicitudes antes leían de localStorage ('anhelo_salud_v3' /
+// 'anhelo_solicitudes'), claves que nada en la app actual escribe —
+// por eso el expediente y la línea de tiempo salían siempre vacíos.
 // ─────────────────────────────────────────────
+function parsearNotasSalud(notes) {
+  if (!notes) return {}
+  try {
+    return JSON.parse(notes) || {}
+  } catch {
+    return {}
+  }
+}
+const datosSalud = ref({})
+async function cargarDatosSalud() {
+  const agrupado = {}
+  try {
+    const { data: registrosBackend } = await getHealthRecords()
+    ;(registrosBackend || []).forEach(rec => {
+      const extra = parsearNotasSalud(rec.notes)
+      const pid = rec.animalId
+      if (!agrupado[pid]) agrupado[pid] = { medicalHistory: [], vaccines: [], treatments: [] }
+
+      if (extra.tipo === 'vacuna') {
+        agrupado[pid].vaccines.push({
+          id: rec.id,
+          tipo: extra.tipoVacuna || '',
+          fechaAplicacion: rec.visitDate || '',
+          proximaDosis: extra.proximaDosis || '',
+          vet: extra.vet || '',
+          observaciones: extra.observaciones || '',
+          creadoEn: rec.createdAt || '',
+        })
+      } else if (extra.tipo === 'tratamiento') {
+        agrupado[pid].treatments.push({
+          id: rec.id,
+          tipo: extra.tipoTratamiento || '',
+          medicamento: rec.treatment || '',
+          dosis: extra.dosis || '',
+          fecha: rec.visitDate || '',
+          observaciones: extra.observaciones || '',
+          creadoEn: rec.createdAt || '',
+        })
+      } else {
+        agrupado[pid].medicalHistory.push({
+          id: rec.id,
+          fecha: rec.visitDate || '',
+          vet: extra.vet || '',
+          peso: extra.peso || '',
+          diagnostico: rec.diagnosis || '',
+          observaciones: extra.observaciones || '',
+          creadoEn: rec.createdAt || '',
+        })
+      }
+    })
+  } catch (err) {
+    console.error('Error al cargar los expedientes médicos:', err)
+  }
+  datosSalud.value = agrupado
+}
+
 const expedienteHistorialMedico = computed(() => {
   if (!viewTarget.value) return []
-  const datosSalud = JSON.parse(localStorage.getItem('anhelo_salud_v3')) || {}
-  const d = datosSalud[viewTarget.value.id]
-  if (!d || !Array.isArray(d.medicalHistory)) return []
+  const d = datosSalud.value[viewTarget.value.id]
+  if (!d) return []
   return [...d.medicalHistory].sort((a, b) =>
     String(b.fecha || '').localeCompare(String(a.fecha || ''))
   )
 })
 const expedienteVacunas = computed(() => {
   if (!viewTarget.value) return []
-  const datosSalud = JSON.parse(localStorage.getItem('anhelo_salud_v3')) || {}
-  const d = datosSalud[viewTarget.value.id]
-  if (!d || !Array.isArray(d.vaccines)) return []
+  const d = datosSalud.value[viewTarget.value.id]
+  if (!d) return []
   return [...d.vaccines].sort((a, b) =>
     String(b.fechaAplicacion || '').localeCompare(String(a.fechaAplicacion || ''))
   )
 })
 const expedienteTratamientos = computed(() => {
   if (!viewTarget.value) return []
-  const datosSalud = JSON.parse(localStorage.getItem('anhelo_salud_v3')) || {}
-  const d = datosSalud[viewTarget.value.id]
-  if (!d || !Array.isArray(d.treatments)) return []
+  const d = datosSalud.value[viewTarget.value.id]
+  if (!d) return []
   return [...d.treatments].sort((a, b) =>
     String(b.fecha || '').localeCompare(String(a.fecha || ''))
   )
@@ -573,8 +704,7 @@ const expedienteRescates = computed(() => {
 })
 const expedienteSolicitudes = computed(() => {
   if (!viewTarget.value) return []
-  const solicitudes = JSON.parse(localStorage.getItem('anhelo_solicitudes')) || []
-  return solicitudes
+  return todasLasSolicitudes.value
     .filter(s => s.petId === viewTarget.value.id || s.mascota === viewTarget.value.name)
     .sort((a, b) => String(b.fecha || '').localeCompare(String(a.fecha || '')))
 })
@@ -772,10 +902,15 @@ const expedienteTimeline = computed(() => {
                     </div>
                     <div class="fg fg--span2">
                       <label>Casa cuna asignada</label>
-                      <select class="select" :value="formData.casaCunaId" @change="onCasaCunaChange">
-                        <option value="">Sin asignar</option>
-                        <option v-for="cc in casasCuna" :key="cc.id" :value="cc.id">{{ cc.nombre || cc.name }}</option>
-                      </select>
+                      <div class="fg-with-add">
+                        <select class="select" :value="formData.casaCunaId" @change="onCasaCunaChange">
+                          <option value="">Sin asignar</option>
+                          <option v-for="cc in casasCuna" :key="cc.id" :value="cc.id">{{ cc.nombre || cc.name }}</option>
+                        </select>
+                        <button type="button" class="btn-add-quick" title="Agregar casa cuna" @click="showAltaCasaCuna = true">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -892,11 +1027,65 @@ const expedienteTimeline = computed(() => {
                   Siguiente
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
-                <button v-else class="btn-save" @click="guardarDesdeResumen">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  <span>{{ editMode ? 'Guardar cambios' : 'Registrar mascota' }}</span>
+                <button v-else class="btn-save" :disabled="guardandoPet" @click="guardarDesdeResumen">
+                  <span v-if="guardandoPet" class="btn-spinner"></span>
+                  <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>{{ guardandoPet ? 'Guardando...' : (editMode ? 'Guardar cambios' : 'Registrar mascota') }}</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+    <!-- ══════════════════════════════════════
+         POPUP — Alta rápida de casa cuna
+    ══════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showAltaCasaCuna" class="modal-overlay modal-overlay--top" @click.self="cerrarAltaCasaCuna">
+          <div class="modal-box modal-box--sm">
+            <button class="btn btn--icon btn--icon-close" @click="cerrarAltaCasaCuna">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div class="modal-header">
+              <div class="modal-header-info">
+                <p class="modal-eyebrow">Alta rápida</p>
+                <h2 class="modal-title">Nueva casa cuna</h2>
+              </div>
+            </div>
+            <div class="modal-section">
+              <div class="form-grid">
+                <div class="fg fg--full">
+                  <label>Nombre <span class="req">*</span></label>
+                  <input type="text" class="input" placeholder="Ej. Hogar Los Ángeles" v-model="nuevaCasaCuna.nombre" />
+                </div>
+                <div class="fg fg--full">
+                  <label>Dirección <span class="req">*</span></label>
+                  <input type="text" class="input" placeholder="Dirección completa" v-model="nuevaCasaCuna.direccion" />
+                </div>
+                <div class="fg">
+                  <label>Teléfono <span class="req">*</span></label>
+                  <input type="text" class="input" placeholder="Ej. 8888-8888" v-model="nuevaCasaCuna.telefono" />
+                </div>
+                <div class="fg">
+                  <label>Capacidad</label>
+                  <input type="number" class="input" min="1" max="50" v-model="nuevaCasaCuna.capacidad" />
+                </div>
+                <div class="fg fg--full">
+                  <label>Responsable <span class="req">*</span></label>
+                  <input type="text" class="input" placeholder="Nombre del responsable" v-model="nuevaCasaCuna.responsable" />
+                </div>
+              </div>
+              <p v-if="errorCasaCuna" class="err-msg">{{ errorCasaCuna }}</p>
+            </div>
+            <div class="modal-acciones">
+              <button class="btn btn--ghost" @click="cerrarAltaCasaCuna">Cancelar</button>
+              <button class="btn btn--primary" :disabled="guardandoCasaCuna" @click="guardarCasaCunaRapida">
+                <span v-if="guardandoCasaCuna" class="btn-spinner"></span>
+                <svg v-else class="btn-ico" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>{{ guardandoCasaCuna ? 'Guardando...' : 'Agregar casa cuna' }}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1008,7 +1197,16 @@ const expedienteTimeline = computed(() => {
               </tr>
             </thead>
             <tbody>
-              <tr v-for="p in filteredPets" :key="p.id" class="don-row" :class="{ 'row-inactive': p.status === 'Inactiva' }">
+              <template v-for="p in filasParaMostrar" :key="p.__divisorArchivadas ? 'divisor' : p.id">
+              <tr v-if="p.__divisorArchivadas" class="archive-divider-row" @click="mostrarArchivadas = !mostrarArchivadas">
+                <td colspan="7">
+                  <span class="archive-divider">
+                    <svg class="archive-divider-chevron" :class="{ open: mostrarArchivadas }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    {{ mostrarArchivadas ? 'Ocultar' : 'Ver' }} archivadas ({{ p.count }})
+                  </span>
+                </td>
+              </tr>
+              <tr v-else class="don-row" :class="{ 'row-inactive': p.status === 'Inactiva' }">
                 <td><span class="id-pill">{{ p.id }}</span></td>
                 <td>
                   <div class="pet-avatar">
@@ -1035,15 +1233,18 @@ const expedienteTimeline = computed(() => {
                     <button
                       class="icon-only"
                       :class="p.status === 'Inactiva' ? 'icon-only--activar' : 'icon-only--inactivar'"
+                      :disabled="reactivandoId === p.id"
                       @click="toggleActive(p)"
                       :data-tooltip="p.status === 'Inactiva' ? 'Activar mascota' : 'Desactivar mascota'"
                     >
-                      <svg v-if="p.status === 'Inactiva'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                      <span v-if="reactivandoId === p.id" class="btn-spinner btn-spinner--dark"></span>
+                      <svg v-else-if="p.status === 'Inactiva'" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                       <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8"/><path d="M1 3h22v5H1z"/><line x1="10" y1="12" x2="14" y2="12"/></svg>
                     </button>
                   </div>
                 </td>
               </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -1366,9 +1567,10 @@ const expedienteTimeline = computed(() => {
             </div>
             <div class="modal-acciones">
               <button class="btn btn--ghost" @click="showStatusModal = false">Cancelar</button>
-              <button class="btn btn--primary" @click="confirmStatusChange">
-                <svg class="btn-ico" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                <span>Confirmar</span>
+              <button class="btn btn--primary" :disabled="guardandoEstado" @click="confirmStatusChange">
+                <span v-if="guardandoEstado" class="btn-spinner"></span>
+                <svg v-else class="btn-ico" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>{{ guardandoEstado ? 'Guardando...' : 'Confirmar' }}</span>
               </button>
             </div>
           </div>
@@ -1402,8 +1604,11 @@ const expedienteTimeline = computed(() => {
               </div>
             </div>
             <div class="confirm-footer">
-              <button class="btn-cancel" @click="showDeactivateModal = false">Cancelar</button>
-              <button class="btn-danger" @click="confirmDeactivate">Desactivar</button>
+              <button class="btn-cancel" :disabled="desactivando" @click="showDeactivateModal = false">Cancelar</button>
+              <button class="btn-danger" :disabled="desactivando" @click="confirmDeactivate">
+                <span v-if="desactivando" class="btn-spinner"></span>
+                {{ desactivando ? 'Desactivando...' : 'Desactivar' }}
+              </button>
             </div>
           </div>
         </div>
@@ -1520,6 +1725,12 @@ const expedienteTimeline = computed(() => {
 .don-table tbody tr:hover { background:#FAFBFA; }
 .don-table tbody td { padding:12px 16px; vertical-align:middle; }
 .row-inactive { opacity:0.5; }
+.archive-divider-row { cursor:pointer; }
+.archive-divider-row td { padding:10px 16px; background:var(--fondo); }
+.archive-divider-row:hover td { background:#F0F2F0; }
+.archive-divider { display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:700; color:var(--texto-sec); text-transform:uppercase; letter-spacing:.4px; }
+.archive-divider-chevron { transition:transform .18s ease; flex-shrink:0; }
+.archive-divider-chevron.open { transform:rotate(180deg); }
 .pet-avatar { width:38px; height:38px; border-radius:50%; overflow:hidden; flex-shrink:0; background:#F1F5F1; display:flex; align-items:center; justify-content:center; border:1px solid var(--borde); }
 .pet-avatar-img { width:100%; height:100%; object-fit:cover; display:block; }
 .pet-avatar-ini { font-size:14px; font-weight:700; color:#4E6E51; text-transform:uppercase; line-height:1; }
@@ -1745,6 +1956,10 @@ const expedienteTimeline = computed(() => {
 .btn-save { display:flex; align-items:center; gap:7px; height:38px; padding:0 17px; border-radius:9px; background:var(--verde); border:none; color:#fff; font-size:13px; font-weight:600; cursor:pointer; box-shadow:0 1px 2px rgba(58,71,60,.12), 0 4px 10px -4px rgba(58,71,60,.35); transition:background-color .16s ease; }
 .btn-save svg { width:14px; height:14px; }
 .btn-save:hover { background:#465747; }
+.btn-save:disabled, .btn-cancel:disabled, .btn:disabled { opacity:.6; cursor:not-allowed; }
+.btn-spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:btn-spin .7s linear infinite; }
+.btn-spinner--dark { border-color:var(--borde); border-top-color:var(--texto-sec); }
+@keyframes btn-spin { to { transform:rotate(360deg); } }
 /* ══════════════════════════════════════════════
    CONFIRMAR DESACTIVAR
    ══════════════════════════════════════════════ */
@@ -1800,6 +2015,15 @@ const expedienteTimeline = computed(() => {
   .fields-row { grid-template-columns:1fr; }
 }
 @media (max-width:480px) { .don-summary { grid-template-columns:1fr; } }
+
+/* ══════════════════════════════════════════════
+   ALTA RÁPIDA (casa cuna, etc. desde un selector)
+   ══════════════════════════════════════════════ */
+.fg-with-add { display:flex; align-items:flex-start; gap:8px; }
+.fg-with-add .select { flex:1; min-width:0; }
+.btn-add-quick { flex-shrink:0; width:38px; height:38px; display:flex; align-items:center; justify-content:center; border-radius:9px; border:1.5px solid var(--borde-suave); background:var(--blanco); color:var(--verde); cursor:pointer; transition:all .18s; }
+.btn-add-quick:hover { border-color:var(--verde-sec); background:var(--fondo); }
+.modal-overlay--top { z-index:1100; }
 
 /* ══════════════════════════════════════════════
    WIZARD PASO A PASO (mismo patrón que SaludAdminView.vue)
@@ -1863,5 +2087,7 @@ const expedienteTimeline = computed(() => {
   --verde-ok:#4CAF6A; --rojo:#C0392B; --rojo-bg:#FBEDEC;
   --sombra-sm:0 1px 2px rgba(58,71,60,.03);
   --sombra-md:0 2px 4px rgba(58,71,60,.05), 0 14px 32px -14px rgba(58,71,60,.18);
+  --btn-height:33px; --btn-radius:9px; --btn-pad-x:13px; --btn-icon-size:14px;
+  --btn-icon-gap:6px; --btn-font-size:12.5px; --btn-font-weight:600; --btn-transition:0.16s ease;
 }
 </style>

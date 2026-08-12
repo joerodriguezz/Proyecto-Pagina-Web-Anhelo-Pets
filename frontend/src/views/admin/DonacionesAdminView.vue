@@ -27,7 +27,7 @@ const errorCarga = ref('')
 // template ni los estilos.
 function mapDonacion(d) {
   return {
-    id: d._id || d.id,
+    id: d.donationId ?? d._id ?? d.id,
     nombre: d.donorName ?? d.nombre,
     correo: d.email ?? d.correo,
     telefono: d.phone ?? d.telefono,
@@ -38,12 +38,9 @@ function mapDonacion(d) {
     fechaRegistro: d.createdAt ?? d.fechaRegistro,
     mensaje: d.message ?? d.mensaje ?? '',
     comprobante: d.proofFile ?? d.comprobante ?? '',
-    // El backend recibe la acción como 'Aprobar' / 'Rechazar' (ver
-    // updateDonationStatus más abajo), así que se asume que también
-    // devuelve el estado ya en español ('Pendiente' | 'Aprobada' | 'Rechazada').
-    // Si el backend usa otros valores (p. ej. 'pending'/'approved'/'rejected'),
-    // traduce aquí.
-    estado: d.status ?? d.estado ?? 'Pendiente',
+    // El backend expone el estado como "validationStatus" (DonationDto),
+    // ya en español y en forma femenina ('Pendiente' | 'Aprobada' | 'Rechazada').
+    estado: d.validationStatus ?? d.status ?? d.estado ?? 'Pendiente',
   }
 }
 
@@ -229,6 +226,7 @@ function cerrarModal() {
   donacionActual.value = null
 }
 // ─── Aprobar / Rechazar ───────────────────────────────────────
+const accionEnCurso = ref(null)
 async function cambiarEstado(nuevoEstado) {
   if (!donacionActual.value) return
   const idx = todasDonaciones.value.findIndex(d => d.id === donacionActual.value.id)
@@ -239,6 +237,7 @@ async function cambiarEstado(nuevoEstado) {
   // (ver donationServices.updateDonationStatus).
   const accionBackend = nuevoEstado === 'Aprobada' ? 'Aprobar' : 'Rechazar'
 
+  accionEnCurso.value = nuevoEstado
   try {
     await updateDonationStatus(donacionActual.value.id, accionBackend)
 
@@ -272,6 +271,7 @@ async function cambiarEstado(nuevoEstado) {
     // No se rompe la interfaz: el modal permanece abierto y el estado
     // local no se toca si la llamada al backend falla.
   }
+  accionEnCurso.value = null
 }
 // ─── Helpers de formato ───────────────────────────────────────
 function formatMonto(n) {
@@ -640,8 +640,14 @@ function inicialesDonante(nombre) {
 
             <div class="footer">
               <template v-if="donacionActual.estado === 'Pendiente'">
-                <button type="button" class="btn-footer-success" @click="cambiarEstado('Aprobada')">Aprobar donación</button>
-                <button type="button" class="btn-footer-danger" @click="cambiarEstado('Rechazada')">Rechazar donación</button>
+                <button type="button" class="btn-footer-success" :disabled="!!accionEnCurso" @click="cambiarEstado('Aprobada')">
+                  <span v-if="accionEnCurso === 'Aprobada'" class="btn-spinner"></span>
+                  {{ accionEnCurso === 'Aprobada' ? 'Aprobando...' : 'Aprobar donación' }}
+                </button>
+                <button type="button" class="btn-footer-danger" :disabled="!!accionEnCurso" @click="cambiarEstado('Rechazada')">
+                  <span v-if="accionEnCurso === 'Rechazada'" class="btn-spinner"></span>
+                  {{ accionEnCurso === 'Rechazada' ? 'Rechazando...' : 'Rechazar donación' }}
+                </button>
               </template>
               <p v-else-if="donacionActual.estado === 'Aprobada'" class="estado-final-msg estado-final-msg--ok">Esta donación ha sido aprobada.</p>
               <p v-else-if="donacionActual.estado === 'Rechazada'" class="estado-final-msg estado-final-msg--bad">Esta donación ha sido rechazada.</p>
@@ -907,10 +913,13 @@ function inicialesDonante(nombre) {
 .estado-final-msg--bad { color:#B71C1C; }
 .btn-ghost-red { display:flex; align-items:center; gap:6px; height:29px; padding:0 12px; border-radius:8px; background:var(--blanco); border:1px solid var(--borde); color:var(--texto-sec); font-size:11.5px; font-weight:600; cursor:pointer; transition:background-color .16s ease, border-color .16s ease, color .16s ease; }
 .btn-ghost-red:hover { background:#FDF4F3; border-color:#E8B9B2; color:var(--rojo); }
-.btn-footer-danger { display:flex; align-items:center; height:29px; padding:0 12px; border-radius:8px; background:var(--rojo-bg); border:none; color:var(--rojo); font-size:11.5px; font-weight:600; cursor:pointer; transition:background-color .16s ease, color .16s ease; }
+.btn-footer-danger { display:flex; align-items:center; gap:7px; height:29px; padding:0 12px; border-radius:8px; background:var(--rojo-bg); border:none; color:var(--rojo); font-size:11.5px; font-weight:600; cursor:pointer; transition:background-color .16s ease, color .16s ease; }
 .btn-footer-danger:hover { background:var(--rojo); color:#fff; }
-.btn-footer-success { display:flex; align-items:center; height:29px; padding:0 12px; border-radius:8px; background:#EDF6EF; border:none; color:#2E7D32; font-size:11.5px; font-weight:600; cursor:pointer; transition:background-color .16s ease, color .16s ease; }
+.btn-footer-success { display:flex; align-items:center; gap:7px; height:29px; padding:0 12px; border-radius:8px; background:#EDF6EF; border:none; color:#2E7D32; font-size:11.5px; font-weight:600; cursor:pointer; transition:background-color .16s ease, color .16s ease; }
 .btn-footer-success:hover { background:#2E7D32; color:#fff; }
+.btn-footer-danger:disabled, .btn-footer-success:disabled { opacity:.6; cursor:not-allowed; }
+.btn-spinner { display:inline-block; width:13px; height:13px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; opacity:.7; animation:btn-spin .7s linear infinite; }
+@keyframes btn-spin { to { transform:rotate(360deg); } }
 
 /* Animaciones modal */
 .modal-fade-enter-active, .modal-fade-leave-active { transition:opacity 0.22s ease; }

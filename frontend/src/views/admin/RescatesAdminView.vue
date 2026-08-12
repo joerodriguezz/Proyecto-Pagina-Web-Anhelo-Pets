@@ -5,10 +5,15 @@ import { usePetsStore } from '../../stores/usePetsStore'
 import { registrarAuditoria } from '../../composables/useAuditLog'
 import { getRescues, createRescue, updateRescue, closeRescue } from '../../services/rescueServices'
 import { getVolunteers } from '../../services/volunteerServices'
+import { createAnimals, uploadAnimalPhoto } from '../../services/petServices'
 
 
 /* ─── Store de mascotas ─────────────────────────────────── */
 const petsStore = usePetsStore()
+
+onMounted(() => {
+  petsStore.fetchPets({ status: 'Todos' })
+})
 
 /* ─── Estado principal ──────────────────────────────────── */
 const rescates = ref([])
@@ -139,7 +144,7 @@ function mapRescueDtoToRow(dto) {
   const { provincia, canton, distrito } = parseUbicacion(dto.ubicacion)
   const fecha = dto.fecha ? String(dto.fecha).split('T')[0] : ''
   return {
-    id: dto.id,
+    id: dto.rescateId,
     mascotaId: dto.animalId,
     mascota: pet?.name || '',
     tipoMascota: pet?.type || 'Perro',
@@ -166,7 +171,7 @@ function mapRescueDtoToRow(dto) {
 /* ─── Carga desde el backend ─────────────────────────────── */
 async function cargarRescates() {
   try {
-    const data = await getRescues()
+    const { data } = await getRescues()
     rescates.value = (data || []).map(mapRescueDtoToRow)
   } catch (err) {
     console.error('Error al cargar los rescates:', err)
@@ -197,7 +202,7 @@ function formDataInicial() {
     tieneRaza: 'No', raza: '', fechaRescate: '',
     provincia: '', canton: '', distrito: '',
     rescatista: '', casaCuna: '', estado: 'Activo',
-    descripcion: '', foto: '',
+    descripcion: '', foto: '', fotoFile: null,
   }
 }
 const formData   = ref(formDataInicial())
@@ -218,6 +223,7 @@ watch(() => formData.value.canton,    () => { formData.value.distrito = '' })
 function handleImageUpload(e) {
   const file = e.target.files?.[0]
   if (!file || !file.type.startsWith('image/')) return
+  formData.value.fotoFile = file
   const reader = new FileReader()
   reader.onload = ev => { formData.value.foto = ev.target.result }
   reader.readAsDataURL(file)
@@ -225,6 +231,7 @@ function handleImageUpload(e) {
 }
 function removeImage() {
   formData.value.foto = ''
+  formData.value.fotoFile = null
 }
 
 function clearErr(campo) {
@@ -300,24 +307,6 @@ function closeForm() {
   formData.value     = formDataInicial()
 }
 
-/* ─── Sincronizar la mascota vinculada en el store ───────────
-   Esta llamada sigue aislada del guardado del rescate: si falla la
-   sincronización con el store de mascotas, el rescate igual se
-   registra en el backend. ──────────────────────────────────── */
-function sincronizarMascota(nuevaMascota) {
-  try {
-    if (typeof petsStore.addPet === 'function') {
-      petsStore.addPet(nuevaMascota)
-    } else if (Array.isArray(petsStore.pets)) {
-      petsStore.pets.unshift(nuevaMascota)
-      if (typeof petsStore.savePets === 'function') petsStore.savePets()
-    }
-    return true
-  } catch (err) {
-    console.error('No se pudo sincronizar la mascota del rescate en el store de mascotas:', err)
-    return false
-  }
-}
 function actualizarMascotaVinculada(mascotaId, cambios) {
   try {
     const petIndex = petsStore.pets.findIndex(p => p.id === mascotaId)
@@ -332,11 +321,13 @@ function actualizarMascotaVinculada(mascotaId, cambios) {
 }
 
 /* ─── Guardar rescate (+ crear/actualizar mascota + auditoría) ─── */
+const guardandoRescate = ref(false)
 async function guardarRescate() {
   if (!validateForm()) {
     showToast('error', 'Completa todos los campos obligatorios.')
     return
   }
+  guardandoRescate.value = true
   const razaFinal = formData.value.tieneRaza === 'Si' ? formData.value.raza : 'Sin raza'
 
   if (editMode.value && editingIndex.value !== null) {
@@ -379,29 +370,38 @@ async function guardarRescate() {
       console.error('Error al actualizar el rescate:', err)
       showToast('error', 'No se pudo guardar el cambio en el servidor.')
     }
+    guardandoRescate.value = false
     return
   }
 
-  // ── Nuevo rescate ──
-  const nuevaMascota = {
-    id: `pet-${Date.now()}`,
-    name: formData.value.mascota,
-    type: formData.value.tipoMascota,
-    images: [{ preview: formData.value.foto, file: null, name: 'foto-rescate' }],
-    image: formData.value.foto,
-    age: formData.value.edad,
-    sex: formData.value.sexo,
-    breed: razaFinal !== 'Sin raza' ? razaFinal : '',
-    status: 'En rescate',
-    description: formData.value.descripcion,
-    location: `${formData.value.provincia}, ${formData.value.canton}`,
-    createdAt: obtenerFechaActual(),
+  // ── Nuevo rescate: primero se registra la mascota en el catálogo real
+  // (antes se generaba un id falso "pet-<timestamp>" solo en memoria, que
+  // nunca existía en la tabla animals y hacía fallar la creación del
+  // rescate por violar la FK rescue_records.animal_id → animals.animal_id). ──
+  let animalIdReal = null
+  let mascotaCreada = false
+  try {
+    const { data: creada } = await createAnimals({
+      name: formData.value.mascota,
+      type: formData.value.tipoMascota,
+      breed: razaFinal !== 'Sin raza' ? razaFinal : '',
+      age: formData.value.edad,
+      sex: formData.value.sexo,
+      status: 'En rescate',
+      healthBasic: 'Por evaluar',
+      description: formData.value.descripcion,
+    })
+    animalIdReal = creada?.id ?? null
+    mascotaCreada = !!animalIdReal
+    if (animalIdReal && formData.value.fotoFile) {
+      await uploadAnimalPhoto(animalIdReal, formData.value.fotoFile, true)
+    }
+  } catch (err) {
+    console.error('No se pudo registrar la mascota del rescate:', err)
   }
 
-  const mascotaSincronizada = sincronizarMascota(nuevaMascota)
-
   const payload = {
-    animalId:     nuevaMascota.id,
+    animalId:     animalIdReal,
     fecha:        formData.value.fechaRescate,
     ubicacion:    ubicacionTexto(formData.value),
     descripcion:  formData.value.descripcion,
@@ -411,26 +411,28 @@ async function guardarRescate() {
   }
 
   try {
-    const creado = await createRescue(payload)
+    const { data: creado } = await createRescue(payload)
 
     registrarAuditoria({
       modulo: 'Rescates', accion: 'Registró un nuevo rescate', tipoAccion: 'crear',
-      elemento: formData.value.mascota, elementoId: creado?.id ?? null,
+      elemento: formData.value.mascota, elementoId: creado?.rescateId ?? null,
       descripcion: `Se registró el rescate de "${formData.value.mascota}" en ${ubicacionTexto(formData.value)}.`,
     })
 
     await cargarRescates()
+    await petsStore.fetchPets({ status: 'Todos' })
 
-    if (mascotaSincronizada) {
+    if (mascotaCreada) {
       showToast('success', 'Rescate registrado y mascota creada correctamente.')
     } else {
-      showToast('success', 'Rescate registrado correctamente. (La ficha de mascota no pudo sincronizarse, revisa el store de mascotas.)')
+      showToast('success', 'Rescate registrado correctamente. (La ficha de mascota no pudo crearse, revisa el catálogo de mascotas.)')
     }
     closeForm()
   } catch (err) {
     console.error('Error al registrar el rescate:', err)
     showToast('error', 'No se pudo registrar el rescate en el servidor.')
   }
+  guardandoRescate.value = false
 }
 
 /* ─── Ver rescate ─────────────────────────────────────────── */
@@ -444,8 +446,10 @@ function openCloseModal(rescate) {
   closeTarget.value    = rescate
   showCloseModal.value = true
 }
+const cerrandoRescate = ref(false)
 async function confirmClose() {
   if (!closeTarget.value) return
+  cerrandoRescate.value = true
   try {
     await closeRescue(closeTarget.value.id)
 
@@ -464,6 +468,7 @@ async function confirmClose() {
     console.error('Error al cerrar el rescate:', err)
     showToast('error', 'No se pudo cerrar el rescate en el servidor.')
   }
+  cerrandoRescate.value = false
 }
 
 /* ─── Helpers de vista ────────────────────────────────────── */
@@ -651,10 +656,11 @@ function iniciales(nombre) {
             </div>
 
             <div class="form-footer">
-              <button class="btn-cancel" @click="closeForm">Cancelar</button>
-              <button class="btn-save" @click="guardarRescate">
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                <span>{{ editMode ? 'Guardar cambios' : 'Registrar rescate' }}</span>
+              <button class="btn-cancel" :disabled="guardandoRescate" @click="closeForm">Cancelar</button>
+              <button class="btn-save" :disabled="guardandoRescate" @click="guardarRescate">
+                <span v-if="guardandoRescate" class="btn-spinner"></span>
+                <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>{{ guardandoRescate ? 'Guardando...' : (editMode ? 'Guardar cambios' : 'Registrar rescate') }}</span>
               </button>
             </div>
           </div>
@@ -948,8 +954,11 @@ function iniciales(nombre) {
             </div>
 
             <div class="confirm-footer">
-              <button class="btn-cancel" @click="showCloseModal = false">Cancelar</button>
-              <button class="btn-danger" @click="confirmClose">Confirmar cierre</button>
+              <button class="btn-cancel" :disabled="cerrandoRescate" @click="showCloseModal = false">Cancelar</button>
+              <button class="btn-danger" :disabled="cerrandoRescate" @click="confirmClose">
+                <span v-if="cerrandoRescate" class="btn-spinner"></span>
+                {{ cerrandoRescate ? 'Cerrando...' : 'Confirmar cierre' }}
+              </button>
             </div>
           </div>
         </div>
@@ -1245,6 +1254,10 @@ function iniciales(nombre) {
 .btn-cancel { height:38px; padding:0 16px; border-radius:9px; background:var(--blanco); border:1px solid var(--borde); color:var(--texto-sec); font-size:13px; font-weight:600; cursor:pointer; transition:background-color .16s ease, border-color .16s ease, color .16s ease; }
 .btn-cancel:hover { background:#FAFBFA; color:var(--texto); border-color:#D3D8D3; }
 .btn-save { display:flex; align-items:center; gap:7px; height:38px; padding:0 17px; border-radius:9px; background:var(--verde); border:none; color:#fff; font-size:13px; font-weight:600; cursor:pointer; box-shadow:0 1px 2px rgba(58,71,60,.12), 0 4px 10px -4px rgba(58,71,60,.35); transition:background-color .16s ease; }
+.btn-save:disabled, .btn-cancel:disabled, .btn-danger:disabled { opacity:.6; cursor:not-allowed; }
+.btn-spinner { display:inline-block; width:14px; height:14px; margin-right:7px; vertical-align:-2px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:btn-spin .7s linear infinite; }
+.btn-danger .btn-spinner { border-color:rgba(0,0,0,.15); border-top-color:currentColor; }
+@keyframes btn-spin { to { transform:rotate(360deg); } }
 .btn-save:hover { background:#465747; }
 
 /* ══════════════════════════════════════════════

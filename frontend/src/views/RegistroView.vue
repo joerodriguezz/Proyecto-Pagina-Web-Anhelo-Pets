@@ -93,6 +93,7 @@ const codigoIngresado       = ref('')
 const codigoGenerado        = ref('')
 const errorVerificacion     = ref('')
 const enviandoCodigo        = ref(false)
+const verificandoCodigo     = ref(false)
 const reenvioDeshabilitado  = ref(false)
 
 function generarCodigoVerificacion() {
@@ -147,6 +148,7 @@ async function enviarCorreoVerificacion(codigo) {
 
 async function verificarCodigo() {
   errorVerificacion.value = ''
+  verificandoCodigo.value = true
 
   try {
     const user = {
@@ -159,12 +161,15 @@ async function verificarCodigo() {
     }
     await register(user)
     success.value = true
-  } catch (error) {
-    console.error(error)
+  } catch (err) {
+    console.error(err)
     success.value = false
-    error.value = 'No se pudo crear el usuario'
+    errorVerificacion.value = 'No se pudo crear el usuario'
+    verificandoCodigo.value = false
+    return
   }
 
+  verificandoCodigo.value = false
 
   setTimeout(() => {
     router.push('/')
@@ -695,9 +700,11 @@ async function crearCuenta() {
             <button
               type="button"
               class="r-btn"
+              :disabled="verificandoCodigo"
               @click="verificarCodigo"
             >
-              Verificar y crear cuenta
+              <span v-if="verificandoCodigo" class="btn-spinner"></span>
+              {{ verificandoCodigo ? 'Creando cuenta...' : 'Verificar y crear cuenta' }}
             </button>
 
             <!-- Reenviar -->
@@ -1473,6 +1480,18 @@ async function crearCuenta() {
   background: #B0BAB2;
   cursor: not-allowed;
 }
+
+.btn-spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: btn-spin 0.7s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
 
 .r-resend-row {
   display: flex;

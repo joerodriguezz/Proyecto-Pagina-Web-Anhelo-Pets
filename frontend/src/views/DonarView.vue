@@ -695,14 +695,13 @@ function validar() {
 }
 
 // ─── Pre-llenar usuario ──────────────────────────────────
-// /api/auth/me no trae teléfono (vive en otra tabla, fuera del token) —
-// solo se puede pre-llenar nombre/correo desde la sesión.
 function prellenarDesdeSesion() {
   const u = authStore.user
   if (!u) return
   const nombre = [u.firstName, u.lastName].filter(Boolean).join(' ')
-  if (nombre)   form.nombre = nombre
-  if (u.email)  form.correo = u.email
+  if (nombre)        form.nombre = nombre
+  if (u.email)       form.correo = u.email
+  if (u.phonePrimary) form.telefono = u.phonePrimary
 }
 
 onMounted(prellenarDesdeSesion)

@@ -84,8 +84,14 @@ watch(() => formEditar.value.datosEspecificos?.zonaProvincia, () => {
 // que se intenta leerlo de un posible objeto de usuario anidado y, si
 // no existe, se usa el correo como respaldo. Ajusta mapVoluntario()
 // si el backend expone estos datos de otra forma.
+// El backend expone el estado de validación en masculino
+// ('Pendiente' | 'Aprobado' | 'Rechazado', VolunteerDto.ValidationStatus),
+// mientras la UI usa formas femeninas — mismo mapeo que ya existe en
+// la vista pública VoluntariosView.vue (ESTADO_DB_A_VISTA).
+const ESTADO_DB_A_VISTA = { Pendiente: 'Pendiente', Aprobado: 'Aprobada', Rechazado: 'Rechazada' }
+
 function mapVoluntario(d) {
-  const id      = d._id || d.id
+  const id      = d.volunteerId ?? d._id ?? d.id
   const nombre  = d.nombre || d.name || d.user?.nombre || d.user?.name || d.usuario?.nombre || d.email
   const detalles = parseApplicationDetails(d.applicationDetails)
   const direccion = {
@@ -102,11 +108,7 @@ function mapVoluntario(d) {
     tipo:      d.volunteerType ?? '',
     datosEspecificos: detalles,
     motivo:    d.motivation ?? '',
-    // Se asume que el backend devuelve el estado ya en español
-    // ('Pendiente' | 'Aprobada' | 'Rechazada' | 'Inactivo'), igual que
-    // las acciones que recibe updateVolunteerStatus(). Ajusta aquí si
-    // el backend usa otros valores.
-    estado: d.status ?? d.estado ?? 'Pendiente',
+    estado: ESTADO_DB_A_VISTA[d.validationStatus] ?? d.validationStatus ?? d.status ?? d.estado ?? 'Pendiente',
   }
   return {
     id,
@@ -170,7 +172,7 @@ const provinciasDisponibles = computed(() =>
 const TIPOS = ['Casa cuna','Eventos de adopción','Transporte','Veterinaria','Redes sociales','Rescatista']
 
 // ── Filtrado ──────────────────────────────────────────────────
-const voluntariosFiltrados = computed(() => {
+const voluntariosFiltradosBase = computed(() => {
   let result = voluntarios.value
 
   const q = search.value.trim().toLowerCase()
@@ -193,6 +195,31 @@ const voluntariosFiltrados = computed(() => {
   }
 
   return result
+})
+
+// Voluntarios activos primero; los inactivos se agrupan aparte y quedan
+// colapsados hasta que el admin decide desplegarlos. Si ya se pidió un
+// estado puntual (incluido "Inactivo"), se muestra la lista tal cual.
+const mostrarArchivados = ref(false)
+const agrupaArchivados = computed(() => filtroEstado.value === 'Todos')
+const voluntariosActivos = computed(() =>
+  agrupaArchivados.value
+    ? voluntariosFiltradosBase.value.filter(v => v.solicitudVoluntario?.estado !== 'Inactivo')
+    : voluntariosFiltradosBase.value
+)
+const voluntariosArchivados = computed(() =>
+  agrupaArchivados.value
+    ? voluntariosFiltradosBase.value.filter(v => v.solicitudVoluntario?.estado === 'Inactivo')
+    : []
+)
+const voluntariosFiltrados = computed(() => voluntariosFiltradosBase.value)
+const filasVoluntarios = computed(() => {
+  if (!agrupaArchivados.value) return voluntariosFiltradosBase.value
+  if (voluntariosArchivados.value.length === 0) return voluntariosActivos.value
+  const divisor = { __divisorArchivados: true, count: voluntariosArchivados.value.length }
+  return mostrarArchivados.value
+    ? [...voluntariosActivos.value, divisor, ...voluntariosArchivados.value]
+    : [...voluntariosActivos.value, divisor]
 })
 
 const hayFiltros = computed(() =>
@@ -229,8 +256,8 @@ function pedirConfirmacion(tipo, voluntario) {
   modalConfirm.value    = true
 }
 
+const procesandoAccion = ref(false)
 async function confirmarAccion() {
-  modalConfirm.value = false
   const { tipo, voluntario } = accionPendiente.value
   const acciones = {
     aprobar:   () => ejecutarAprobar(voluntario),
@@ -238,7 +265,10 @@ async function confirmarAccion() {
     inactivar: () => ejecutarInactivar(voluntario),
     reactivar: () => ejecutarReactivar(voluntario),
   }
+  procesandoAccion.value = true
   await acciones[tipo]?.()
+  procesandoAccion.value = false
+  modalConfirm.value = false
   accionPendiente.value = null
 }
 
@@ -411,7 +441,9 @@ function abrirEditar(v) {
   modalEditar.value = true
 }
 
+const guardandoEdicion = ref(false)
 async function guardarEdicion() {
+  guardandoEdicion.value = true
   const objetivo = voluntarioActivo.value
   const f = formEditar.value
   const deOriginal = objetivo?.solicitudVoluntario?.datosEspecificos || {}
@@ -464,6 +496,7 @@ async function guardarEdicion() {
     })
     mostrarToast('Error al guardar los cambios.', 'error')
   }
+  guardandoEdicion.value = false
 }
 
 function toggleDE(key, val) {
@@ -656,7 +689,16 @@ const totalRechazados  = computed(() => voluntarios.value.filter(v => v.solicitu
               </tr>
             </thead>
             <tbody>
-              <tr v-for="v in voluntariosFiltrados" :key="v.id" class="don-row" :class="{ 'row-inactive': v.solicitudVoluntario?.estado === 'Inactivo' }">
+              <template v-for="v in filasVoluntarios" :key="v.__divisorArchivados ? 'divisor' : v.id">
+              <tr v-if="v.__divisorArchivados" class="archive-divider-row" @click="mostrarArchivados = !mostrarArchivados">
+                <td colspan="6">
+                  <span class="archive-divider">
+                    <svg class="archive-divider-chevron" :class="{ open: mostrarArchivados }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                    {{ mostrarArchivados ? 'Ocultar' : 'Ver' }} inactivos ({{ v.count }})
+                  </span>
+                </td>
+              </tr>
+              <tr v-else class="don-row" :class="{ 'row-inactive': v.solicitudVoluntario?.estado === 'Inactivo' }">
 
                 <!-- Voluntario -->
                 <td>
@@ -733,6 +775,7 @@ const totalRechazados  = computed(() => voluntarios.value.filter(v => v.solicitu
                 </td>
 
               </tr>
+              </template>
             </tbody>
           </table>
         </div>
@@ -1167,10 +1210,11 @@ const totalRechazados  = computed(() => voluntarios.value.filter(v => v.solicitu
             </div>
 
             <div class="form-footer">
-              <button class="btn-cancel" @click="modalEditar = false">Cancelar</button>
-              <button class="btn-save" @click="guardarEdicion">
-                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                <span>Guardar cambios</span>
+              <button class="btn-cancel" :disabled="guardandoEdicion" @click="modalEditar = false">Cancelar</button>
+              <button class="btn-save" :disabled="guardandoEdicion" @click="guardarEdicion">
+                <span v-if="guardandoEdicion" class="btn-spinner"></span>
+                <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>{{ guardandoEdicion ? 'Guardando...' : 'Guardar cambios' }}</span>
               </button>
             </div>
           </div>
@@ -1204,8 +1248,11 @@ const totalRechazados  = computed(() => voluntarios.value.filter(v => v.solicitu
               </div>
             </div>
             <div class="confirm-footer">
-              <button class="btn-cancel" @click="cancelarConfirmacion">Cancelar</button>
-              <button class="btn-save" @click="confirmarAccion">Confirmar</button>
+              <button class="btn-cancel" :disabled="procesandoAccion" @click="cancelarConfirmacion">Cancelar</button>
+              <button class="btn-save" :disabled="procesandoAccion" @click="confirmarAccion">
+                <span v-if="procesandoAccion" class="btn-spinner"></span>
+                {{ procesandoAccion ? 'Procesando...' : 'Confirmar' }}
+              </button>
             </div>
           </div>
         </div>
@@ -1338,6 +1385,12 @@ const totalRechazados  = computed(() => voluntarios.value.filter(v => v.solicitu
 .don-table tbody tr:hover { background:#FAFBFA; }
 .don-table tbody td { padding:12px 16px; vertical-align:middle; }
 .row-inactive { opacity:0.5; }
+.archive-divider-row { cursor:pointer; }
+.archive-divider-row td { padding:10px 16px; background:var(--fondo); }
+.archive-divider-row:hover td { background:#F0F2F0; }
+.archive-divider { display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:700; color:var(--texto-sec); text-transform:uppercase; letter-spacing:.4px; }
+.archive-divider-chevron { transition:transform .18s ease; flex-shrink:0; }
+.archive-divider-chevron.open { transform:rotate(180deg); }
 
 .vol-cell { display:flex; align-items:center; gap:10px; }
 .pet-avatar { width:38px; height:38px; border-radius:50%; overflow:hidden; flex-shrink:0; background:#F1F5F1; display:flex; align-items:center; justify-content:center; border:1px solid var(--borde); }
@@ -1496,6 +1549,9 @@ const totalRechazados  = computed(() => voluntarios.value.filter(v => v.solicitu
 .btn-cancel { height:38px; padding:0 16px; border-radius:9px; background:var(--blanco); border:1px solid var(--borde); color:var(--texto-sec); font-size:13px; font-weight:600; cursor:pointer; transition:background-color .16s ease, border-color .16s ease, color .16s ease; }
 .btn-cancel:hover { background:#FAFBFA; color:var(--texto); border-color:#D3D8D3; }
 .btn-save { display:flex; align-items:center; gap:7px; height:38px; padding:0 17px; border-radius:9px; background:var(--verde); border:none; color:#fff; font-size:13px; font-weight:600; cursor:pointer; box-shadow:0 1px 2px rgba(58,71,60,.12), 0 4px 10px -4px rgba(58,71,60,.35); transition:background-color .16s ease; }
+.btn-save:disabled, .btn-cancel:disabled { opacity:.6; cursor:not-allowed; }
+.btn-spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:btn-spin .7s linear infinite; }
+@keyframes btn-spin { to { transform:rotate(360deg); } }
 .btn-save svg { width:14px; height:14px; }
 .btn-save:hover { background:#465747; }
 

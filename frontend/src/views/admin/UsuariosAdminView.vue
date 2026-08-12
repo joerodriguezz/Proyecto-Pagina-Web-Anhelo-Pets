@@ -89,9 +89,12 @@ function pedirConfirmacionEstado(user) {
   modalConfirm.value = true
 }
 
-function confirmarCambioEstado() {
+const cambiandoEstado = ref(false)
+async function confirmarCambioEstado() {
   if (usuarioSeleccionado.value) {
-    toggleEstado(usuarioSeleccionado.value)
+    cambiandoEstado.value = true
+    await toggleEstado(usuarioSeleccionado.value)
+    cambiandoEstado.value = false
   }
 
   modalConfirm.value = false
@@ -114,8 +117,10 @@ function cerrarModal() {
   selectedUser.value = null
 }
 
+const actualizandoEstado = ref(false)
 async function setEstadoUsuario(activo) {
   if (!selectedUser.value) return
+  actualizandoEstado.value = true
   try {
     await updateUserStatus(selectedUser.value.id, activo)
     const idx = usuarios.value.findIndex(u => u.id === selectedUser.value.id)
@@ -124,6 +129,7 @@ async function setEstadoUsuario(activo) {
   } catch {
     mostrarToast('No se pudo actualizar el estado del usuario.', 'error')
   }
+  actualizandoEstado.value = false
   cerrarModal()
 }
 
@@ -169,7 +175,7 @@ function limpiarFiltros() {
   filtroEstado.value = 'Todos'
 }
 
-const usuariosFiltrados = computed(() => {
+const usuariosFiltradosBase = computed(() => {
   return usuarios.value.filter(u => {
     const t = filtroTexto.value.trim().toLowerCase()
     const coincideTexto =
@@ -196,6 +202,28 @@ const usuariosFiltrados = computed(() => {
 
     return coincideTexto && coincideRol && coincideEstado
   })
+})
+
+// Usuarios activos primero; los inactivos se agrupan aparte y quedan
+// colapsados hasta que el admin decide desplegarlos. Si ya se pidió
+// explícitamente un estado puntual (incluido "Inactivo"), se muestra
+// la lista tal cual, sin volver a separarla.
+const mostrarArchivados = ref(false)
+const agrupaArchivados = computed(() => filtroEstado.value === 'Todos')
+const usuariosActivos = computed(() =>
+  agrupaArchivados.value ? usuariosFiltradosBase.value.filter(u => u.activo) : usuariosFiltradosBase.value
+)
+const usuariosArchivados = computed(() =>
+  agrupaArchivados.value ? usuariosFiltradosBase.value.filter(u => !u.activo) : []
+)
+const usuariosFiltrados = computed(() => usuariosFiltradosBase.value)
+const filasUsuarios = computed(() => {
+  if (!agrupaArchivados.value) return usuariosFiltradosBase.value
+  if (usuariosArchivados.value.length === 0) return usuariosActivos.value
+  const divisor = { __divisorArchivados: true, count: usuariosArchivados.value.length }
+  return mostrarArchivados.value
+    ? [...usuariosActivos.value, divisor, ...usuariosArchivados.value]
+    : [...usuariosActivos.value, divisor]
 })
 
 const totalUsuarios   = computed(() => usuarios.value.length)
@@ -353,7 +381,16 @@ const ESTADO_TAB_LABEL = {
             </tr>
           </thead>
           <tbody>
-            <tr v-for="u in usuariosFiltrados" :key="u.id" class="don-row">
+            <template v-for="u in filasUsuarios" :key="u.__divisorArchivados ? 'divisor' : u.id">
+            <tr v-if="u.__divisorArchivados" class="archive-divider-row" @click="mostrarArchivados = !mostrarArchivados">
+              <td colspan="7">
+                <span class="archive-divider">
+                  <svg class="archive-divider-chevron" :class="{ open: mostrarArchivados }" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                  {{ mostrarArchivados ? 'Ocultar' : 'Ver' }} inactivos ({{ u.count }})
+                </span>
+              </td>
+            </tr>
+            <tr v-else class="don-row">
 
               <td><span class="id-pill">{{ u.codigoVoluntario || u.id }}</span></td>
 
@@ -398,6 +435,7 @@ const ESTADO_TAB_LABEL = {
               </td>
 
             </tr>
+            </template>
           </tbody>
         </table>
       </div>
@@ -505,8 +543,14 @@ const ESTADO_TAB_LABEL = {
             </div>
 
             <div class="footer">
-              <button type="button" class="btn-footer-success" :disabled="selectedUser.activo" @click="setEstadoUsuario(true)">Activar usuario</button>
-              <button type="button" class="btn-footer-danger" :disabled="!selectedUser.activo" @click="setEstadoUsuario(false)">Desactivar usuario</button>
+              <button type="button" class="btn-footer-success" :disabled="selectedUser.activo || actualizandoEstado" @click="setEstadoUsuario(true)">
+                <span v-if="actualizandoEstado" class="btn-spinner"></span>
+                {{ actualizandoEstado ? 'Activando...' : 'Activar usuario' }}
+              </button>
+              <button type="button" class="btn-footer-danger" :disabled="!selectedUser.activo || actualizandoEstado" @click="setEstadoUsuario(false)">
+                <span v-if="actualizandoEstado" class="btn-spinner"></span>
+                {{ actualizandoEstado ? 'Desactivando...' : 'Desactivar usuario' }}
+              </button>
               <button type="button" class="btn-ghost-red" @click="cerrarModal">Cerrar expediente</button>
             </div>
           </div>
@@ -541,8 +585,11 @@ const ESTADO_TAB_LABEL = {
             </div>
 
             <div class="confirm-footer">
-              <button type="button" class="btn-cancel" @click="cancelarConfirmacion">Cancelar</button>
-              <button type="button" class="btn-danger" @click="confirmarCambioEstado">Confirmar</button>
+              <button type="button" class="btn-cancel" :disabled="cambiandoEstado" @click="cancelarConfirmacion">Cancelar</button>
+              <button type="button" class="btn-danger" :disabled="cambiandoEstado" @click="confirmarCambioEstado">
+                <span v-if="cambiandoEstado" class="btn-spinner"></span>
+                {{ cambiandoEstado ? 'Procesando...' : 'Confirmar' }}
+              </button>
             </div>
           </div>
         </div>
@@ -657,6 +704,12 @@ const ESTADO_TAB_LABEL = {
 .don-table thead th { padding:12px 16px; text-align:left; color:var(--texto-ter); font-size:9.5px; font-weight:700; text-transform:uppercase; letter-spacing:0.6px; white-space:nowrap; }
 .don-table tbody tr { border-top:1px solid var(--borde-suave); transition:background 0.15s; }
 .don-table tbody tr:hover { background:#FAFBFA; }
+.archive-divider-row { cursor:pointer; }
+.archive-divider-row td { padding:10px 16px; background:var(--fondo); }
+.archive-divider-row:hover td { background:#F0F2F0; }
+.archive-divider { display:inline-flex; align-items:center; gap:7px; font-size:12px; font-weight:700; color:var(--texto-sec); text-transform:uppercase; letter-spacing:.4px; }
+.archive-divider-chevron { transition:transform .18s ease; flex-shrink:0; }
+.archive-divider-chevron.open { transform:rotate(180deg); }
 .don-table tbody td { padding:12px 16px; vertical-align:middle; }
 .id-pill { font-size:11px; font-family:ui-monospace, Menlo, Consolas, monospace; background:var(--fondo); border:1px solid var(--borde); padding:3px 9px; border-radius:6px; color:var(--texto); font-weight:700; white-space:nowrap; }
 .fecha-text { font-size:12.5px; color:var(--texto-sec); white-space:nowrap; }
@@ -787,12 +840,15 @@ const ESTADO_TAB_LABEL = {
 .estado-final-msg--ok { color:#2E7D32; }
 .btn-ghost-red { display:flex; align-items:center; gap:6px; height:29px; padding:0 12px; border-radius:8px; background:var(--blanco); border:1px solid var(--borde); color:var(--texto-sec); font-size:11.5px; font-weight:600; cursor:pointer; transition:background-color .16s ease, border-color .16s ease, color .16s ease; }
 .btn-ghost-red:hover { background:#FDF4F3; border-color:#E8B9B2; color:var(--rojo); }
-.btn-footer-danger { display:flex; align-items:center; height:29px; padding:0 12px; border-radius:8px; background:var(--rojo-bg); border:none; color:var(--rojo); font-size:11.5px; font-weight:600; cursor:pointer; transition:background-color .16s ease, color .16s ease; }
+.btn-footer-danger { display:flex; align-items:center; gap:7px; height:29px; padding:0 12px; border-radius:8px; background:var(--rojo-bg); border:none; color:var(--rojo); font-size:11.5px; font-weight:600; cursor:pointer; transition:background-color .16s ease, color .16s ease; }
 .btn-footer-danger:hover:not(:disabled) { background:var(--rojo); color:#fff; }
 .btn-footer-danger:disabled { opacity:0.4; cursor:not-allowed; }
-.btn-footer-success { display:flex; align-items:center; height:29px; padding:0 12px; border-radius:8px; background:#EDF6EF; border:none; color:#2E7D32; font-size:11.5px; font-weight:600; cursor:pointer; transition:background-color .16s ease, color .16s ease; }
+.btn-footer-success { display:flex; align-items:center; gap:7px; height:29px; padding:0 12px; border-radius:8px; background:#EDF6EF; border:none; color:#2E7D32; font-size:11.5px; font-weight:600; cursor:pointer; transition:background-color .16s ease, color .16s ease; }
 .btn-footer-success:hover:not(:disabled) { background:#2E7D32; color:#fff; }
 .btn-footer-success:disabled { opacity:0.4; cursor:not-allowed; }
+.btn-danger:disabled, .btn-cancel:disabled { opacity:.6; cursor:not-allowed; }
+.btn-spinner { display:inline-block; width:13px; height:13px; margin-right:6px; vertical-align:-2px; border:2px solid currentColor; border-top-color:transparent; border-radius:50%; opacity:.7; animation:btn-spin .7s linear infinite; }
+@keyframes btn-spin { to { transform:rotate(360deg); } }
 
 /* ══════════════════════════════════════════════
    CONFIRMAR ACTIVAR / DESACTIVAR

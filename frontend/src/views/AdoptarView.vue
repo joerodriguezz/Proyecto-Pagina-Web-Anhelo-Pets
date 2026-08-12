@@ -9,7 +9,8 @@ import { submitAdoptionRequest } from '../services/adoptionServices'
 
 import {
   countryList,
-  phoneCodesList
+  phoneCodesList,
+  splitPhoneWithCode
 } from '../data/paises'
 
 const store = usePetsStore()
@@ -195,8 +196,8 @@ function filterPhoneNumber() {
 
 /* ---------------- MOUNTED ---------------- */
 
-// /api/auth/me no trae cedula/edad/direccion (viven en otras tablas, fuera
-// del token) — solo se puede pre-llenar id/nombre/correo desde la sesión.
+// /api/auth/me no trae edad/dirección (viven en otras tablas y no forman
+// parte de la sesión) — se pre-llenan id/nombre/correo/cédula/teléfono.
 function cargarUsuarioDesdeSesion() {
   const u = authStore.user
   if (!u) return
@@ -209,6 +210,11 @@ function cargarUsuarioDesdeSesion() {
 
   fullName.value = usuarioActual.value.nombre || ''
   email.value = usuarioActual.value.correo || ''
+  idCard.value = u.nationalId || ''
+
+  const { code, number } = splitPhoneWithCode(u.phonePrimary)
+  if (code) selectedCountryObject.value = code
+  phone.value = number
 }
 
 watch(() => authStore.user, cargarUsuarioDesdeSesion)

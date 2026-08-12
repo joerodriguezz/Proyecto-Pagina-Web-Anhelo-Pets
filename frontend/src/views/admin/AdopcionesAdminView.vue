@@ -108,10 +108,15 @@ function sincronizarMascota(solicitud, nuevoEstadoMascota) {
   if (mascota) store.changeStatus(mascota.id, nuevoEstadoMascota)
 }
 
+// accionEnCurso = { id, tipo } de la solicitud/acción que está en vuelo,
+// para poder mostrar el spinner en el ícono correcto de la fila correcta.
+const accionEnCurso = ref(null)
+
 async function procesoSolicitud(id) {
   const s = solicitudes.value.find(s => s.id === id)
   if (!s) return
   const estadoAnterior = s.estado
+  accionEnCurso.value = { id, tipo: 'proceso' }
   try {
     await updateAdoptionRequestStatus(id, 'Proceso')
     s.estado = 'En proceso'
@@ -132,12 +137,14 @@ async function procesoSolicitud(id) {
       estado: 'Fallido',
     })
   }
+  accionEnCurso.value = null
 }
 
 async function aprobarSolicitud(id) {
   const s = solicitudes.value.find(s => s.id === id)
   if (!s) return
   const estadoAnterior = s.estado
+  accionEnCurso.value = { id, tipo: 'aprobar' }
   try {
     await updateAdoptionRequestStatus(id, 'Aprobar')
     s.estado = 'Aprobada'
@@ -158,12 +165,14 @@ async function aprobarSolicitud(id) {
       estado: 'Fallido',
     })
   }
+  accionEnCurso.value = null
 }
 
 async function rechazarSolicitud(id) {
   const s = solicitudes.value.find(s => s.id === id)
   if (!s) return
   const estadoAnterior = s.estado
+  accionEnCurso.value = { id, tipo: 'rechazar' }
   try {
     await updateAdoptionRequestStatus(id, 'Rechazar')
     s.estado = 'Rechazada'
@@ -184,6 +193,7 @@ async function rechazarSolicitud(id) {
       estado: 'Fallido',
     })
   }
+  accionEnCurso.value = null
 }
 
 // ─── Modal ───────────────────────────────────────────────────────────────────
@@ -386,16 +396,19 @@ const statusClass = (estado) => ({
                     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
                   </button>
 
-                  <button v-if="s.estado === 'Pendiente'" type="button" class="icon-only icon-only--revisar" @click="procesoSolicitud(s.id)" data-tooltip="Poner en proceso">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M9 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-4"/><path d="M9 12l2 2 4-4"/></svg>
+                  <button v-if="s.estado === 'Pendiente'" type="button" class="icon-only icon-only--revisar" :disabled="!!accionEnCurso" @click="procesoSolicitud(s.id)" data-tooltip="Poner en proceso">
+                    <span v-if="accionEnCurso?.id === s.id && accionEnCurso?.tipo === 'proceso'" class="btn-spinner btn-spinner--dark"></span>
+                    <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="4" rx="1"/><path d="M9 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2h-4"/><path d="M9 12l2 2 4-4"/></svg>
                   </button>
 
                   <template v-if="s.estado === 'En proceso'">
-                    <button type="button" class="icon-only icon-only--activar" @click="aprobarSolicitud(s.id)" data-tooltip="Aprobar">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <button type="button" class="icon-only icon-only--activar" :disabled="!!accionEnCurso" @click="aprobarSolicitud(s.id)" data-tooltip="Aprobar">
+                      <span v-if="accionEnCurso?.id === s.id && accionEnCurso?.tipo === 'aprobar'" class="btn-spinner btn-spinner--dark"></span>
+                      <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
                     </button>
-                    <button type="button" class="icon-only icon-only--inactivar" @click="rechazarSolicitud(s.id)" data-tooltip="Rechazar">
-                      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                    <button type="button" class="icon-only icon-only--inactivar" :disabled="!!accionEnCurso" @click="rechazarSolicitud(s.id)" data-tooltip="Rechazar">
+                      <span v-if="accionEnCurso?.id === s.id && accionEnCurso?.tipo === 'rechazar'" class="btn-spinner btn-spinner--dark"></span>
+                      <svg v-else viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
                     </button>
                   </template>
                 </div>
@@ -690,6 +703,10 @@ const statusClass = (estado) => ({
   flex-shrink:0;
 }
 .icon-only svg { width:16px; height:16px; }
+.icon-only:disabled { opacity:.5; cursor:not-allowed; }
+.btn-spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:btn-spin .7s linear infinite; }
+.btn-spinner--dark { border-color:var(--borde); border-top-color:var(--texto-sec); }
+@keyframes btn-spin { to { transform:rotate(360deg); } }
 .icon-only--ver { color:#3D453B; }
 .icon-only--ver:hover { border-color:#C7D3C8; background:#FAFCFA; }
 .icon-only--revisar { color:#4F73B8; border-color:#CBD5F2; }

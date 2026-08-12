@@ -25,6 +25,8 @@ public class AuthResponseDto
     public bool VolunteerActive { get; set; }
     public string? VolunteerValidationStatus { get; set; }
     public string? PhotoUrl { get; set; }
+    public string? NationalId { get; set; }
+    public string? PhonePrimary { get; set; }
 }
 
 public class ResetPasswordDto
@@ -52,4 +54,6 @@ public class AuthUserDto
     public string? VolunteerValidationStatus { get; set; } = string.Empty;
     public string?[] Roles { get; set; } = new string?[] { };
     public string? PhotoUrl { get; set; }
+    public string? NationalId { get; set; }
+    public string? PhonePrimary { get; set; }
 }

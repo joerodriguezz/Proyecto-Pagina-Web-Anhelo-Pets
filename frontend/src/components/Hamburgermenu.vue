@@ -85,12 +85,15 @@ async function onFotoChange(e) {
   }
 }
 
+const eliminandoFoto = ref(false)
 async function eliminarFoto() {
+  eliminandoFoto.value = true
   try {
     await authStore.removePhoto()
   } catch (err) {
     console.error('Error al quitar la foto de perfil:', err)
   }
+  eliminandoFoto.value = false
 }
 
 /* ─── Cerrar sesión ───────────────────────────── */
@@ -305,6 +308,7 @@ function verificarCodigo() {
   pwMsg.value  = ''
 }
 
+const guardandoPass = ref(false)
 async function guardarNuevaPass() {
   pwMsg.value = ''
 
@@ -323,14 +327,17 @@ async function guardarNuevaPass() {
     return
   }
 
+  guardandoPass.value = true
   try {
     await resetPasswordByEmail(pwCorreo.value.trim(), pwNueva.value)
   } catch (err) {
     console.error('[HamburgerMenu] Error actualizando password:', err)
     pwMsg.value = 'No se pudo actualizar la contraseña. Intenta de nuevo.'
+    guardandoPass.value = false
     return
   }
 
+  guardandoPass.value = false
   pwStep.value = 4
 }
 
@@ -396,7 +403,7 @@ function estadoBadgeClass(estado) {
                     <img v-if="fotoPreview" :src="fotoPreview" alt="Foto de perfil" class="sb-avatar-img" />
                     <span v-else class="sb-avatar-ini">{{ iniciales }}</span>
                   </div>
-                  <button class="sb-cam" @click="triggerFileInput" aria-label="Cambiar foto">
+                  <button class="sb-cam" :disabled="subiendoFoto" @click="triggerFileInput" aria-label="Cambiar foto">
                     <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#3A473C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                       <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                       <circle cx="12" cy="13" r="4"/>
@@ -478,7 +485,7 @@ function estadoBadgeClass(estado) {
                       <img v-if="fotoPreview" :src="fotoPreview" alt="Foto" class="profile-avatar-img" />
                       <span v-else>{{ iniciales }}</span>
                     </div>
-                    <button class="profile-cam-btn" @click="triggerFileInput" aria-label="Cambiar foto">
+                    <button class="profile-cam-btn" :disabled="subiendoFoto" @click="triggerFileInput" aria-label="Cambiar foto">
                       <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#3A473C" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
                         <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
                         <circle cx="12" cy="13" r="4"/>
@@ -662,8 +669,13 @@ function estadoBadgeClass(estado) {
                       <span v-else>{{ iniciales }}</span>
                     </div>
                     <div class="foto-actions">
-                      <button class="btn-primary" @click="triggerFileInput">Subir nueva foto</button>
-                      <button v-if="fotoPreview" class="btn-ghost" @click="eliminarFoto">Quitar foto</button>
+                      <button class="btn-primary" :disabled="subiendoFoto" @click="triggerFileInput">
+                        <span v-if="subiendoFoto" class="btn-spinner"></span>
+                        {{ subiendoFoto ? 'Subiendo...' : 'Subir nueva foto' }}
+                      </button>
+                      <button v-if="fotoPreview" class="btn-ghost" :disabled="eliminandoFoto" @click="eliminarFoto">
+                        {{ eliminandoFoto ? 'Quitando...' : 'Quitar foto' }}
+                      </button>
                     </div>
                   </div>
                 </div>
@@ -737,8 +749,11 @@ function estadoBadgeClass(estado) {
                     </div>
                     <div v-if="pwMsg" class="msg-error">{{ pwMsg }}</div>
                     <div class="pw-actions">
-                      <button class="btn-primary" @click="guardarNuevaPass">Guardar nueva contraseña</button>
-                      <button class="btn-ghost" @click="pwStep = 2; pwMsg = ''">← Volver</button>
+                      <button class="btn-primary" :disabled="guardandoPass" @click="guardarNuevaPass">
+                        <span v-if="guardandoPass" class="btn-spinner"></span>
+                        {{ guardandoPass ? 'Guardando...' : 'Guardar nueva contraseña' }}
+                      </button>
+                      <button class="btn-ghost" :disabled="guardandoPass" @click="pwStep = 2; pwMsg = ''">← Volver</button>
                     </div>
                   </div>
 
@@ -850,6 +865,7 @@ function estadoBadgeClass(estado) {
   display: flex; align-items: center; justify-content: center;
   transition: background 0.18s;
 }
+.sb-cam:disabled, .profile-cam-btn:disabled { opacity: 0.55; cursor: not-allowed; }
 .sb-cam:hover { background: #b8894e; }
 
 .sb-name  { color: #2F352F; font-size: 14px; font-weight: 700; margin-bottom: 3px; }
@@ -1005,6 +1021,9 @@ function estadoBadgeClass(estado) {
 }
 .btn-primary:hover:not(:disabled) { background: #2F3B31; }
 .btn-primary:disabled { opacity: 0.55; cursor: not-allowed; }
+
+.btn-spinner { display:inline-block; width:13px; height:13px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:btn-spin .7s linear infinite; }
+@keyframes btn-spin { to { transform:rotate(360deg); } }
 
 .btn-ghost {
   padding: 10px 20px; background: transparent; color: #3A473C;

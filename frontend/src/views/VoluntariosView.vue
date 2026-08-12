@@ -16,13 +16,15 @@ import { useAuthStore } from '../stores/useAuthStore'
 
 const authStore = useAuthStore()
 
-// /api/auth/me no trae cedula/direccion/telefono (viven en otras tablas,
-// fuera del token) — solo se puede pre-llenar nombre/correo desde la sesión.
+// /api/auth/me no trae dirección (vive en otra tabla y no forma parte de
+// la sesión) — nombre/correo/cédula/teléfono sí se pueden pre-llenar.
 const usuarioActivo = computed(() => {
   if (!authStore.user) return null
   return {
     nombre: [authStore.user.firstName, authStore.user.lastName].filter(Boolean).join(' '),
-    correo: authStore.user.email
+    correo: authStore.user.email,
+    cedula: authStore.user.nationalId || '',
+    telefono: authStore.user.phonePrimary || ''
   }
 })
 
@@ -268,6 +270,17 @@ const phoneCodesList = [
   { name: 'Zimbabue', code: '+263' }
 ]
 
+// El backend guarda phone_primary como "{código} {número}" (ej. "+506 88888888").
+function splitPhoneWithCode(fullPhone) {
+  const trimmed = String(fullPhone || '').trim()
+  if (!trimmed) return { code: null, number: '' }
+  const spaceIdx = trimmed.indexOf(' ')
+  if (spaceIdx === -1) return { code: null, number: trimmed.replace(/\D/g, '') }
+  const codePart   = trimmed.slice(0, spaceIdx)
+  const numberPart = trimmed.slice(spaceIdx + 1).replace(/\D/g, '')
+  return { code: phoneCodesList.find(c => c.code === codePart) || null, number: numberPart }
+}
+
 const filteredCodes = computed(() => {
   const q = codeSearch.value.toLowerCase()
   return phoneCodesList.filter(
@@ -503,21 +516,31 @@ const formValid = computed(() => baseValid.value && specificValid.value)
 
 /* ─── AUTOCOMPLETAR ───────────────────────────────────── */
 
+function prellenarDesdeSesion() {
+  if (!usuarioActivo.value) return
+  fullName.value = usuarioActivo.value.nombre || ''
+  email.value    = usuarioActivo.value.correo || ''
+  idCard.value   = usuarioActivo.value.cedula || ''
+
+  const { code, number } = splitPhoneWithCode(usuarioActivo.value.telefono)
+  if (code) selectedCountry.value = code
+  phone.value = number
+}
+
 // authStore.user llega async (fetch a /api/auth/me) — si todavía no resolvió
-// al montar el componente, esto reintenta cargar la solicitud en cuanto
-// aparezca la sesión.
+// al montar el componente, esto reintenta cargar la solicitud y pre-llenar
+// el formulario en cuanto aparezca la sesión.
 watch(usuarioActivo, (nuevo) => {
-  if (nuevo) cargarSolicitudActual()
+  if (nuevo) {
+    cargarSolicitudActual()
+    prellenarDesdeSesion()
+  }
 })
 
 onMounted(() => {
   document.addEventListener('click', handleClickOutside)
   cargarSolicitudActual()
-
-  if (usuarioActivo.value) {
-    fullName.value = usuarioActivo.value.nombre || ''
-    email.value    = usuarioActivo.value.correo || ''
-  }
+  prellenarDesdeSesion()
 })
 
 /* ─── GUARDAR ─────────────────────────────────────────── */

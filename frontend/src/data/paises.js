@@ -136,7 +136,25 @@ const phoneCodesList = [
   { name: 'Zimbabue', code: '+263' }
 ]
 
+// El backend guarda phone_primary como "{código} {número}" (ej. "+506 88888888").
+// Este helper separa ambas partes para pre-llenar el selector de código de
+// país y el input numérico a partir del dato guardado en la sesión.
+function splitPhoneWithCode(fullPhone) {
+  const trimmed = String(fullPhone || '').trim()
+  if (!trimmed) return { code: null, number: '' }
+
+  const spaceIdx = trimmed.indexOf(' ')
+  if (spaceIdx === -1) return { code: null, number: trimmed.replace(/\D/g, '') }
+
+  const codePart   = trimmed.slice(0, spaceIdx)
+  const numberPart = trimmed.slice(spaceIdx + 1).replace(/\D/g, '')
+  const code = phoneCodesList.find(c => c.code === codePart) || null
+
+  return { code, number: numberPart }
+}
+
 export {
   countryList,
-  phoneCodesList
+  phoneCodesList,
+  splitPhoneWithCode
 }

@@ -5,7 +5,7 @@ import {
   getHealthRecords,
   createHealthRecord,
 } from '../../services/healthServices'
-import { getVeterinarians } from '../../services/veterinarianServices'
+import { getVeterinarians, createVeterinarian } from '../../services/veterinarianServices'
 import { getFosterHomes } from '../../services/fosterHomeServices'
 import { registrarAuditoria } from '../../composables/useAuditLog'
 
@@ -38,6 +38,47 @@ async function cargarVeterinarios() {
       }))
   } catch {
     veterinarios.value = []
+  }
+}
+
+/* ─── Alta rápida de veterinario (desde el selector del wizard) ── */
+const showAltaVet   = ref(false)
+const guardandoVet  = ref(false)
+const errorVet      = ref('')
+function altaVetInicial() {
+  return { nombre: '', apellido: '', especialidad: '', cedula: '', correo: '' }
+}
+const nuevoVet = ref(altaVetInicial())
+function cerrarAltaVet() {
+  showAltaVet.value = false
+  errorVet.value = ''
+  nuevoVet.value = altaVetInicial()
+}
+async function guardarVeterinarioRapido() {
+  if (!nuevoVet.value.nombre.trim() || !nuevoVet.value.apellido.trim() || !nuevoVet.value.especialidad.trim()) {
+    errorVet.value = 'Nombre, apellido y especialidad son obligatorios.'
+    return
+  }
+  errorVet.value = ''
+  guardandoVet.value = true
+  try {
+    const { data: creado } = await createVeterinarian({
+      firstName: nuevoVet.value.nombre.trim(),
+      lastName: nuevoVet.value.apellido.trim(),
+      specialty: nuevoVet.value.especialidad.trim(),
+      nationalId: nuevoVet.value.cedula.trim() || null,
+      email: nuevoVet.value.correo.trim() || null,
+    })
+    await cargarVeterinarios()
+    form.value.vet = creado.fullName
+    clearErr('vet')
+    cerrarAltaVet()
+    showVetDropdown.value = false
+    showToast('success', 'Veterinario agregado correctamente.')
+  } catch (e) {
+    errorVet.value = e?.response?.data?.message || 'No se pudo guardar el veterinario. Intenta de nuevo.'
+  } finally {
+    guardandoVet.value = false
   }
 }
 
@@ -116,10 +157,20 @@ const errores = ref({})
 const PASOS = [
   { n: 1, titulo: 'Mascota',      desc: 'Selecciona la mascota' },
   { n: 2, titulo: 'Historial',    desc: 'Historial médico' },
-  { n: 3, titulo: 'Vacuna',       desc: 'Datos de la vacuna' },
-  { n: 4, titulo: 'Tratamiento',  desc: 'Datos del tratamiento' },
+  { n: 3, titulo: 'Vacuna',       desc: 'Datos de la vacuna (opcional)' },
+  { n: 4, titulo: 'Tratamiento',  desc: 'Datos del tratamiento (opcional)' },
   { n: 5, titulo: 'Resumen',      desc: 'Revisa y guarda' },
 ]
+
+/* Vacuna y tratamiento son opcionales: solo se exigen sus campos si el
+   usuario empezó a llenar esa sección (para no guardar un registro a
+   medias), y solo se crea el expediente correspondiente si tiene datos. */
+function vacunaTieneDatos() {
+  return !!(form.value.tipoVacuna?.trim() || form.value.fechaAplicacion)
+}
+function tratamientoTieneDatos() {
+  return !!(form.value.tipoTratamiento?.trim() || form.value.fechaTrat)
+}
 const TOTAL_PASOS = PASOS.length
 const pasoActual = ref(1)
 const pasoMaximo  = ref(1)
@@ -139,8 +190,8 @@ const CAMPOS_POR_PASO = {
 function pasoCompleto(n) {
   if (n === 1) return !!petSeleccionada.value
   if (n === 2) return !!(form.value.fecha && form.value.vet?.trim() && form.value.diagnostico?.trim())
-  if (n === 3) return !!(form.value.tipoVacuna?.trim() && form.value.fechaAplicacion)
-  if (n === 4) return !!(form.value.tipoTratamiento?.trim() && form.value.fechaTrat)
+  if (n === 3) return !vacunaTieneDatos() || !!(form.value.tipoVacuna?.trim() && form.value.fechaAplicacion)
+  if (n === 4) return !tratamientoTieneDatos() || !!(form.value.tipoTratamiento?.trim() && form.value.fechaTrat)
   return true
 }
 
@@ -155,13 +206,15 @@ function validarPaso(n) {
     if (!form.value.vet?.trim())         e.vet         = 'Obligatorio'
     if (!form.value.diagnostico?.trim()) e.diagnostico = 'Obligatorio'
   }
-  if (n === 3) {
-    if (!form.value.tipoVacuna?.trim()) e.tipoVacuna      = 'Obligatorio'
-    if (!form.value.fechaAplicacion)    e.fechaAplicacion = 'Obligatorio'
+  // Vacuna y tratamiento son opcionales: solo se validan si el usuario
+  // ya empezó a llenar alguno de sus campos.
+  if (n === 3 && vacunaTieneDatos()) {
+    if (!form.value.tipoVacuna?.trim()) e.tipoVacuna      = 'Completa el tipo de vacuna o deja ambos campos vacíos'
+    if (!form.value.fechaAplicacion)    e.fechaAplicacion = 'Completa la fecha de aplicación o deja ambos campos vacíos'
   }
-  if (n === 4) {
-    if (!form.value.tipoTratamiento?.trim()) e.tipoTratamiento = 'Obligatorio'
-    if (!form.value.fechaTrat)               e.fechaTrat       = 'Obligatorio'
+  if (n === 4 && tratamientoTieneDatos()) {
+    if (!form.value.tipoTratamiento?.trim()) e.tipoTratamiento = 'Completa el tipo de tratamiento o deja ambos campos vacíos'
+    if (!form.value.fechaTrat)               e.fechaTrat       = 'Completa la fecha o deja ambos campos vacíos'
   }
 
   errores.value = e
@@ -219,7 +272,7 @@ async function cargarDatosBackend() {
   })
 
   try {
-    const registrosBackend = await getHealthRecords()
+    const { data: registrosBackend } = await getHealthRecords()
     ;(registrosBackend || []).forEach(rec => {
       const extra = parsearNotas(rec.notes)
       const pid = rec.animalId
@@ -264,6 +317,7 @@ async function cargarDatosBackend() {
 }
 
 onMounted(() => {
+  store.fetchPets({ status: 'Todos' })
   cargarDatosBackend()
   cargarVeterinarios()
   cargarCasasCuna()
@@ -376,10 +430,12 @@ function guardarDesdeResumen() {
   confirmarGuardar()
 }
 
+const guardandoExpediente = ref(false)
 async function confirmarGuardar() {
   const pid = petSeleccionada.value?.id
   if (!pid) return
 
+  guardandoExpediente.value = true
   const usuarioActual = getUsuarioActual()
   const creadoPor = usuarioActual?.id ?? usuarioActual?._id ?? null
 
@@ -396,7 +452,9 @@ async function confirmarGuardar() {
     animalId: pid,
     veterinarianId: vetIdHistorial,
     diagnosis: form.value.diagnostico,
-    treatment: '',
+    // El backend exige "treatment" no vacío (NOT NULL en la BD) incluso
+    // para un historial que no es en sí un tratamiento.
+    treatment: form.value.observaciones_h?.trim() || 'Sin tratamiento asociado',
     notes: serializarNotas({
       tipo: 'historial',
       vet: form.value.vet,
@@ -406,11 +464,14 @@ async function confirmarGuardar() {
     visitDate: form.value.fecha,
     createdBy: creadoPor,
   }
-  const payloadVacuna = {
+  const incluyeVacuna = vacunaTieneDatos()
+  const incluyeTratamiento = tratamientoTieneDatos()
+
+  const payloadVacuna = incluyeVacuna ? {
     animalId: pid,
     veterinarianId: vetIdVacuna,
     diagnosis: `Vacuna: ${form.value.tipoVacuna}`,
-    treatment: '',
+    treatment: form.value.tipoVacuna,
     notes: serializarNotas({
       tipo: 'vacuna',
       tipoVacuna: form.value.tipoVacuna,
@@ -420,12 +481,12 @@ async function confirmarGuardar() {
     }),
     visitDate: form.value.fechaAplicacion,
     createdBy: creadoPor,
-  }
-  const payloadTratamiento = {
+  } : null
+  const payloadTratamiento = incluyeTratamiento ? {
     animalId: pid,
     veterinarianId: vetIdTratamiento,
     diagnosis: `Tratamiento: ${form.value.tipoTratamiento}`,
-    treatment: form.value.medicamento || '',
+    treatment: form.value.medicamento?.trim() || form.value.tipoTratamiento,
     notes: serializarNotas({
       tipo: 'tratamiento',
       tipoTratamiento: form.value.tipoTratamiento,
@@ -434,14 +495,20 @@ async function confirmarGuardar() {
     }),
     visitDate: form.value.fechaTrat,
     createdBy: creadoPor,
-  }
+  } : null
 
   try {
     await Promise.all([
       createHealthRecord(payloadHistorial),
-      createHealthRecord(payloadVacuna),
-      createHealthRecord(payloadTratamiento),
+      ...(payloadVacuna ? [createHealthRecord(payloadVacuna)] : []),
+      ...(payloadTratamiento ? [createHealthRecord(payloadTratamiento)] : []),
     ])
+
+    const partesRegistradas = [
+      'historial médico',
+      incluyeVacuna ? `vacuna (${form.value.tipoVacuna})` : null,
+      incluyeTratamiento ? `tratamiento (${form.value.tipoTratamiento})` : null,
+    ].filter(Boolean).join(', ')
 
     registrarAuditoria({
       modulo: 'Salud',
@@ -449,7 +516,7 @@ async function confirmarGuardar() {
       tipoAccion: 'crear',
       elemento: petSeleccionada.value?.name || '',
       elementoId: pid,
-      descripcion: `Se registró historial médico, vacuna (${form.value.tipoVacuna}) y tratamiento (${form.value.tipoTratamiento}) para ${petSeleccionada.value?.name || 'la mascota'}.`,
+      descripcion: `Se registró ${partesRegistradas} para ${petSeleccionada.value?.name || 'la mascota'}.`,
       estado: 'Exitoso',
     })
 
@@ -469,6 +536,7 @@ async function confirmarGuardar() {
     })
     showToast('error', 'Error al guardar. Intenta de nuevo.')
   }
+  guardandoExpediente.value = false
 }
 
 function abrirModal() {
@@ -712,24 +780,30 @@ function iniciales(nombre) {
                     </div>
                     <div class="fg">
                       <label>Veterinario responsable <span class="req">*</span></label>
-                      <div class="pet-select-wrap">
-                        <button type="button" class="pet-select-btn" :class="{ 'is-error': errores.vet }" @click="showVetDropdown = !showVetDropdown">
-                          <template v-if="form.vet">
-                            <div class="pet-avatar pet-avatar--sm"><span class="pet-avatar-ini">{{ form.vet.charAt(0) }}</span></div>
-                            <span class="psel-name">{{ form.vet }}</span>
-                          </template>
-                          <template v-else><span class="psel-placeholder">Seleccionar veterinario...</span></template>
-                          <svg class="psel-chevron" :class="{ open: showVetDropdown }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
-                        </button>
-                        <div v-if="showVetDropdown" class="pet-dropdown">
-                          <div v-for="vet in veterinarios" :key="vet.id" class="dropdown-item" @click="form.vet = vet.nombre; showVetDropdown = false; clearErr('vet')">
-                            <div class="pet-avatar pet-avatar--sm"><span class="pet-avatar-ini">{{ vet.nombre?.charAt(0) }}</span></div>
-                            <div class="dropdown-info">
-                              <span class="dropdown-name">Dr. {{ vet.nombre }}</span>
-                              <span class="dropdown-sub">Veterinario</span>
+                      <div class="fg-with-add">
+                        <div class="pet-select-wrap">
+                          <button type="button" class="pet-select-btn" :class="{ 'is-error': errores.vet }" @click="showVetDropdown = !showVetDropdown">
+                            <template v-if="form.vet">
+                              <div class="pet-avatar pet-avatar--sm"><span class="pet-avatar-ini">{{ form.vet.charAt(0) }}</span></div>
+                              <span class="psel-name">{{ form.vet }}</span>
+                            </template>
+                            <template v-else><span class="psel-placeholder">Seleccionar veterinario...</span></template>
+                            <svg class="psel-chevron" :class="{ open: showVetDropdown }" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                          </button>
+                          <div v-if="showVetDropdown" class="pet-dropdown">
+                            <div v-if="veterinarios.length === 0" class="dropdown-empty">No hay veterinarios registrados</div>
+                            <div v-for="vet in veterinarios" :key="vet.id" class="dropdown-item" @click="form.vet = vet.nombre; showVetDropdown = false; clearErr('vet')">
+                              <div class="pet-avatar pet-avatar--sm"><span class="pet-avatar-ini">{{ vet.nombre?.charAt(0) }}</span></div>
+                              <div class="dropdown-info">
+                                <span class="dropdown-name">Dr. {{ vet.nombre }}</span>
+                                <span class="dropdown-sub">Veterinario</span>
+                              </div>
                             </div>
                           </div>
                         </div>
+                        <button type="button" class="btn-add-quick" title="Agregar veterinario" @click="showAltaVet = true; showVetDropdown = false">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                        </button>
                       </div>
                       <p v-if="errores.vet" class="err-msg">{{ errores.vet }}</p>
                     </div>
@@ -751,15 +825,16 @@ function iniciales(nombre) {
 
                 <!-- Sección 3: Vacuna -->
                 <div v-show="pasoActual === 3" class="form-section wiz-pane">
-                  <div class="form-section-label"><span class="form-num">3</span> Vacuna</div>
+                  <div class="form-section-label"><span class="form-num">3</span> Vacuna <span class="optional-badge">Opcional</span></div>
+                  <p class="wiz-hint">Dejá esta sección vacía si el expediente no incluye una vacuna.</p>
                   <div class="form-grid">
                     <div class="fg fg--span2">
-                      <label>Tipo de vacuna <span class="req">*</span></label>
+                      <label>Tipo de vacuna</label>
                       <input type="text" class="input" :class="{ 'is-error': errores.tipoVacuna }" placeholder="Ej. Antirrábica, Parvovirus..." v-model="form.tipoVacuna" @input="clearErr('tipoVacuna')" />
                       <p v-if="errores.tipoVacuna" class="err-msg">{{ errores.tipoVacuna }}</p>
                     </div>
                     <div class="fg">
-                      <label>Fecha de aplicación <span class="req">*</span></label>
+                      <label>Fecha de aplicación</label>
                       <input type="date" class="input" :class="{ 'is-error': errores.fechaAplicacion }" v-model="form.fechaAplicacion" @change="clearErr('fechaAplicacion')" />
                       <p v-if="errores.fechaAplicacion" class="err-msg">{{ errores.fechaAplicacion }}</p>
                     </div>
@@ -798,15 +873,16 @@ function iniciales(nombre) {
 
                 <!-- Sección 4: Tratamiento -->
                 <div v-show="pasoActual === 4" class="form-section wiz-pane">
-                  <div class="form-section-label"><span class="form-num">4</span> Tratamiento</div>
+                  <div class="form-section-label"><span class="form-num">4</span> Tratamiento <span class="optional-badge">Opcional</span></div>
+                  <p class="wiz-hint">Dejá esta sección vacía si el expediente no incluye un tratamiento.</p>
                   <div class="form-grid">
                     <div class="fg fg--span2">
-                      <label>Tipo de tratamiento <span class="req">*</span></label>
+                      <label>Tipo de tratamiento</label>
                       <input type="text" class="input" :class="{ 'is-error': errores.tipoTratamiento }" placeholder="Ej. Desparasitación, antibiótico..." v-model="form.tipoTratamiento" @input="clearErr('tipoTratamiento')" />
                       <p v-if="errores.tipoTratamiento" class="err-msg">{{ errores.tipoTratamiento }}</p>
                     </div>
                     <div class="fg">
-                      <label>Fecha <span class="req">*</span></label>
+                      <label>Fecha</label>
                       <input type="date" class="input" :class="{ 'is-error': errores.fechaTrat }" v-model="form.fechaTrat" @change="clearErr('fechaTrat')" />
                       <p v-if="errores.fechaTrat" class="err-msg">{{ errores.fechaTrat }}</p>
                     </div>
@@ -862,23 +938,25 @@ function iniciales(nombre) {
                     <div class="wiz-res-card">
                       <div class="wiz-res-head">
                         <span class="wiz-res-title">Vacuna</span>
-                        <button type="button" class="wiz-res-edit" @click="irAPaso(3)">Editar</button>
+                        <button type="button" class="wiz-res-edit" @click="irAPaso(3)">{{ vacunaTieneDatos() ? 'Editar' : 'Agregar' }}</button>
                       </div>
-                      <dl class="wiz-res-list">
+                      <dl v-if="vacunaTieneDatos()" class="wiz-res-list">
                         <div><dt>Tipo</dt><dd>{{ form.tipoVacuna || '—' }}</dd></div>
                         <div><dt>Fecha de aplicación</dt><dd>{{ formatFecha(form.fechaAplicacion) }}</dd></div>
                       </dl>
+                      <p v-else class="wiz-res-sub">No se registrará ninguna vacuna en este expediente.</p>
                     </div>
 
                     <div class="wiz-res-card">
                       <div class="wiz-res-head">
                         <span class="wiz-res-title">Tratamiento</span>
-                        <button type="button" class="wiz-res-edit" @click="irAPaso(4)">Editar</button>
+                        <button type="button" class="wiz-res-edit" @click="irAPaso(4)">{{ tratamientoTieneDatos() ? 'Editar' : 'Agregar' }}</button>
                       </div>
-                      <dl class="wiz-res-list">
+                      <dl v-if="tratamientoTieneDatos()" class="wiz-res-list">
                         <div><dt>Tipo</dt><dd>{{ form.tipoTratamiento || '—' }}</dd></div>
                         <div><dt>Fecha</dt><dd>{{ formatFecha(form.fechaTrat) }}</dd></div>
                       </dl>
+                      <p v-else class="wiz-res-sub">No se registrará ningún tratamiento en este expediente.</p>
                     </div>
                   </div>
 
@@ -902,11 +980,66 @@ function iniciales(nombre) {
                   Siguiente
                   <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
                 </button>
-                <button v-else class="btn-save" @click="guardarDesdeResumen">
-                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                  <span>Guardar expediente</span>
+                <button v-else class="btn-save" :disabled="guardandoExpediente" @click="guardarDesdeResumen">
+                  <span v-if="guardandoExpediente" class="btn-spinner"></span>
+                  <svg v-else width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>{{ guardandoExpediente ? 'Guardando...' : 'Guardar expediente' }}</span>
                 </button>
               </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ══════════════════════════════════════
+         POPUP — Alta rápida de veterinario
+    ══════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showAltaVet" class="modal-overlay modal-overlay--top" @click.self="cerrarAltaVet">
+          <div class="modal-box modal-box--sm">
+            <button class="btn btn--icon btn--icon-close" @click="cerrarAltaVet">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div class="modal-header">
+              <div class="modal-header-info">
+                <p class="modal-eyebrow">Alta rápida</p>
+                <h2 class="modal-title">Nuevo veterinario</h2>
+              </div>
+            </div>
+            <div class="modal-section">
+              <div class="form-grid">
+                <div class="fg">
+                  <label>Nombre <span class="req">*</span></label>
+                  <input type="text" class="input" placeholder="Ej. Ana" v-model="nuevoVet.nombre" />
+                </div>
+                <div class="fg">
+                  <label>Apellido <span class="req">*</span></label>
+                  <input type="text" class="input" placeholder="Ej. Rojas" v-model="nuevoVet.apellido" />
+                </div>
+                <div class="fg fg--full">
+                  <label>Especialidad <span class="req">*</span></label>
+                  <input type="text" class="input" placeholder="Ej. Cirugía" v-model="nuevoVet.especialidad" />
+                </div>
+                <div class="fg">
+                  <label>Cédula</label>
+                  <input type="text" class="input" placeholder="Opcional" v-model="nuevoVet.cedula" />
+                </div>
+                <div class="fg">
+                  <label>Correo</label>
+                  <input type="email" class="input" placeholder="Opcional" v-model="nuevoVet.correo" />
+                </div>
+              </div>
+              <p v-if="errorVet" class="err-msg">{{ errorVet }}</p>
+            </div>
+            <div class="modal-acciones">
+              <button class="btn btn--ghost" @click="cerrarAltaVet">Cancelar</button>
+              <button class="btn btn--primary" :disabled="guardandoVet" @click="guardarVeterinarioRapido">
+                <span v-if="guardandoVet" class="btn-spinner"></span>
+                <svg v-else class="btn-ico" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>{{ guardandoVet ? 'Guardando...' : 'Agregar veterinario' }}</span>
+              </button>
             </div>
           </div>
         </div>
@@ -1621,6 +1754,9 @@ function iniciales(nombre) {
 .btn-cancel { height:38px; padding:0 16px; border-radius:9px; background:var(--blanco); border:1px solid var(--borde); color:var(--texto-sec); font-size:13px; font-weight:600; cursor:pointer; transition:background-color .16s ease, border-color .16s ease, color .16s ease; }
 .btn-cancel:hover { background:#FAFBFA; color:var(--texto); border-color:#D3D8D3; }
 .btn-save { display:flex; align-items:center; gap:7px; height:38px; padding:0 17px; border-radius:9px; background:var(--verde); border:none; color:#fff; font-size:13px; font-weight:600; cursor:pointer; box-shadow:0 1px 2px rgba(58,71,60,.12), 0 4px 10px -4px rgba(58,71,60,.35); transition:background-color .16s ease; }
+.btn-save:disabled, .btn-cancel:disabled, .btn:disabled { opacity:.6; cursor:not-allowed; }
+.btn-spinner { display:inline-block; width:14px; height:14px; border:2px solid rgba(255,255,255,.4); border-top-color:#fff; border-radius:50%; animation:btn-spin .7s linear infinite; }
+@keyframes btn-spin { to { transform:rotate(360deg); } }
 .btn-save svg { width:14px; height:14px; }
 .btn-save:hover { background:#465747; }
 
@@ -1704,6 +1840,17 @@ function iniciales(nombre) {
 @media (max-width:480px) { .don-summary { grid-template-columns:1fr; } }
 
 /* ══════════════════════════════════════════════
+   ALTA RÁPIDA (veterinario, casa cuna, etc. desde un selector)
+   ══════════════════════════════════════════════ */
+.fg-with-add { display:flex; align-items:flex-start; gap:8px; }
+.fg-with-add .pet-select-wrap { flex:1; min-width:0; }
+.btn-add-quick { flex-shrink:0; width:38px; height:38px; display:flex; align-items:center; justify-content:center; border-radius:9px; border:1.5px solid var(--borde-suave); background:var(--blanco); color:var(--verde); cursor:pointer; transition:all .18s; }
+.btn-add-quick:hover { border-color:var(--verde-sec); background:var(--fondo); }
+
+.wiz-hint { font-size:12px; color:var(--texto-sec); margin:-6px 0 14px; }
+.optional-badge { font-size:10.5px; font-weight:600; color:var(--texto-sec); background:var(--fondo); padding:2px 8px; border-radius:6px; text-transform:none; letter-spacing:0; margin-left:auto; }
+
+/* ══════════════════════════════════════════════
    WIZARD PASO A PASO (recuperado del commit 3b63de0)
    ══════════════════════════════════════════════ */
 .wiz-steps { position:relative; display:flex; justify-content:space-between; gap:6px; margin-top:18px; }
@@ -1770,5 +1917,7 @@ function iniciales(nombre) {
   --verde-ok:#4CAF6A; --rojo:#C0392B; --rojo-bg:#FBEDEC;
   --sombra-sm:0 1px 2px rgba(58,71,60,.03);
   --sombra-md:0 2px 4px rgba(58,71,60,.05), 0 14px 32px -14px rgba(58,71,60,.18);
+  --btn-height:33px; --btn-radius:9px; --btn-pad-x:13px; --btn-icon-size:14px;
+  --btn-icon-gap:6px; --btn-font-size:12.5px; --btn-font-weight:600; --btn-transition:0.16s ease;
 }
 </style>

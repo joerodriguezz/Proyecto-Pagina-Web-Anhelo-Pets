@@ -159,7 +159,9 @@ public class UserService : IUserService
             IsVolunteer = user.IsVolunteer ?? false,
             VolunteerActive = user.VolunteerActive ?? false,
             VolunteerValidationStatus = user.VolunteerValidationStatus,
-            PhotoUrl = user.PhotoUrl
+            PhotoUrl = user.PhotoUrl,
+            NationalId = user.NationalId,
+            PhonePrimary = user.PhonePrimary
         };
     }
 
@@ -201,7 +203,9 @@ public class UserService : IUserService
             VolunteerActive = volunteer?.Active ?? false,
             VolunteerValidationStatus = volunteer?.ValidationStatus,
             Roles = roles,
-            PhotoUrl = row.up.PhotoUrl
+            PhotoUrl = row.up.PhotoUrl,
+            NationalId = row.up.NationalityId,
+            PhonePrimary = row.uc.PhonePrimary
         };
     }
 

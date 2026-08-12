@@ -46,6 +46,7 @@ const codigoRecuperacion  = ref('')
 const codigoIngresado     = ref('')
 
 const enviandoCorreo      = ref(false)
+const actualizandoPassword = ref(false)
 const verificandoCodigo   = ref(false)
 const reenvioDeshabilitado = ref(false)
 
@@ -213,6 +214,7 @@ async function actualizarPassword() {
     return
   }
 
+  actualizandoPassword.value = true
   try {
     await resetPasswordByEmail(recoverEmail.value, nuevaPassword.value)
   } catch (err) {
@@ -220,8 +222,10 @@ async function actualizarPassword() {
     recoverError.value = err.response?.status === 404
       ? 'No se encontró la cuenta. Intenta de nuevo.'
       : 'No se pudo actualizar la contraseña. Intenta de nuevo.'
+    actualizandoPassword.value = false
     return
   }
+  actualizandoPassword.value = false
 
   etapaRecuperacion.value = 'exito'
 
@@ -656,9 +660,11 @@ async function iniciarSesion() {
           <button
             type="button"
             class="r-btn"
+            :disabled="actualizandoPassword"
             @click="actualizarPassword"
           >
-            Actualizar contraseña
+            <span v-if="actualizandoPassword" class="btn-spinner"></span>
+            {{ actualizandoPassword ? 'Actualizando...' : 'Actualizar contraseña' }}
           </button>
 
           <!-- Volver -->
@@ -1331,6 +1337,18 @@ async function iniciarSesion() {
   background: #B0BAB2;
   cursor: not-allowed;
 }
+
+.btn-spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  margin-right: 8px;
+  vertical-align: -2px;
+  border: 2px solid rgba(255,255,255,0.4);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: btn-spin 0.7s linear infinite;
+}
+@keyframes btn-spin { to { transform: rotate(360deg); } }
 
 .r-btn-icon {
   display: flex;
