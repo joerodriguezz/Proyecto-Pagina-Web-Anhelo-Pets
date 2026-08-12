@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import NavBar from '../components/NavBar.vue'
 import FooterBar from '../components/FooterBar.vue'
@@ -92,6 +92,62 @@ function clearFilters() {
   filterStatus.value = 'Todos'
   searchQuery.value  = ''
 }
+
+// ─────────────────────────────────────────────
+// Lista horizontal → carrusel automático cuando no caben todas las
+// tarjetas en una sola fila (scroll horizontal con auto-avance, se
+// pausa mientras el usuario interactúa manualmente con el scroll).
+// ─────────────────────────────────────────────
+const petsListRef = ref(null)
+const isCarousel  = ref(false)
+let autoScrollTimer = null
+let resumeTimer     = null
+
+function checkOverflow() {
+  nextTick(() => {
+    const el = petsListRef.value
+    if (!el) { isCarousel.value = false; return }
+    isCarousel.value = el.scrollWidth > el.clientWidth + 4
+    setupAutoScroll()
+  })
+}
+
+function setupAutoScroll() {
+  clearInterval(autoScrollTimer)
+  if (!isCarousel.value) return
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
+  autoScrollTimer = setInterval(() => {
+    const el = petsListRef.value
+    if (!el) return
+    const cardWidth = el.querySelector('.pet-card')?.offsetWidth || 320
+    const step = cardWidth + 24
+    const maxScroll = el.scrollWidth - el.clientWidth
+    if (el.scrollLeft >= maxScroll - 2) {
+      el.scrollTo({ left: 0, behavior: 'smooth' })
+    } else {
+      el.scrollBy({ left: step, behavior: 'smooth' })
+    }
+  }, 3500)
+}
+
+function pauseAutoScroll() {
+  clearInterval(autoScrollTimer)
+  clearTimeout(resumeTimer)
+}
+
+function resumeAutoScrollSoon() {
+  clearTimeout(resumeTimer)
+  resumeTimer = setTimeout(setupAutoScroll, 4000)
+}
+
+onMounted(() => window.addEventListener('resize', checkOverflow))
+onBeforeUnmount(() => {
+  window.removeEventListener('resize', checkOverflow)
+  clearInterval(autoScrollTimer)
+  clearTimeout(resumeTimer)
+})
+
+watch(filtered, checkOverflow)
 </script>
 
 <template>
@@ -154,8 +210,17 @@ function clearFilters() {
       <button class="clear-btn" @click="clearFilters">Limpiar filtros</button>
     </div>
 
-    <!-- Grid de mascotas -->
-    <div v-if="filtered.length" class="pets-grid">
+    <!-- Lista de mascotas (se vuelve carrusel automático si no caben en una fila) -->
+    <div
+      v-if="filtered.length"
+      ref="petsListRef"
+      class="pets-grid"
+      :class="{ 'is-carousel': isCarousel }"
+      @mouseenter="isCarousel && pauseAutoScroll()"
+      @mouseleave="isCarousel && resumeAutoScrollSoon()"
+      @touchstart="isCarousel && pauseAutoScroll()"
+      @touchend="isCarousel && resumeAutoScrollSoon()"
+    >
       <div v-for="pet in filtered" :key="pet.id" class="pet-card">
         <div class="pet-photo">
           <img :src="mainImage(pet)" :alt="pet.name" class="pet-image" />
@@ -451,15 +516,26 @@ function clearFilters() {
   color: #2F352F;
 }
 
-/* ══ GRID DE MASCOTAS ══
-   flex + justify-content:center (no CSS grid) para que la última fila,
-   cuando queda incompleta, se centre en vez de dejar un hueco vacío
-   pegado a un solo lado. */
+/* ══ LISTA DE MASCOTAS ══
+   Fila horizontal única (no grid). Si las tarjetas no caben todas,
+   isCarousel se activa desde el script: aparece scroll-snap y la
+   lista avanza sola (se pausa mientras el usuario interactúa). */
 .pets-grid {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scroll-behavior: smooth;
   gap: 24px;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
+}
+
+.pets-grid.is-carousel {
+  scroll-snap-type: x mandatory;
+}
+
+.pets-grid.is-carousel .pet-card {
+  scroll-snap-align: start;
 }
 
 /* ── Tarjeta ── */
@@ -471,8 +547,8 @@ function clearFilters() {
   box-shadow: 0 4px 16px rgba(58,71,60,0.05);
   display: flex;
   flex-direction: column;
-  flex: 1 1 320px;
-  max-width: 380px;
+  flex: 0 0 320px;
+  width: 320px;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -821,7 +897,7 @@ function clearFilters() {
   .filters-bar  { padding: 20px; }
   .filters-grid { gap: 18px; }
   .filter-chips { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
-  .pet-card { flex-basis: 100%; max-width: none; }
+  .pet-card { flex: 0 0 260px; width: 260px; }
   .happy-grid { grid-template-columns: repeat(2, 1fr); }
   .pet-btn { height: 52px; font-size: 15px; }
 }
@@ -864,8 +940,8 @@ function clearFilters() {
   }
 
   .pet-card {
-    flex-basis: 100%;
-    max-width: none;
+    flex: 0 0 280px;
+    width: 280px;
   }
 
   .pet-photo {

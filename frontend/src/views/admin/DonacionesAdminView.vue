@@ -282,11 +282,24 @@ function formatFecha(f) {
   const d = new Date(f)
   return isNaN(d) ? f : d.toLocaleDateString('es-CR', { day: '2-digit', month: 'short', year: 'numeric' })
 }
+// El backend ya no manda el comprobante como base64: lo sube a Supabase
+// Storage y devuelve una URL firmada (https://.../donation-proofs/...?token=...).
+// Por eso la detección no puede depender solo del prefijo "data:" — hay que
+// mirar la extensión del archivo en la URL. Se deja el chequeo "data:" como
+// compatibilidad con registros viejos que sí guardaron el comprobante en base64.
+function extensionComprobante(comprobante) {
+  if (!comprobante) return ''
+  const limpio = comprobante.split('?')[0].split('#')[0]
+  const match = limpio.match(/\.([a-z0-9]+)$/i)
+  return match ? match[1].toLowerCase() : ''
+}
 function esImagen(comprobante) {
-  return comprobante?.startsWith('data:image')
+  if (comprobante?.startsWith('data:image')) return true
+  return ['jpg', 'jpeg', 'png', 'webp'].includes(extensionComprobante(comprobante))
 }
 function esPDF(comprobante) {
-  return comprobante?.startsWith('data:application/pdf')
+  if (comprobante?.startsWith('data:application/pdf')) return true
+  return extensionComprobante(comprobante) === 'pdf'
 }
 function abrirPDF(comprobante) {
   const win = window.open()
