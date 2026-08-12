@@ -503,6 +503,7 @@ RETURNS TABLE (
     age_years integer,
     age_months integer,
     sex varchar(20),
+    size varchar(20),
     animal_status varchar(50),
     health_status varchar(50),
     description text,
@@ -529,6 +530,7 @@ AS $$
             )
         END AS age_months,
         a.sex,
+        a.size,
         a.animal_status,
         a.health_status,
         a.description,

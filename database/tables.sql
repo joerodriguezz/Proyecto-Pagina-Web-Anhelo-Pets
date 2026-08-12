@@ -139,12 +139,15 @@ CREATE TABLE animals (
     health_status varchar(50) NOT NULL,
     birth_date    date,
     sex           char(1),
+    size          varchar(20),
     description   text,
 
     created_at    timestamptz DEFAULT CURRENT_TIMESTAMP,
     created_by    varchar(100),
     modified_at   timestamptz DEFAULT CURRENT_TIMESTAMP,
-    modified_by   varchar(100)
+    modified_by   varchar(100),
+
+    CONSTRAINT ck_animals_size CHECK (size IS NULL OR size IN ('Pequeño', 'Mediano', 'Grande'))
 );
 
 CREATE TABLE animal_photos (

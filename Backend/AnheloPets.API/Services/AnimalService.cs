@@ -123,6 +123,7 @@ public class AnimalService : IAnimalService
                     // los años completos, que es lo que el frontend concatena con AgeYears.
                     AgeMonths = totalAgeMonths.HasValue ? totalAgeMonths.Value - (ageYears ?? 0) * 12 : null,
                     Sex = GetString(reader, "sex"),
+                    Size = GetString(reader, "size"),
                     AnimalStatus = GetString(reader, "animal_status"),
                     HealthStatus = GetString(reader, "health_status"),
                     Description = GetString(reader, "description"),

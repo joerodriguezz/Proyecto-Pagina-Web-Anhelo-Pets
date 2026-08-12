@@ -27,6 +27,7 @@ public class AnimalRepository
                 AnimalStatus = dto.AnimalStatus,
                 HealthStatus = dto.HealthStatus,
                 Gender = dto.Sex?.FirstOrDefault() ?? char.MinValue,
+                Size = dto.Size,
                 Description = dto.Description,
             };
 
@@ -57,6 +58,7 @@ public class AnimalRepository
         entity.HealthStatus = string.IsNullOrWhiteSpace(dto.HealthStatus) ? "Pendiente" : dto.HealthStatus;
         entity.DateOfBirth = dto.BirthDate;
         entity.Gender = dto.Sex?.FirstOrDefault() ?? char.MinValue;
+        entity.Size = dto.Size;
         entity.Description = dto.Description;
 
         await _context.SaveChangesAsync();
@@ -69,6 +71,7 @@ public class AnimalRepository
             Breed = entity.Breed ?? string.Empty,
             BirthDate = entity.DateOfBirth,
             Sex = entity.Gender != char.MinValue ? entity.Gender.ToString() : null,
+            Size = entity.Size,
             AnimalStatus = entity.AnimalStatus,
             HealthStatus = entity.HealthStatus,
             Description = entity.Description ?? string.Empty,

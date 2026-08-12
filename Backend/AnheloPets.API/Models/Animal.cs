@@ -30,6 +30,9 @@ public class Animal
     [Column("sex")]
     public char Gender { get; set; }
 
+    [Column("size")]
+    public string? Size { get; set; }
+
     [Column("description")]
     public string? Description { get; set; }
 
