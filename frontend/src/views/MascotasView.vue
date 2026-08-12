@@ -16,8 +16,13 @@ const pets = ref([])
 const isLoading = ref(false)
 const error = ref('')
 
+// Estados visibles al público: "Inactiva" (archivada) y "En rescate"
+// (recién ingresada, aún sin evaluar) son internos y nunca deben mostrarse.
+const PUBLIC_STATUSES = ['Disponible', 'En proceso', 'Adoptada']
+
 const filtered = computed(() =>
   pets.value.filter(pet => {
+    if (pet.status === 'Adoptada') return false // esas van en "Historias felices", no en el catálogo
     const matchType   = filterType.value   === 'Todos' || pet.type === filterType.value
     const matchSex    = filterSex.value    === 'Todos' || pet.sex  === filterSex.value
     const matchStatus = filterStatus.value === 'Todos' || pet.status === filterStatus.value
@@ -33,11 +38,14 @@ const filtered = computed(() =>
 const adoptedPets = computed(() => pets.value.filter(pet => pet.status === 'Adoptada'))
 
 function buildQueryParams() {
-  const params = {}
+  // status:'Todos' siempre — el filtro de estado (chip Disponible/En proceso)
+  // se aplica en el cliente, porque el backend por defecto solo trae
+  // "Disponible" y eso ocultaba "En proceso" (y "Adoptada") incluso con
+  // el chip "Todos" seleccionado.
+  const params = { status: 'Todos' }
 
   if (filterType.value !== 'Todos') params.type = filterType.value
   if (filterSex.value !== 'Todos') params.sex = filterSex.value
-  if (filterStatus.value !== 'Todos') params.status = filterStatus.value
   if (searchQuery.value.trim()) params.search = searchQuery.value.trim()
 
   return params
@@ -49,7 +57,8 @@ async function loadAnimals() {
 
   try {
     const response = await getAnimals(buildQueryParams())
-    pets.value = (response.data || []).map(mapDtoToPet)
+    const todas = (response.data || []).map(mapDtoToPet)
+    pets.value = todas.filter(pet => PUBLIC_STATUSES.includes(pet.status))
   } catch (err) {
     console.error('Error cargando mascotas:', err)
     error.value = 'No se pudieron cargar las mascotas.'

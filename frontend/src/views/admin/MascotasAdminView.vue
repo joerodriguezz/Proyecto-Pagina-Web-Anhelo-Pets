@@ -19,6 +19,9 @@ onMounted(() => {
   cargarSolicitudesAdopcion()
   cargarDatosSalud()
   cargarPlacementsActivos()
+  // "rescuesStore.loaded" es un ref: sin ".value" siempre es truthy y el
+  // fetch nunca se disparaba si esta vista se abría antes que Rescates.
+  if (!rescuesStore.loaded.value) rescuesStore.fetchRescues()
 })
 
 // ─────────────────────────────────────────────
@@ -756,7 +759,6 @@ const expedienteTratamientos = computed(() => {
 })
 const expedienteRescates = computed(() => {
   if (!viewTarget.value) return []
-  if (!rescuesStore.loaded) rescuesStore.fetchRescues()
   return rescuesStore.rescates.value
     .filter(r => r.animalId === viewTarget.value.id || r.mascota === viewTarget.value.name)
     .sort((a, b) =>
