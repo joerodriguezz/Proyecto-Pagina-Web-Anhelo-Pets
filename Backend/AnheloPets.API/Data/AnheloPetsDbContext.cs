@@ -39,6 +39,8 @@ public class AnheloPetsDbContext : DbContext
 
     public DbSet<AnimalPhoto> AnimalPhotos { get; set; }
 
+    public DbSet<AnimalFosterPlacement> AnimalFosterPlacements { get; set; }
+
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         base.OnModelCreating(modelBuilder);
@@ -235,6 +237,16 @@ public class AnheloPetsDbContext : DbContext
             entity.ToTable("animal_photos");
             entity.Property(p => p.AnimalPhotoId).HasColumnName("animal_photo_id").ValueGeneratedOnAdd();
             entity.Property(p => p.AnimalId).HasColumnName("animal_id").HasColumnType("text");
+            entity.Property(p => p.CreatedBy).HasColumnName("created_by").HasMaxLength(100);
+            entity.Property(p => p.ModifiedBy).HasColumnName("modified_by").HasMaxLength(100);
+        });
+
+        modelBuilder.Entity<AnimalFosterPlacement>(entity =>
+        {
+            entity.ToTable("animal_foster_placements");
+            entity.Property(p => p.AnimalFosterPlacementId).HasColumnName("animal_foster_placement_id").ValueGeneratedOnAdd();
+            entity.Property(p => p.AnimalId).HasColumnName("animal_id").HasColumnType("text");
+            entity.Property(p => p.FosterHomeId).HasColumnName("foster_home_id").HasColumnType("text");
             entity.Property(p => p.CreatedBy).HasColumnName("created_by").HasMaxLength(100);
             entity.Property(p => p.ModifiedBy).HasColumnName("modified_by").HasMaxLength(100);
         });

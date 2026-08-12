@@ -7,12 +7,12 @@ public class FosterPlacementDto
     public long AnimalFosterPlacementId { get; set; }
 
     [Required(ErrorMessage = "El animal es obligatorio.")]
-    public long AnimalId { get; set; }
+    public string AnimalId { get; set; } = string.Empty;
 
     public string AnimalName { get; set; } = string.Empty;
 
     [Required(ErrorMessage = "La casa cuna es obligatoria.")]
-    public long FosterHomeId { get; set; }
+    public string FosterHomeId { get; set; } = string.Empty;
 
     public string FosterHomeName { get; set; } = string.Empty;
 
@@ -27,4 +27,3 @@ public class FosterPlacementDto
     public string CreatedBy { get; set; } = "api";
     public string ModifiedBy { get; set; } = "api";
 }
-

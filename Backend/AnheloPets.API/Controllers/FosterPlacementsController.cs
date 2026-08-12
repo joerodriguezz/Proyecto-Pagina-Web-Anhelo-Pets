@@ -16,37 +16,44 @@ public class FosterPlacementsController : ControllerBase
     }
 
     [HttpGet]
-    public IActionResult GetAll() => Ok(_fosterPlacementService.GetAll());
+    public async Task<IActionResult> GetAll() => Ok(await _fosterPlacementService.GetAll());
 
     [HttpGet("{id:long}")]
-    public IActionResult GetById(long id)
+    public async Task<IActionResult> GetById(long id)
     {
-        var placement = _fosterPlacementService.GetById(id);
+        var placement = await _fosterPlacementService.GetById(id);
         if (placement == null) return NotFound();
         return Ok(placement);
     }
 
+    /// <summary>Asignación vigente de un animal (null si no tiene casa cuna asignada).</summary>
+    [HttpGet("by-animal/{animalId}")]
+    public async Task<IActionResult> GetActiveByAnimal(string animalId)
+    {
+        return Ok(await _fosterPlacementService.GetActiveByAnimalId(animalId));
+    }
+
     [HttpPost]
-    public IActionResult Create([FromBody] FosterPlacementDto placement)
+    public async Task<IActionResult> Create([FromBody] FosterPlacementDto placement)
     {
         if (placement == null) return BadRequest();
-        var created = _fosterPlacementService.Create(placement);
+        var created = await _fosterPlacementService.Create(placement);
         return CreatedAtAction(nameof(GetById), new { id = created.AnimalFosterPlacementId }, created);
     }
 
     [HttpPut("{id:long}")]
-    public IActionResult Update(long id, [FromBody] FosterPlacementDto placement)
+    public async Task<IActionResult> Update(long id, [FromBody] FosterPlacementDto placement)
     {
         if (placement == null) return BadRequest();
-        var updated = _fosterPlacementService.Update(id, placement);
+        var updated = await _fosterPlacementService.Update(id, placement);
         if (updated == null) return NotFound();
         return Ok(updated);
     }
 
     [HttpDelete("{id:long}")]
-    public IActionResult Delete(long id)
+    public async Task<IActionResult> Delete(long id)
     {
-        if (!_fosterPlacementService.Delete(id)) return NotFound();
+        if (!await _fosterPlacementService.Delete(id)) return NotFound();
         return NoContent();
     }
 }

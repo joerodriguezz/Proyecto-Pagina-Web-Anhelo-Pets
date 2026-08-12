@@ -29,6 +29,7 @@ builder.Services.AddScoped<UserAdminRepository>();
 builder.Services.AddScoped<VolunteerRepository>();
 builder.Services.AddScoped<DonationRepository>();
 builder.Services.AddScoped<AdoptionRequestRepository>();
+builder.Services.AddScoped<AnimalFosterPlacementRepository>();
 builder.Services.AddScoped<IAnimalMedicalRecordService, AnimalMedicalRecordService>();
 builder.Services.AddScoped<IVeterinarianService, VeterinarianService>();
 builder.Services.AddScoped<IRoleService, RoleService>();

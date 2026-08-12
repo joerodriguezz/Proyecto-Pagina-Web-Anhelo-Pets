@@ -4,9 +4,10 @@ namespace AnheloPets.API.Services;
 
 public interface IFosterPlacementService
 {
-    IEnumerable<FosterPlacementDto> GetAll();
-    FosterPlacementDto? GetById(long id);
-    FosterPlacementDto Create(FosterPlacementDto placement);
-    FosterPlacementDto? Update(long id, FosterPlacementDto placement);
-    bool Delete(long id);
+    Task<List<FosterPlacementDto>> GetAll();
+    Task<FosterPlacementDto?> GetById(long id);
+    Task<FosterPlacementDto?> GetActiveByAnimalId(string animalId);
+    Task<FosterPlacementDto> Create(FosterPlacementDto placement);
+    Task<FosterPlacementDto?> Update(long id, FosterPlacementDto placement);
+    Task<bool> Delete(long id);
 }
