@@ -49,6 +49,15 @@ public class VolunteersController : ControllerBase
         return CreatedAtAction(nameof(GetById), new { id = created.VolunteerId }, created);
     }
 
+    /// <summary>Alta rápida desde el panel: crea la cuenta y el voluntariado ya aprobados.</summary>
+    [Authorize(Roles = "Admin")]
+    [HttpPost("quick-add")]
+    public async Task<IActionResult> CreateApproved([FromBody] CreateApprovedVolunteerDto dto)
+    {
+        var created = await _volunteerService.CreateApproved(dto);
+        return CreatedAtAction(nameof(GetById), new { id = created.VolunteerId }, created);
+    }
+
     [HttpPut("{id}")]
     public async Task<IActionResult> Update(string id, [FromBody] UpdateVolunteerDto volunteer)
     {

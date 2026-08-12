@@ -79,6 +79,45 @@ public class UpdateVolunteerDto
     public string ModifiedBy { get; set; } = "admin";
 }
 
+/// <summary>
+/// Alta administrativa desde el panel: crea la cuenta (users/user_profiles/user_contacts)
+/// y la solicitud de voluntariado ya aprobada en una sola operación, a diferencia de
+/// Submit() que exige que el usuario ya exista. Pensado para flujos de "alta rápida"
+/// como Rescatista desde RescatesAdminView.vue.
+/// </summary>
+public class CreateApprovedVolunteerDto
+{
+    [Required(ErrorMessage = "El nombre es obligatorio.")]
+    [StringLength(100, ErrorMessage = "El nombre no puede superar 100 caracteres.")]
+    public string FirstName { get; set; } = string.Empty;
+
+    [StringLength(100, ErrorMessage = "El apellido no puede superar 100 caracteres.")]
+    public string? LastName { get; set; }
+
+    [Required(ErrorMessage = "El correo es obligatorio.")]
+    public string Email { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "El teléfono es obligatorio.")]
+    [StringLength(30, ErrorMessage = "El teléfono no puede superar 30 caracteres.")]
+    public string PhonePrimary { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "La cédula es obligatoria.")]
+    [StringLength(50, ErrorMessage = "La cédula no puede superar 50 caracteres.")]
+    public string NationalId { get; set; } = string.Empty;
+
+    public string? Nationality { get; set; }
+
+    [Required(ErrorMessage = "La contraseña es obligatoria.")]
+    [MinLength(8, ErrorMessage = "La contraseña debe tener al menos 8 caracteres.")]
+    public string Password { get; set; } = string.Empty;
+
+    [Required(ErrorMessage = "El tipo de voluntariado es obligatorio.")]
+    [StringLength(100, ErrorMessage = "El tipo no puede superar 100 caracteres.")]
+    public string VolunteerType { get; set; } = string.Empty;
+
+    public string CreatedBy { get; set; } = "admin";
+}
+
 /// <summary>Acción administrativa sobre el estado de una solicitud.</summary>
 public class UpdateVolunteerStatusDto
 {

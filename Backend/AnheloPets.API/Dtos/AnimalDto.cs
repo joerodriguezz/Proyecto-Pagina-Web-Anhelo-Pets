@@ -11,6 +11,7 @@ public class AnimalDto
     public int? AgeMonths { get; set; }
     public string? Sex { get; set; }
     public string? Size { get; set; }
+    public string? Personality { get; set; }
     public string AnimalStatus { get; set; } = string.Empty;
     public string HealthStatus { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;

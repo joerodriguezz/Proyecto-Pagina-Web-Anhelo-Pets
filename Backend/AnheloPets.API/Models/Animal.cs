@@ -33,6 +33,9 @@ public class Animal
     [Column("size")]
     public string? Size { get; set; }
 
+    [Column("personality")]
+    public string? Personality { get; set; }
+
     [Column("description")]
     public string? Description { get; set; }
 

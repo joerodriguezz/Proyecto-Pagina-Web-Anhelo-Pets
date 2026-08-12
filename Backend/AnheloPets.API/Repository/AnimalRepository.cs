@@ -28,7 +28,9 @@ public class AnimalRepository
                 HealthStatus = dto.HealthStatus,
                 Gender = dto.Sex?.FirstOrDefault() ?? char.MinValue,
                 Size = dto.Size,
+                Personality = dto.Personality,
                 Description = dto.Description,
+                DateOfBirth = ComputeBirthDate(dto),
             };
 
             _context.Add(entidad);
@@ -56,9 +58,10 @@ public class AnimalRepository
         entity.AnimalName = dto.AnimalName;
         entity.AnimalStatus = string.IsNullOrWhiteSpace(dto.AnimalStatus) ? "Disponible" : dto.AnimalStatus;
         entity.HealthStatus = string.IsNullOrWhiteSpace(dto.HealthStatus) ? "Pendiente" : dto.HealthStatus;
-        entity.DateOfBirth = dto.BirthDate;
+        entity.DateOfBirth = ComputeBirthDate(dto);
         entity.Gender = dto.Sex?.FirstOrDefault() ?? char.MinValue;
         entity.Size = dto.Size;
+        entity.Personality = dto.Personality;
         entity.Description = dto.Description;
 
         await _context.SaveChangesAsync();
@@ -72,10 +75,27 @@ public class AnimalRepository
             BirthDate = entity.DateOfBirth,
             Sex = entity.Gender != char.MinValue ? entity.Gender.ToString() : null,
             Size = entity.Size,
+            Personality = entity.Personality,
             AnimalStatus = entity.AnimalStatus,
             HealthStatus = entity.HealthStatus,
             Description = entity.Description ?? string.Empty,
         };
+    }
+
+    /// <summary>
+    /// El formulario solo captura "X años Y meses" (no una fecha exacta), así que la
+    /// fecha de nacimiento se aproxima restando esa edad a hoy. Si el DTO ya trae una
+    /// BirthDate explícita se respeta esa en vez de recalcularla.
+    /// </summary>
+    private static DateOnly? ComputeBirthDate(AnimalDto dto)
+    {
+        if (dto.BirthDate.HasValue) return dto.BirthDate;
+
+        var years = dto.AgeYears ?? 0;
+        var months = dto.AgeMonths ?? 0;
+        if (years == 0 && months == 0) return null;
+
+        return DateOnly.FromDateTime(DateTime.UtcNow).AddYears(-years).AddMonths(-months);
     }
 
 }

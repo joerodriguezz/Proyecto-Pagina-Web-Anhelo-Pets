@@ -8,6 +8,7 @@ public interface IVolunteerService
     Task<VolunteerDto> GetById(string id);
     Task<VolunteerDto?> GetByEmail(string email);
     Task<VolunteerDto> Submit(SubmitVolunteerApplicationDto application);
+    Task<VolunteerDto> CreateApproved(CreateApprovedVolunteerDto dto);
     Task<VolunteerDto> Update(string id, UpdateVolunteerDto volunteer);
     Task<VolunteerDto> UpdateStatus(string id, UpdateVolunteerStatusDto status);
 }

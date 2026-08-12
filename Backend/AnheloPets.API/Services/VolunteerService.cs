@@ -55,6 +55,29 @@ public class VolunteerService : IVolunteerService
         return await _repository.Submit(dto);
     }
 
+    public async Task<VolunteerDto> CreateApproved(CreateApprovedVolunteerDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.FirstName))
+            throw new ApiException("El nombre es obligatorio.", 400);
+
+        if (string.IsNullOrWhiteSpace(dto.Email))
+            throw new ApiException("El correo es obligatorio.", 400);
+
+        if (string.IsNullOrWhiteSpace(dto.PhonePrimary))
+            throw new ApiException("El teléfono es obligatorio.", 400);
+
+        if (string.IsNullOrWhiteSpace(dto.NationalId))
+            throw new ApiException("La cédula es obligatoria.", 400);
+
+        if (string.IsNullOrWhiteSpace(dto.VolunteerType))
+            throw new ApiException("El tipo de voluntariado es obligatorio.", 400);
+
+        if (string.IsNullOrWhiteSpace(dto.Password) || dto.Password.Length < 8)
+            throw new ApiException("La contraseña debe tener al menos 8 caracteres.", 400);
+
+        return await _repository.CreateApproved(dto);
+    }
+
     public async Task<VolunteerDto> Update(string id, UpdateVolunteerDto dto)
     {
         if (string.IsNullOrWhiteSpace(id))

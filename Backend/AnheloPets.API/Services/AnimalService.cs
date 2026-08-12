@@ -127,7 +127,8 @@ public class AnimalService : IAnimalService
                     AnimalStatus = GetString(reader, "animal_status"),
                     HealthStatus = GetString(reader, "health_status"),
                     Description = GetString(reader, "description"),
-                    PhotoUrl = GetString(reader, "photo_url")
+                    PhotoUrl = GetString(reader, "photo_url"),
+                    Personality = GetString(reader, "personality")
                 });
             }
 

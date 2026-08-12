@@ -507,7 +507,8 @@ RETURNS TABLE (
     animal_status varchar(50),
     health_status varchar(50),
     description text,
-    photo_url text
+    photo_url text,
+    personality varchar(200)
 )
 LANGUAGE sql
 STABLE
@@ -534,7 +535,8 @@ AS $$
         a.animal_status,
         a.health_status,
         a.description,
-        ap.photo_url
+        ap.photo_url,
+        a.personality
     FROM animals a
     LEFT JOIN LATERAL (
         SELECT animal_photos.photo_url

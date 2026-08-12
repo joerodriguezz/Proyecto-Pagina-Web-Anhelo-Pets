@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using AnheloPets.API.Data;
 using AnheloPets.API.DTOs;
 using AnheloPets.API.Exceptions;
@@ -109,6 +110,82 @@ public class VolunteerRepository
         return (await GetById(volunteer.VolunteerId!))!;
     }
 
+    /// <summary>
+    /// Alta administrativa en cascada (mismo patrón que VeterinarianRepository.Create):
+    /// crea user + user_profile + user_contacts + volunteer (ya aprobado) en una sola
+    /// transacción, así no queda una cuenta huérfana sin voluntariado si algo falla a
+    /// mitad de camino. A diferencia de Submit(), esta sí crea el usuario.
+    /// </summary>
+    public async Task<VolunteerDto> CreateApproved(CreateApprovedVolunteerDto dto)
+    {
+        var normalizedEmail = dto.Email.Trim().ToLower();
+        var emailExists = await _context.UserContacts.AnyAsync(c => c.Email.ToLower() == normalizedEmail);
+        if (emailExists)
+            throw new ApiException("Ya existe una cuenta con este correo.", 409);
+
+        await using var transaction = await _context.Database.BeginTransactionAsync();
+
+        try
+        {
+            var user = new User
+            {
+                Username = await BuildUniqueUsername(dto),
+                PasswordHash = HashPassword(dto.Password),
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = dto.CreatedBy,
+            };
+
+            _context.Users.Add(user);
+            await _context.SaveChangesAsync();
+
+            var profile = new UserProfile
+            {
+                UserId = user.UserId!,
+                FirstName = dto.FirstName.Trim(),
+                LastName = dto.LastName?.Trim() ?? string.Empty,
+                NationalityId = dto.NationalId.Trim(),
+                Nationality = string.IsNullOrWhiteSpace(dto.Nationality) ? "Costarricense" : dto.Nationality.Trim(),
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = dto.CreatedBy,
+            };
+
+            var contacts = new UserContacts
+            {
+                UserId = user.UserId!,
+                Email = dto.Email.Trim(),
+                PhonePrimary = dto.PhonePrimary.Trim(),
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = dto.CreatedBy,
+            };
+
+            var volunteer = new Volunteer
+            {
+                UserId = user.UserId!,
+                Active = true,
+                NationalId = dto.NationalId.Trim(),
+                VolunteerType = dto.VolunteerType.Trim(),
+                ValidationStatus = "Aprobado",
+                ValidatedAt = DateTime.UtcNow,
+                CreatedAt = DateTime.UtcNow,
+                CreatedBy = dto.CreatedBy,
+            };
+
+            _context.UserProfiles.Add(profile);
+            _context.UserContacts.Add(contacts);
+            _context.Volunteers.Add(volunteer);
+            await _context.SaveChangesAsync();
+
+            await transaction.CommitAsync();
+
+            return (await GetById(volunteer.VolunteerId!))!;
+        }
+        catch (DbUpdateException e)
+        {
+            await transaction.RollbackAsync();
+            throw new ApiException("No se pudo crear el voluntario.", e, 400);
+        }
+    }
+
     public async Task<VolunteerDto?> Update(string volunteerId, UpdateVolunteerDto dto)
     {
         var volunteer = await _context.Volunteers.FindAsync(volunteerId);
@@ -178,6 +255,38 @@ public class VolunteerRepository
         await _context.SaveChangesAsync();
 
         return await GetById(volunteerId);
+    }
+
+    /// <summary>users.username tiene restricción UNIQUE: se añade sufijo si hace falta.</summary>
+    private async Task<string> BuildUniqueUsername(CreateApprovedVolunteerDto dto)
+    {
+        var seed = dto.Email.Split('@')[0];
+
+        var normalized = new string(seed.Trim().ToLowerInvariant()
+            .Select(c => char.IsLetterOrDigit(c) || c is '.' or '_' or '-' ? c : '.')
+            .ToArray());
+
+        if (string.IsNullOrWhiteSpace(normalized)) normalized = "voluntario";
+        if (normalized.Length > 90) normalized = normalized[..90];
+
+        var candidate = normalized;
+        var suffix = 1;
+
+        while (await _context.Users.AnyAsync(u => u.Username == candidate))
+        {
+            candidate = $"{normalized}{++suffix}";
+        }
+
+        return candidate;
+    }
+
+    private static string HashPassword(string password)
+    {
+        const int iterations = 100_000;
+        var salt = RandomNumberGenerator.GetBytes(16);
+        var hash = Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, HashAlgorithmName.SHA256, 32);
+
+        return $"pbkdf2${iterations}${Convert.ToBase64String(salt)}${Convert.ToBase64String(hash)}";
     }
 
     private IQueryable<VolunteerDto> BaseQuery()

@@ -140,6 +140,7 @@ CREATE TABLE animals (
     birth_date    date,
     sex           char(1),
     size          varchar(20),
+    personality   varchar(200),
     description   text,
 
     created_at    timestamptz DEFAULT CURRENT_TIMESTAMP,
