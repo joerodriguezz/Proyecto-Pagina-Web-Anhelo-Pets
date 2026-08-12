@@ -94,18 +94,20 @@ function clearFilters() {
 }
 
 // ─────────────────────────────────────────────
-// Lista horizontal → carrusel automático cuando no caben todas las
-// tarjetas en una sola fila (scroll horizontal con auto-avance, se
-// pausa mientras el usuario interactúa manualmente con el scroll).
+// "Historias felices" es una lista horizontal que se vuelve carrusel
+// automático cuando no caben todas las tarjetas en una sola fila
+// (scroll horizontal con auto-avance; se pausa mientras el usuario
+// interactúa manualmente). El catálogo principal NO lleva esto —
+// queda como grilla normal.
 // ─────────────────────────────────────────────
-const petsListRef = ref(null)
-const isCarousel  = ref(false)
+const happyListRef = ref(null)
+const isCarousel   = ref(false)
 let autoScrollTimer = null
 let resumeTimer     = null
 
 function checkOverflow() {
   nextTick(() => {
-    const el = petsListRef.value
+    const el = happyListRef.value
     if (!el) { isCarousel.value = false; return }
     isCarousel.value = el.scrollWidth > el.clientWidth + 4
     setupAutoScroll()
@@ -117,10 +119,10 @@ function setupAutoScroll() {
   if (!isCarousel.value) return
   if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return
   autoScrollTimer = setInterval(() => {
-    const el = petsListRef.value
+    const el = happyListRef.value
     if (!el) return
-    const cardWidth = el.querySelector('.pet-card')?.offsetWidth || 320
-    const step = cardWidth + 24
+    const cardWidth = el.querySelector('.happy-card')?.offsetWidth || 200
+    const step = cardWidth + 14
     const maxScroll = el.scrollWidth - el.clientWidth
     if (el.scrollLeft >= maxScroll - 2) {
       el.scrollTo({ left: 0, behavior: 'smooth' })
@@ -147,7 +149,7 @@ onBeforeUnmount(() => {
   clearTimeout(resumeTimer)
 })
 
-watch(filtered, checkOverflow)
+watch(adoptedPets, checkOverflow)
 </script>
 
 <template>
@@ -210,17 +212,8 @@ watch(filtered, checkOverflow)
       <button class="clear-btn" @click="clearFilters">Limpiar filtros</button>
     </div>
 
-    <!-- Lista de mascotas (se vuelve carrusel automático si no caben en una fila) -->
-    <div
-      v-if="filtered.length"
-      ref="petsListRef"
-      class="pets-grid"
-      :class="{ 'is-carousel': isCarousel }"
-      @mouseenter="isCarousel && pauseAutoScroll()"
-      @mouseleave="isCarousel && resumeAutoScrollSoon()"
-      @touchstart="isCarousel && pauseAutoScroll()"
-      @touchend="isCarousel && resumeAutoScrollSoon()"
-    >
+    <!-- Grid de mascotas -->
+    <div v-if="filtered.length" class="pets-grid">
       <div v-for="pet in filtered" :key="pet.id" class="pet-card">
         <div class="pet-photo">
           <img :src="mainImage(pet)" :alt="pet.name" class="pet-image" />
@@ -285,7 +278,15 @@ watch(filtered, checkOverflow)
       </div>
     </div>
 
-    <div class="happy-grid">
+    <div
+      ref="happyListRef"
+      class="happy-grid"
+      :class="{ 'is-carousel': isCarousel }"
+      @mouseenter="isCarousel && pauseAutoScroll()"
+      @mouseleave="isCarousel && resumeAutoScrollSoon()"
+      @touchstart="isCarousel && pauseAutoScroll()"
+      @touchend="isCarousel && resumeAutoScrollSoon()"
+    >
       <div v-for="pet in adoptedPets" :key="pet.id" class="happy-card">
         <div class="happy-photo">
           <img :src="mainImage(pet)" :alt="pet.name" />
@@ -516,26 +517,15 @@ watch(filtered, checkOverflow)
   color: #2F352F;
 }
 
-/* ══ LISTA DE MASCOTAS ══
-   Fila horizontal única (no grid). Si las tarjetas no caben todas,
-   isCarousel se activa desde el script: aparece scroll-snap y la
-   lista avanza sola (se pausa mientras el usuario interactúa). */
+/* ══ GRID DE MASCOTAS ══
+   flex + justify-content:center (no CSS grid) para que la última fila,
+   cuando queda incompleta, se centre en vez de dejar un hueco vacío
+   pegado a un solo lado. */
 .pets-grid {
   display: flex;
-  flex-wrap: nowrap;
-  overflow-x: auto;
-  scroll-behavior: smooth;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 24px;
-  padding-bottom: 6px;
-  scrollbar-width: thin;
-}
-
-.pets-grid.is-carousel {
-  scroll-snap-type: x mandatory;
-}
-
-.pets-grid.is-carousel .pet-card {
-  scroll-snap-align: start;
 }
 
 /* ── Tarjeta ── */
@@ -547,8 +537,8 @@ watch(filtered, checkOverflow)
   box-shadow: 0 4px 16px rgba(58,71,60,0.05);
   display: flex;
   flex-direction: column;
-  flex: 0 0 320px;
-  width: 320px;
+  flex: 1 1 320px;
+  max-width: 380px;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -807,10 +797,25 @@ watch(filtered, checkOverflow)
   margin: 0;
 }
 
+/* Fila horizontal única. Si las tarjetas no caben todas, isCarousel
+   se activa desde el script: aparece scroll-snap y la lista avanza
+   sola (se pausa mientras el usuario interactúa). */
 .happy-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  display: flex;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  scroll-behavior: smooth;
   gap: 14px;
+  padding-bottom: 6px;
+  scrollbar-width: thin;
+}
+
+.happy-grid.is-carousel {
+  scroll-snap-type: x mandatory;
+}
+
+.happy-grid.is-carousel .happy-card {
+  scroll-snap-align: start;
 }
 
 .happy-card {
@@ -820,6 +825,8 @@ watch(filtered, checkOverflow)
   background: #FFFFFF;
   box-shadow: 0 4px 14px rgba(58,71,60,0.05);
   transition: transform 0.25s ease, box-shadow 0.25s ease;
+  flex: 0 0 200px;
+  width: 200px;
 }
 
 .happy-card:hover {
@@ -897,8 +904,8 @@ watch(filtered, checkOverflow)
   .filters-bar  { padding: 20px; }
   .filters-grid { gap: 18px; }
   .filter-chips { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
-  .pet-card { flex: 0 0 260px; width: 260px; }
-  .happy-grid { grid-template-columns: repeat(2, 1fr); }
+  .pet-card { flex-basis: 100%; max-width: none; }
+  .happy-card { flex: 0 0 150px; width: 150px; }
   .pet-btn { height: 52px; font-size: 15px; }
 }
 
@@ -940,8 +947,8 @@ watch(filtered, checkOverflow)
   }
 
   .pet-card {
-    flex: 0 0 280px;
-    width: 280px;
+    flex-basis: 100%;
+    max-width: none;
   }
 
   .pet-photo {
@@ -957,8 +964,12 @@ watch(filtered, checkOverflow)
   }
 
   .happy-grid {
-    grid-template-columns: repeat(2, 1fr);
     gap: 10px;
+  }
+
+  .happy-card {
+    flex: 0 0 170px;
+    width: 170px;
   }
 
   .happy-photo {
@@ -967,8 +978,9 @@ watch(filtered, checkOverflow)
 }
 
 @media (max-width: 400px) {
-  .happy-grid {
-    grid-template-columns: 1fr;
+  .happy-card {
+    flex: 0 0 140px;
+    width: 140px;
   }
 }
 
