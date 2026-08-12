@@ -451,10 +451,14 @@ function clearFilters() {
   color: #2F352F;
 }
 
-/* ══ GRID DE MASCOTAS ══ */
+/* ══ GRID DE MASCOTAS ══
+   flex + justify-content:center (no CSS grid) para que la última fila,
+   cuando queda incompleta, se centre en vez de dejar un hueco vacío
+   pegado a un solo lado. */
 .pets-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
   gap: 24px;
 }
 
@@ -467,6 +471,8 @@ function clearFilters() {
   box-shadow: 0 4px 16px rgba(58,71,60,0.05);
   display: flex;
   flex-direction: column;
+  flex: 1 1 320px;
+  max-width: 380px;
   transition: transform 0.3s ease, box-shadow 0.3s ease;
 }
 
@@ -815,7 +821,7 @@ function clearFilters() {
   .filters-bar  { padding: 20px; }
   .filters-grid { gap: 18px; }
   .filter-chips { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 4px; }
-  .pets-grid { grid-template-columns: 1fr; }
+  .pet-card { flex-basis: 100%; max-width: none; }
   .happy-grid { grid-template-columns: repeat(2, 1fr); }
   .pet-btn { height: 52px; font-size: 15px; }
 }
@@ -854,8 +860,12 @@ function clearFilters() {
   }
 
   .pets-grid {
-    grid-template-columns: 1fr;
     gap: 18px;
+  }
+
+  .pet-card {
+    flex-basis: 100%;
+    max-width: none;
   }
 
   .pet-photo {
