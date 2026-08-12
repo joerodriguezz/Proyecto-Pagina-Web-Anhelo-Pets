@@ -4,7 +4,8 @@ import { ubicacionesCR } from '../../data/ubicaciones'
 import { usePetsStore } from '../../stores/usePetsStore'
 import { registrarAuditoria } from '../../composables/useAuditLog'
 import { getRescues, createRescue, updateRescue, closeRescue } from '../../services/rescueServices'
-import { getVolunteers } from '../../services/volunteerServices'
+import { getVolunteers, createApprovedVolunteer } from '../../services/volunteerServices'
+import { getFosterHomes, createFosterHome } from '../../services/fosterHomeServices'
 import { createAnimals, uploadAnimalPhoto } from '../../services/petServices'
 
 
@@ -13,6 +14,8 @@ const petsStore = usePetsStore()
 
 onMounted(() => {
   petsStore.fetchPets({ status: 'Todos' })
+  cargarVoluntarios()
+  cargarCasasCuna()
 })
 
 /* ─── Estado principal ──────────────────────────────────── */
@@ -45,42 +48,166 @@ const usuarioActual = ref({ nombre: 'Shirley Valverde', rol: 'Admin' })
 const voluntarios = ref([])
 
 async function cargarVoluntarios() {
+  try {
     const { data } = await getVolunteers()
-    voluntarios.value = data
+    voluntarios.value = data || []
+  } catch {
+    voluntarios.value = []
+  }
 }
 
 /* ─── Provincias / casas cuna / rescatistas ──────────────── */
 const provinciasDisponibles = computed(() => Object.keys(ubicacionesCR))
 
-const casasCunaDisponibles = computed(() =>
-  voluntarios.value.filter(v => {
-    const estado = v.solicitudVoluntario?.estado
-    const tipo   = v.solicitudVoluntario?.tipo || ''
-    return estado === 'Aprobada' && tipo.toLowerCase() === 'casa cuna'
-  })
-)
+/* Casas cuna: entidad real (tabla foster_homes), la misma que usan
+   Mascotas y Salud — antes esta vista buscaba "voluntarios de tipo
+   Casa cuna", que es un concepto distinto y sin relación con la FK
+   real que guarda el backend (rescue_records.foster_home_id →
+   foster_homes.foster_home_id). ─────────────────────────────── */
+const casasCuna = ref([])
+async function cargarCasasCuna() {
+  try {
+    const { data } = await getFosterHomes()
+    casasCuna.value = (data || []).map(fh => ({ id: fh.fosterHomeId, nombre: fh.name }))
+  } catch {
+    casasCuna.value = []
+  }
+}
+function resolverIdCasaCuna(nombre) {
+  if (!nombre) return null
+  const encontrada = casasCuna.value.find(c => c.nombre === nombre)
+  return encontrada ? encontrada.id : null
+}
+function resolverNombreCasaCuna(id) {
+  if (id === null || id === undefined || id === '') return ''
+  const encontrada = casasCuna.value.find(c => c.id === id)
+  return encontrada ? encontrada.nombre : ''
+}
+
+/* El DTO real que devuelve el backend (VolunteerDto) es plano —
+   volunteerId, fullName, volunteerType, validationStatus ("Aprobado",
+   masculino) — no el objeto anidado "solicitudVoluntario" con estado
+   en femenino que arma mapVoluntario() en VoluntariosAdminView.vue.
+   Filtrar por esa forma inexistente dejaba esta lista siempre vacía. */
 const rescatistasDisponibles = computed(() =>
-  voluntarios.value.filter(v => {
-    const estado = v.solicitudVoluntario?.estado
-    const tipo   = v.solicitudVoluntario?.tipo || ''
-    return estado === 'Aprobada' && tipo === 'Rescatista'
-  })
+  voluntarios.value.filter(v => v.validationStatus === 'Aprobado' && v.volunteerType === 'Rescatista')
 )
 
 /* ─── Helpers para resolver voluntarios (nombre <-> id) ──────
-   El backend de Rescates guarda fosterHomeId / volunteerId como
-   referencias por ID, pero el <select> del formulario (que no se
-   puede modificar) usa el NOMBRE como value. Estas funciones hacen
-   el puente entre ambos mundos en los dos sentidos. ─────────── */
+   El backend de Rescates guarda volunteerId como referencia por ID,
+   pero el <select> del formulario (que no se puede modificar) usa
+   el NOMBRE como value. Estas funciones hacen el puente entre ambos
+   mundos en los dos sentidos. ─────────────────────────────────── */
 function resolverIdVoluntario(nombre) {
   if (!nombre) return null
-  const encontrado = voluntarios.value.find(v => (v.solicitudVoluntario?.nombre || v.nombre) === nombre)
-  return encontrado ? encontrado.id : null
+  const encontrado = voluntarios.value.find(v => v.fullName === nombre)
+  return encontrado ? encontrado.volunteerId : null
 }
 function resolverNombreVoluntario(id) {
   if (id === null || id === undefined || id === '') return ''
-  const encontrado = voluntarios.value.find(v => v.id === id)
-  return encontrado ? (encontrado.solicitudVoluntario?.nombre || encontrado.nombre) : ''
+  const encontrado = voluntarios.value.find(v => v.volunteerId === id)
+  return encontrado ? encontrado.fullName : ''
+}
+
+/* ─── Alta rápida de casa cuna (desde el selector del wizard) ── */
+const showAltaCasaCuna  = ref(false)
+const guardandoCasaCuna = ref(false)
+const errorCasaCuna     = ref('')
+function altaCasaCunaInicial() {
+  return { nombre: '', direccion: '', telefono: '', responsable: '', capacidad: 1 }
+}
+const nuevaCasaCuna = ref(altaCasaCunaInicial())
+function cerrarAltaCasaCuna() {
+  showAltaCasaCuna.value = false
+  errorCasaCuna.value = ''
+  nuevaCasaCuna.value = altaCasaCunaInicial()
+}
+async function guardarCasaCunaRapida() {
+  const c = nuevaCasaCuna.value
+  if (!c.nombre.trim() || !c.direccion.trim() || !c.telefono.trim() || !c.responsable.trim()) {
+    errorCasaCuna.value = 'Nombre, dirección, teléfono y responsable son obligatorios.'
+    return
+  }
+  errorCasaCuna.value = ''
+  guardandoCasaCuna.value = true
+  try {
+    const { data: creada } = await createFosterHome({
+      name: c.nombre.trim(),
+      address: c.direccion.trim(),
+      phone: c.telefono.trim(),
+      responsible: c.responsable.trim(),
+      capacity: Number(c.capacidad) || 1,
+    })
+    await cargarCasasCuna()
+    formData.value.casaCuna = creada.name
+    cerrarAltaCasaCuna()
+    showToast('success', 'Casa cuna agregada correctamente.')
+  } catch (e) {
+    errorCasaCuna.value = e?.response?.data?.message || 'No se pudo guardar la casa cuna. Intenta de nuevo.'
+  } finally {
+    guardandoCasaCuna.value = false
+  }
+}
+
+/* ─── Alta rápida de rescatista (voluntario) ──────────────────
+   A diferencia de casa cuna/veterinario, un "rescatista" ES un
+   voluntario — no hay forma de crearlo con 2-3 campos porque el
+   backend exige que la solicitud de voluntariado esté ligada a una
+   cuenta de usuario ya registrada. Este flujo encadena las 3 cosas
+   que normalmente pasan por separado (registro público → postulación
+   → aprobación admin) en un solo paso: crea la cuenta, postula como
+   Rescatista y la aprueba de inmediato, todo en una sola operación
+   atómica en el backend (POST /api/volunteers/quick-add): si algo
+   falla a mitad de camino no queda una cuenta huérfana sin
+   voluntariado, a diferencia de encadenar register+submit+approve
+   por separado desde el frontend. ─────────────────────────────── */
+const showAltaRescatista  = ref(false)
+const guardandoRescatista = ref(false)
+const errorRescatista     = ref('')
+function altaRescatistaInicial() {
+  return { nombre: '', correo: '', telefono: '', cedula: '', password: '' }
+}
+const nuevoRescatista = ref(altaRescatistaInicial())
+function cerrarAltaRescatista() {
+  showAltaRescatista.value = false
+  errorRescatista.value = ''
+  nuevoRescatista.value = altaRescatistaInicial()
+}
+async function guardarRescatistaRapido() {
+  const r = nuevoRescatista.value
+  if (!r.nombre.trim() || !r.correo.trim() || !r.telefono.trim() || !r.cedula.trim() || !r.password.trim()) {
+    errorRescatista.value = 'Nombre, correo, teléfono, cédula y contraseña son obligatorios.'
+    return
+  }
+  if (r.password.length < 8) {
+    errorRescatista.value = 'La contraseña debe tener al menos 8 caracteres.'
+    return
+  }
+  errorRescatista.value = ''
+  guardandoRescatista.value = true
+  try {
+    const [nombre, ...resto] = r.nombre.trim().split(/\s+/)
+    const { data: creado } = await createApprovedVolunteer({
+      firstName: nombre,
+      lastName: resto.join(' ') || null,
+      email: r.correo.trim(),
+      phonePrimary: r.telefono.trim(),
+      nationalId: r.cedula.trim(),
+      nationality: 'Costa Rica',
+      password: r.password,
+      volunteerType: 'Rescatista',
+    })
+    await cargarVoluntarios()
+    formData.value.rescatista = creado?.fullName || r.nombre.trim()
+    clearErr('rescatista')
+    cerrarAltaRescatista()
+    showToast('success', 'Rescatista registrado y aprobado correctamente.')
+  } catch (e) {
+    console.error(e)
+    errorRescatista.value = e?.response?.data?.message || 'No se pudo registrar el rescatista. Verifica los datos e intenta de nuevo.'
+  } finally {
+    guardandoRescatista.value = false
+  }
 }
 
 /* ─── Helper para reconstruir provincia/cantón/distrito ───────
@@ -160,7 +287,7 @@ function mapRescueDtoToRow(dto) {
     distrito,
     ubicacion: dto.ubicacion || '',
     descripcion: dto.descripcion || '',
-    casaCuna: resolverNombreVoluntario(dto.fosterHomeId) || 'Sin asignar',
+    casaCuna: resolverNombreCasaCuna(dto.fosterHomeId) || 'Sin asignar',
     rescatista: resolverNombreVoluntario(dto.volunteerId) || '',
     estado: dto.status || 'Activo',
     volunteerId: dto.volunteerId ?? null,
@@ -241,19 +368,91 @@ function clearErr(campo) {
     formErrors.value = e
   }
 }
-function validateForm() {
-  const errors = {}
-  if (!formData.value.mascota.trim())      errors.mascota      = 'El nombre es obligatorio'
-  if (!formData.value.edad.trim())         errors.edad         = 'La edad es obligatoria'
-  if (!formData.value.fechaRescate)        errors.fechaRescate = 'La fecha de rescate es obligatoria'
-  if (!formData.value.provincia)           errors.provincia    = 'Selecciona la provincia'
-  if (!formData.value.canton)              errors.canton       = 'Selecciona el cantón'
-  if (!formData.value.distrito)            errors.distrito     = 'Selecciona el distrito'
-  if (!formData.value.rescatista)          errors.rescatista   = 'Selecciona un rescatista'
-  if (!formData.value.descripcion.trim())  errors.descripcion  = 'La descripción es obligatoria'
-  if (!formData.value.foto)                errors.foto         = 'Debes subir una fotografía'
-  formErrors.value = errors
-  return Object.keys(errors).length === 0
+/* ─── Wizard paso a paso (mismo patrón que Mascotas/Salud) ────── */
+const PASOS = [
+  { n: 1, titulo: 'Mascota',       desc: 'Información básica' },
+  { n: 2, titulo: 'Ubicación',     desc: 'Dónde ocurrió el rescate' },
+  { n: 3, titulo: 'Asignaciones',  desc: 'Rescatista y casa cuna' },
+  { n: 4, titulo: 'Descripción',   desc: 'Detalles del rescate' },
+  { n: 5, titulo: 'Fotografía',    desc: 'Foto del animal' },
+  { n: 6, titulo: 'Resumen',       desc: 'Revisa y guarda' },
+]
+const TOTAL_PASOS = PASOS.length
+const pasoActual = ref(1)
+const pasoMaximo  = ref(1)
+
+const pasoInfo     = computed(() => PASOS.find(p => p.n === pasoActual.value) || PASOS[0])
+const esUltimoPaso = computed(() => pasoActual.value === TOTAL_PASOS)
+const progreso      = computed(() => ((pasoActual.value - 1) / (TOTAL_PASOS - 1)) * 100)
+
+const CAMPOS_POR_PASO = {
+  1: ['mascota', 'edad', 'fechaRescate'],
+  2: ['provincia', 'canton', 'distrito'],
+  3: ['rescatista'],
+  4: ['descripcion'],
+  5: ['foto'],
+  6: [],
+}
+
+function pasoCompleto(n) {
+  if (n === 1) return !!(formData.value.mascota.trim() && formData.value.edad.trim() && formData.value.fechaRescate)
+  if (n === 2) return !!(formData.value.provincia && formData.value.canton && formData.value.distrito)
+  if (n === 3) return !!formData.value.rescatista
+  if (n === 4) return !!formData.value.descripcion.trim()
+  if (n === 5) return !!formData.value.foto
+  return true
+}
+
+function validarPaso(n) {
+  const e = { ...formErrors.value }
+  const campos = CAMPOS_POR_PASO[n] || []
+  campos.forEach(c => delete e[c])
+
+  if (n === 1) {
+    if (!formData.value.mascota.trim()) e.mascota      = 'El nombre es obligatorio'
+    if (!formData.value.edad.trim())    e.edad         = 'La edad es obligatoria'
+    if (!formData.value.fechaRescate)   e.fechaRescate = 'La fecha de rescate es obligatoria'
+  }
+  if (n === 2) {
+    if (!formData.value.provincia) e.provincia = 'Selecciona la provincia'
+    if (!formData.value.canton)    e.canton    = 'Selecciona el cantón'
+    if (!formData.value.distrito)  e.distrito  = 'Selecciona el distrito'
+  }
+  if (n === 3) {
+    if (!formData.value.rescatista) e.rescatista = 'Selecciona un rescatista'
+  }
+  if (n === 4) {
+    if (!formData.value.descripcion.trim()) e.descripcion = 'La descripción es obligatoria'
+  }
+  if (n === 5) {
+    if (!formData.value.foto) e.foto = 'Debes subir una fotografía'
+  }
+
+  formErrors.value = e
+  return campos.every(c => !e[c])
+}
+
+function irAPaso(n) {
+  if (n > pasoMaximo.value) return
+  pasoActual.value = n
+}
+function pasoSiguiente() {
+  if (!validarPaso(pasoActual.value)) return
+  if (pasoActual.value < TOTAL_PASOS) {
+    pasoActual.value += 1
+    if (pasoActual.value > pasoMaximo.value) pasoMaximo.value = pasoActual.value
+  }
+}
+function pasoAnterior() {
+  if (pasoActual.value > 1) pasoActual.value -= 1
+}
+function guardarDesdeResumen() {
+  const ok = [1, 2, 3, 4, 5].every(n => validarPaso(n))
+  if (!ok) {
+    showToast('error', 'Completa todos los campos obligatorios.')
+    return
+  }
+  guardarRescate()
 }
 
 function obtenerFechaActual() {
@@ -272,12 +471,16 @@ function openForm() {
   editingIndex.value = null
   formErrors.value   = {}
   formData.value     = formDataInicial()
+  pasoActual.value   = 1
+  pasoMaximo.value   = 1
   showForm.value     = true
 }
 function openEdit(rescate) {
   const index = rescates.value.indexOf(rescate)
   editMode.value     = true
   editingIndex.value = index
+  pasoActual.value   = 1
+  pasoMaximo.value   = TOTAL_PASOS
   formData.value = {
     mascota:      rescate.mascota,
     tipoMascota:  rescate.tipoMascota || 'Perro',
@@ -305,6 +508,8 @@ function closeForm() {
   editingIndex.value = null
   formErrors.value   = {}
   formData.value     = formDataInicial()
+  pasoActual.value   = 1
+  pasoMaximo.value   = 1
 }
 
 function actualizarMascotaVinculada(mascotaId, cambios) {
@@ -323,10 +528,6 @@ function actualizarMascotaVinculada(mascotaId, cambios) {
 /* ─── Guardar rescate (+ crear/actualizar mascota + auditoría) ─── */
 const guardandoRescate = ref(false)
 async function guardarRescate() {
-  if (!validateForm()) {
-    showToast('error', 'Completa todos los campos obligatorios.')
-    return
-  }
   guardandoRescate.value = true
   const razaFinal = formData.value.tieneRaza === 'Si' ? formData.value.raza : 'Sin raza'
 
@@ -338,12 +539,26 @@ async function guardarRescate() {
       ubicacion:    ubicacionTexto(formData.value),
       descripcion:  formData.value.descripcion,
       status:       formData.value.estado,
-      fosterHomeId: resolverIdVoluntario(formData.value.casaCuna),
+      fosterHomeId: resolverIdCasaCuna(formData.value.casaCuna),
       volunteerId:  resolverIdVoluntario(formData.value.rescatista),
     }
 
     try {
       await updateRescue(orig.id, payload)
+
+      // Si se seleccionó una foto nueva, se sube al expediente real de
+      // la mascota vinculada — antes esto solo actualizaba el store en
+      // memoria (actualizarMascotaVinculada) y la foto nunca llegaba
+      // al backend, así que se perdía al recargar.
+      let fotoFallo = false
+      if (orig.mascotaId && formData.value.fotoFile) {
+        try {
+          await uploadAnimalPhoto(orig.mascotaId, formData.value.fotoFile, true)
+        } catch (err) {
+          console.error('No se pudo subir la foto de la mascota:', err)
+          fotoFallo = true
+        }
+      }
 
       if (orig.mascotaId) {
         actualizarMascotaVinculada(orig.mascotaId, {
@@ -364,7 +579,11 @@ async function guardarRescate() {
       })
 
       await cargarRescates()
-      showToast('success', 'Rescate actualizado correctamente.')
+      if (fotoFallo) {
+        showToast('error', 'Rescate actualizado, pero la foto no se pudo subir. Intenta subirla de nuevo desde Mascotas.')
+      } else {
+        showToast('success', 'Rescate actualizado correctamente.')
+      }
       closeForm()
     } catch (err) {
       console.error('Error al actualizar el rescate:', err)
@@ -380,6 +599,7 @@ async function guardarRescate() {
   // rescate por violar la FK rescue_records.animal_id → animals.animal_id). ──
   let animalIdReal = null
   let mascotaCreada = false
+  let fotoFallo = false
   try {
     const { data: creada } = await createAnimals({
       name: formData.value.mascota,
@@ -393,11 +613,16 @@ async function guardarRescate() {
     })
     animalIdReal = creada?.id ?? null
     mascotaCreada = !!animalIdReal
-    if (animalIdReal && formData.value.fotoFile) {
-      await uploadAnimalPhoto(animalIdReal, formData.value.fotoFile, true)
-    }
   } catch (err) {
     console.error('No se pudo registrar la mascota del rescate:', err)
+  }
+  if (animalIdReal && formData.value.fotoFile) {
+    try {
+      await uploadAnimalPhoto(animalIdReal, formData.value.fotoFile, true)
+    } catch (err) {
+      console.error('No se pudo subir la foto de la mascota:', err)
+      fotoFallo = true
+    }
   }
 
   const payload = {
@@ -406,7 +631,7 @@ async function guardarRescate() {
     ubicacion:    ubicacionTexto(formData.value),
     descripcion:  formData.value.descripcion,
     status:       formData.value.estado,
-    fosterHomeId: resolverIdVoluntario(formData.value.casaCuna),
+    fosterHomeId: resolverIdCasaCuna(formData.value.casaCuna),
     volunteerId:  resolverIdVoluntario(formData.value.rescatista),
   }
 
@@ -422,7 +647,9 @@ async function guardarRescate() {
     await cargarRescates()
     await petsStore.fetchPets({ status: 'Todos' })
 
-    if (mascotaCreada) {
+    if (mascotaCreada && fotoFallo) {
+      showToast('error', 'Rescate y mascota registrados, pero la foto no se pudo subir. Intenta subirla de nuevo desde Mascotas.')
+    } else if (mascotaCreada) {
       showToast('success', 'Rescate registrado y mascota creada correctamente.')
     } else {
       showToast('success', 'Rescate registrado correctamente. (La ficha de mascota no pudo crearse, revisa el catálogo de mascotas.)')
@@ -509,14 +736,46 @@ function iniciales(nombre) {
             <div class="form-header">
               <p class="form-eyebrow">{{ editMode ? 'Editar registro' : 'Nuevo registro' }}</p>
               <h2 class="form-title">{{ editMode ? 'Editar rescate' : 'Nuevo rescate' }}</h2>
-              <p class="form-sub">{{ editMode ? 'Modifica los datos del rescate' : 'Registra un animal rescatado y su expediente' }}</p>
+
+              <div class="wiz-steps" role="list">
+                <div class="wiz-track">
+                  <div class="wiz-track-fill" :style="{ width: progreso + '%' }"></div>
+                </div>
+                <button
+                  v-for="p in PASOS"
+                  :key="p.n"
+                  type="button"
+                  role="listitem"
+                  class="wiz-step"
+                  :class="{
+                    'is-active': pasoActual === p.n,
+                    'is-done':   p.n < pasoActual && pasoCompleto(p.n),
+                    'is-locked': p.n > pasoMaximo
+                  }"
+                  :disabled="p.n > pasoMaximo"
+                  :aria-current="pasoActual === p.n ? 'step' : undefined"
+                  @click="irAPaso(p.n)"
+                >
+                  <span class="wiz-bullet">
+                    <svg v-if="p.n < pasoActual && pasoCompleto(p.n)" xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                    <template v-else>{{ p.n }}</template>
+                  </span>
+                  <span class="wiz-step-label">{{ p.titulo }}</span>
+                </button>
+              </div>
+
+              <div class="wiz-context">
+                <span class="wiz-context-count">Paso {{ pasoActual }} de {{ TOTAL_PASOS }}</span>
+                <span class="wiz-context-sep">·</span>
+                <span class="wiz-context-desc">{{ pasoInfo.desc }}</span>
+              </div>
             </div>
 
-            <div class="uniform-scroll">
+            <div class="uniform-scroll wiz-body">
               <div class="form-body">
 
                 <!-- Sección 1: Información básica -->
-                <div class="form-section">
+                <div v-show="pasoActual === 1" class="form-section wiz-pane">
                   <div class="form-section-label"><span class="form-num">1</span> Información básica</div>
                   <div class="form-grid">
                     <div class="fg">
@@ -570,7 +829,7 @@ function iniciales(nombre) {
                 </div>
 
                 <!-- Sección 2: Ubicación del rescate -->
-                <div class="form-section">
+                <div v-show="pasoActual === 2" class="form-section wiz-pane">
                   <div class="form-section-label"><span class="form-num">2</span> Ubicación del rescate</div>
                   <div class="form-grid">
                     <div class="fg">
@@ -601,29 +860,39 @@ function iniciales(nombre) {
                 </div>
 
                 <!-- Sección 3: Asignaciones -->
-                <div class="form-section">
+                <div v-show="pasoActual === 3" class="form-section wiz-pane">
                   <div class="form-section-label"><span class="form-num">3</span> Asignaciones</div>
                   <div class="form-grid">
                     <div class="fg fg--span2">
                       <label>Rescatista <span class="req">*</span></label>
-                      <select v-model="formData.rescatista" class="select" :class="{ 'is-error': formErrors.rescatista }" @change="clearErr('rescatista')">
-                        <option value="">Seleccione un rescatista</option>
-                        <option v-for="r in rescatistasDisponibles" :key="r.id" :value="r.solicitudVoluntario?.nombre || r.nombre">{{ r.solicitudVoluntario?.nombre || r.nombre }}</option>
-                      </select>
+                      <div class="fg-with-add">
+                        <select v-model="formData.rescatista" class="select" :class="{ 'is-error': formErrors.rescatista }" @change="clearErr('rescatista')">
+                          <option value="">Seleccione un rescatista</option>
+                          <option v-for="r in rescatistasDisponibles" :key="r.volunteerId" :value="r.fullName">{{ r.fullName }}</option>
+                        </select>
+                        <button type="button" class="btn-add-quick" title="Agregar rescatista" @click="showAltaRescatista = true">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                        </button>
+                      </div>
                       <p v-if="formErrors.rescatista" class="err-msg">{{ formErrors.rescatista }}</p>
                     </div>
                     <div class="fg fg--span2">
                       <label>Casa cuna asignada</label>
-                      <select v-model="formData.casaCuna" class="select">
-                        <option value="">Sin asignar</option>
-                        <option v-for="c in casasCunaDisponibles" :key="c.id" :value="c.solicitudVoluntario?.nombre || c.nombre">{{ c.solicitudVoluntario?.nombre || c.nombre }}</option>
-                      </select>
+                      <div class="fg-with-add">
+                        <select v-model="formData.casaCuna" class="select">
+                          <option value="">Sin asignar</option>
+                          <option v-for="c in casasCuna" :key="c.id" :value="c.nombre">{{ c.nombre }}</option>
+                        </select>
+                        <button type="button" class="btn-add-quick" title="Agregar casa cuna" @click="showAltaCasaCuna = true">
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
 
                 <!-- Sección 4: Descripción del rescate -->
-                <div class="form-section">
+                <div v-show="pasoActual === 4" class="form-section wiz-pane">
                   <div class="form-section-label"><span class="form-num">4</span> Descripción del rescate</div>
                   <div class="form-grid">
                     <div class="fg fg--full">
@@ -634,7 +903,7 @@ function iniciales(nombre) {
                 </div>
 
                 <!-- Sección 5: Fotografía -->
-                <div class="form-section">
+                <div v-show="pasoActual === 5" class="form-section wiz-pane">
                   <div class="form-section-label"><span class="form-num">5</span> Fotografía <span class="req">*</span></div>
                   <div v-if="formData.foto" class="image-previews">
                     <div class="image-preview-item">
@@ -652,15 +921,203 @@ function iniciales(nombre) {
                   <input ref="imageInputRef" type="file" accept="image/*" style="display:none" @change="handleImageUpload" />
                 </div>
 
+                <!-- Sección 6: Resumen -->
+                <div v-show="pasoActual === 6" class="form-section wiz-pane">
+                  <div class="form-section-label"><span class="form-num">6</span> Resumen</div>
+
+                  <div class="wiz-resumen">
+                    <div class="wiz-res-card">
+                      <div class="wiz-res-head">
+                        <span class="wiz-res-title">Mascota</span>
+                        <button type="button" class="wiz-res-edit" @click="irAPaso(1)">Editar</button>
+                      </div>
+                      <dl class="wiz-res-list">
+                        <div><dt>Nombre</dt><dd>{{ formData.mascota || '—' }}</dd></div>
+                        <div><dt>Tipo</dt><dd>{{ formData.tipoMascota }}</dd></div>
+                        <div><dt>Edad</dt><dd>{{ formData.edad || '—' }}</dd></div>
+                        <div><dt>Sexo</dt><dd>{{ formData.sexo }}</dd></div>
+                        <div><dt>Raza</dt><dd>{{ formData.tieneRaza === 'Si' ? (formData.raza || '—') : 'Sin raza' }}</dd></div>
+                        <div><dt>Fecha de rescate</dt><dd>{{ formData.fechaRescate || '—' }}</dd></div>
+                        <div><dt>Estado</dt><dd>{{ formData.estado }}</dd></div>
+                      </dl>
+                    </div>
+
+                    <div class="wiz-res-card">
+                      <div class="wiz-res-head">
+                        <span class="wiz-res-title">Ubicación</span>
+                        <button type="button" class="wiz-res-edit" @click="irAPaso(2)">Editar</button>
+                      </div>
+                      <dl class="wiz-res-list">
+                        <div class="wiz-res-full"><dt>Provincia, cantón, distrito</dt><dd>{{ ubicacionTexto(formData) || '—' }}</dd></div>
+                      </dl>
+                    </div>
+
+                    <div class="wiz-res-card">
+                      <div class="wiz-res-head">
+                        <span class="wiz-res-title">Asignaciones</span>
+                        <button type="button" class="wiz-res-edit" @click="irAPaso(3)">Editar</button>
+                      </div>
+                      <dl class="wiz-res-list">
+                        <div><dt>Rescatista</dt><dd>{{ formData.rescatista || '—' }}</dd></div>
+                        <div><dt>Casa cuna</dt><dd>{{ formData.casaCuna || 'Sin asignar' }}</dd></div>
+                      </dl>
+                    </div>
+
+                    <div class="wiz-res-card">
+                      <div class="wiz-res-head">
+                        <span class="wiz-res-title">Descripción</span>
+                        <button type="button" class="wiz-res-edit" @click="irAPaso(4)">Editar</button>
+                      </div>
+                      <dl class="wiz-res-list">
+                        <div class="wiz-res-full"><dt>Circunstancias del rescate</dt><dd>{{ formData.descripcion || '—' }}</dd></div>
+                      </dl>
+                    </div>
+
+                    <div class="wiz-res-card wiz-res-card--full">
+                      <div class="wiz-res-head">
+                        <span class="wiz-res-title">Fotografía</span>
+                        <button type="button" class="wiz-res-edit" @click="irAPaso(5)">Editar</button>
+                      </div>
+                      <div v-if="formData.foto" class="image-previews">
+                        <div class="image-preview-item">
+                          <img :src="formData.foto" alt="foto rescate" />
+                          <span class="main-photo-label">Principal</span>
+                        </div>
+                      </div>
+                      <p v-else class="wiz-res-sub">Sin foto agregada todavía.</p>
+                    </div>
+                  </div>
+                </div>
+
               </div>
             </div>
 
-            <div class="form-footer">
+            <div class="form-footer wiz-footer">
               <button class="btn-cancel" :disabled="guardandoRescate" @click="closeForm">Cancelar</button>
-              <button class="btn-save" :disabled="guardandoRescate" @click="guardarRescate">
-                <span v-if="guardandoRescate" class="btn-spinner"></span>
-                <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
-                <span>{{ guardandoRescate ? 'Guardando...' : (editMode ? 'Guardar cambios' : 'Registrar rescate') }}</span>
+              <div class="wiz-nav">
+                <button v-if="pasoActual > 1" class="btn-cancel btn-back" :disabled="guardandoRescate" @click="pasoAnterior">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+                  Atrás
+                </button>
+                <button v-if="!esUltimoPaso" class="btn-save" @click="pasoSiguiente">
+                  Siguiente
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+                </button>
+                <button v-else class="btn-save" :disabled="guardandoRescate" @click="guardarDesdeResumen">
+                  <span v-if="guardandoRescate" class="btn-spinner"></span>
+                  <svg v-else width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  <span>{{ guardandoRescate ? 'Guardando...' : (editMode ? 'Guardar cambios' : 'Registrar rescate') }}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ══════════════════════════════════════
+         POPUP — Alta rápida de casa cuna
+    ══════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showAltaCasaCuna" class="modal-overlay modal-overlay--top" @click.self="cerrarAltaCasaCuna">
+          <div class="modal-box modal-box--sm">
+            <button class="btn btn--icon btn--icon-close" @click="cerrarAltaCasaCuna">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div class="modal-header">
+              <div class="modal-header-info">
+                <p class="modal-eyebrow">Alta rápida</p>
+                <h2 class="modal-title">Nueva casa cuna</h2>
+              </div>
+            </div>
+            <div class="modal-section">
+              <div class="form-grid">
+                <div class="fg fg--full">
+                  <label>Nombre <span class="req">*</span></label>
+                  <input type="text" class="input" placeholder="Ej. Hogar Los Ángeles" v-model="nuevaCasaCuna.nombre" />
+                </div>
+                <div class="fg fg--full">
+                  <label>Dirección <span class="req">*</span></label>
+                  <input type="text" class="input" placeholder="Dirección completa" v-model="nuevaCasaCuna.direccion" />
+                </div>
+                <div class="fg">
+                  <label>Teléfono <span class="req">*</span></label>
+                  <input type="text" class="input" placeholder="Ej. 8888-8888" v-model="nuevaCasaCuna.telefono" />
+                </div>
+                <div class="fg">
+                  <label>Capacidad</label>
+                  <input type="number" class="input" min="1" max="50" v-model="nuevaCasaCuna.capacidad" />
+                </div>
+                <div class="fg fg--full">
+                  <label>Responsable <span class="req">*</span></label>
+                  <input type="text" class="input" placeholder="Nombre del responsable" v-model="nuevaCasaCuna.responsable" />
+                </div>
+              </div>
+              <p v-if="errorCasaCuna" class="err-msg">{{ errorCasaCuna }}</p>
+            </div>
+            <div class="modal-acciones">
+              <button class="btn btn--ghost" @click="cerrarAltaCasaCuna">Cancelar</button>
+              <button class="btn btn--primary" :disabled="guardandoCasaCuna" @click="guardarCasaCunaRapida">
+                <span v-if="guardandoCasaCuna" class="btn-spinner"></span>
+                <svg v-else class="btn-ico" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>{{ guardandoCasaCuna ? 'Guardando...' : 'Agregar casa cuna' }}</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <!-- ══════════════════════════════════════
+         POPUP — Alta rápida de rescatista
+         Crea la cuenta + la postulación + la aprueba, todo en un paso.
+    ══════════════════════════════════════ -->
+    <Teleport to="body">
+      <Transition name="modal-fade">
+        <div v-if="showAltaRescatista" class="modal-overlay modal-overlay--top" @click.self="cerrarAltaRescatista">
+          <div class="modal-box modal-box--sm">
+            <button class="btn btn--icon btn--icon-close" @click="cerrarAltaRescatista">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <div class="modal-header">
+              <div class="modal-header-info">
+                <p class="modal-eyebrow">Alta rápida</p>
+                <h2 class="modal-title">Nuevo rescatista</h2>
+              </div>
+            </div>
+            <div class="modal-section">
+              <p class="wiz-hint">Esto crea una cuenta de usuario real (con acceso al sistema) y aprueba su voluntariado como Rescatista de inmediato.</p>
+              <div class="form-grid">
+                <div class="fg fg--full">
+                  <label>Nombre completo <span class="req">*</span></label>
+                  <input type="text" class="input" placeholder="Ej. Ana Rojas" v-model="nuevoRescatista.nombre" />
+                </div>
+                <div class="fg fg--full">
+                  <label>Correo <span class="req">*</span></label>
+                  <input type="email" class="input" placeholder="correo@ejemplo.com" v-model="nuevoRescatista.correo" />
+                </div>
+                <div class="fg">
+                  <label>Teléfono <span class="req">*</span></label>
+                  <input type="text" class="input" placeholder="Ej. 8888-8888" v-model="nuevoRescatista.telefono" />
+                </div>
+                <div class="fg">
+                  <label>Cédula <span class="req">*</span></label>
+                  <input type="text" class="input" placeholder="Ej. 1-2345-6789" v-model="nuevoRescatista.cedula" />
+                </div>
+                <div class="fg fg--full">
+                  <label>Contraseña <span class="req">*</span></label>
+                  <input type="password" class="input" placeholder="Mínimo 8 caracteres" v-model="nuevoRescatista.password" />
+                </div>
+              </div>
+              <p v-if="errorRescatista" class="err-msg">{{ errorRescatista }}</p>
+            </div>
+            <div class="modal-acciones">
+              <button class="btn btn--ghost" :disabled="guardandoRescatista" @click="cerrarAltaRescatista">Cancelar</button>
+              <button class="btn btn--primary" :disabled="guardandoRescatista" @click="guardarRescatistaRapido">
+                <span v-if="guardandoRescatista" class="btn-spinner"></span>
+                <svg v-else class="btn-ico" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                <span>{{ guardandoRescatista ? 'Guardando...' : 'Agregar rescatista' }}</span>
               </button>
             </div>
           </div>
@@ -1120,6 +1577,22 @@ function iniciales(nombre) {
 .modal-overlay { position:fixed; inset:0; background:rgba(0,0,0,0.35); backdrop-filter:blur(4px); z-index:1000; display:flex; align-items:center; justify-content:center; padding:24px; }
 .modal-box { background:var(--blanco); border-radius:22px; box-shadow:var(--sombra-md); position:relative; }
 .modal-box--confirm { width:420px; max-width:90vw; max-height:90vh; display:flex; flex-direction:column; overflow:hidden; border:1px solid var(--borde-suave); }
+.modal-box--sm { max-width:480px; width:100%; padding:32px; max-height:90vh; overflow-y:auto; }
+.modal-overlay--top { z-index:1100; }
+.modal-header { display:flex; align-items:flex-start; justify-content:space-between; margin-bottom:20px; }
+.modal-eyebrow { font-size:12px; font-weight:700; color:var(--verde-sec); text-transform:uppercase; letter-spacing:.5px; margin:0 0 4px; }
+.modal-title { font-size:19px; font-weight:800; color:var(--texto); margin:0; }
+.modal-section { margin-bottom:20px; }
+.modal-acciones { display:flex; gap:10px; justify-content:flex-end; padding-top:20px; border-top:1px solid var(--borde-suave); }
+.btn--icon { width:34px; height:34px; padding:0; border-radius:9px; background:var(--blanco); color:var(--texto-sec); border:1px solid var(--borde); position:relative; }
+.btn--icon :deep(svg) { width:15px; height:15px; }
+.btn--icon-close { position:absolute; top:18px; right:18px; width:30px; height:30px; border-radius:8px; background:var(--fondo); border-color:var(--borde); color:var(--texto); }
+.btn--icon-close :deep(svg) { width:14px; height:14px; stroke-width:2.5; }
+.btn--icon-close:hover:not(:disabled) { background:var(--verde); color:var(--blanco); border-color:var(--verde); }
+.fg-with-add { display:flex; align-items:flex-start; gap:8px; }
+.fg-with-add .select { flex:1; min-width:0; }
+.btn-add-quick { flex-shrink:0; width:38px; height:38px; display:flex; align-items:center; justify-content:center; border-radius:9px; border:1.5px solid var(--borde); background:var(--blanco); color:var(--verde); cursor:pointer; transition:all .18s; }
+.btn-add-quick:hover { border-color:var(--verde-sec); background:var(--fondo); }
 .modal-box--uniform {
   width:880px;
   max-width:92vw;
@@ -1303,6 +1776,61 @@ function iniciales(nombre) {
   .fields-row { grid-template-columns:1fr; }
 }
 @media (max-width:480px) { .don-summary { grid-template-columns:1fr; } }
+
+.wiz-hint { font-size:12px; color:var(--texto-sec); margin:-6px 0 14px; }
+
+/* ══════════════════════════════════════════════
+   WIZARD PASO A PASO (mismo patrón que Mascotas/Salud)
+   ══════════════════════════════════════════════ */
+.wiz-steps { position:relative; display:flex; justify-content:space-between; gap:6px; margin-top:18px; }
+.wiz-track { position:absolute; top:15px; left:6%; right:6%; height:2px; background:var(--borde-suave); border-radius:2px; }
+.wiz-track-fill { height:100%; background:var(--verde); border-radius:2px; transition:width .32s cubic-bezier(.4,0,.2,1); }
+.wiz-step { position:relative; z-index:1; flex:1; display:flex; flex-direction:column; align-items:center; gap:7px; background:transparent; border:none; padding:0; cursor:pointer; font-family:inherit; min-width:0; }
+.wiz-step.is-locked { cursor:default; }
+.wiz-bullet { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:800; background:var(--blanco); border:2px solid var(--borde-suave); color:var(--texto-sec); transition:all .22s ease; flex-shrink:0; }
+.wiz-step-label { font-size:11px; font-weight:700; color:var(--texto-sec); text-align:center; letter-spacing:.2px; transition:color .22s ease; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.wiz-step.is-done .wiz-bullet { background:var(--verde); border-color:var(--verde); color:#FFFFFF; }
+.wiz-step.is-done .wiz-step-label { color:var(--verde); }
+.wiz-step.is-active .wiz-bullet { background:var(--verde); border-color:var(--verde); color:#FFFFFF; box-shadow:0 0 0 4px rgba(58,71,60,.12); }
+.wiz-step.is-active .wiz-step-label { color:var(--verde); font-weight:800; }
+.wiz-step:not(.is-locked):not(.is-active):hover .wiz-bullet { border-color:var(--verde-sec); }
+
+.wiz-context { display:flex; align-items:center; gap:7px; margin-top:16px; font-size:12px; color:var(--texto-sec); flex-wrap:wrap; }
+.wiz-context-count { font-weight:800; color:var(--verde); text-transform:uppercase; letter-spacing:.5px; font-size:11px; }
+.wiz-context-sep { opacity:.5; }
+.wiz-context-desc { font-weight:500; }
+
+.wiz-body { min-height:260px; }
+.wiz-pane { animation:wiz-in .26s ease; }
+@keyframes wiz-in { from { opacity:0; transform:translateX(10px); } to { opacity:1; transform:translateX(0); } }
+
+.wiz-resumen { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+.wiz-res-card { border:1.5px solid var(--borde-suave); border-radius:12px; padding:16px; background:var(--blanco); }
+.wiz-res-card--full { grid-column:1 / -1; }
+.wiz-res-head { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:12px; padding-bottom:10px; border-bottom:1px solid var(--borde-suave); }
+.wiz-res-title { font-size:11px; font-weight:800; color:var(--verde); text-transform:uppercase; letter-spacing:.5px; }
+.wiz-res-edit { border:none; background:transparent; color:var(--texto-sec); font-size:11px; font-weight:700; cursor:pointer; font-family:inherit; text-decoration:underline; padding:0; }
+.wiz-res-edit:hover { color:var(--verde); }
+.wiz-res-sub { display:block; font-size:12px; color:var(--texto-sec); }
+.wiz-res-list { display:grid; grid-template-columns:repeat(2,1fr); gap:12px; margin:0; }
+.wiz-res-list > div { min-width:0; }
+.wiz-res-full { grid-column:1 / -1; }
+.wiz-res-list dt { font-size:10px; font-weight:700; color:var(--texto-sec); text-transform:uppercase; letter-spacing:.4px; }
+.wiz-res-list dd { font-size:13px; font-weight:600; color:var(--texto); margin:3px 0 0; word-break:break-word; }
+
+.wiz-footer { justify-content:space-between; align-items:center; }
+.wiz-nav { display:flex; gap:10px; }
+.btn-back { display:flex; align-items:center; gap:6px; }
+
+@media (max-width:768px) {
+  .wiz-step-label { display:none; }
+  .wiz-steps { justify-content:center; gap:0; }
+  .wiz-track { top:15px; left:10%; right:10%; }
+  .wiz-resumen { grid-template-columns:1fr; }
+  .wiz-footer { flex-direction:column-reverse; align-items:stretch; gap:8px; }
+  .wiz-nav { width:100%; }
+  .wiz-nav .btn-cancel, .wiz-nav .btn-save { flex:1; justify-content:center; }
+}
 </style>
 <style>
 /* ── Variables globales (para contenido teletransportado) ── */
@@ -1313,5 +1841,7 @@ function iniciales(nombre) {
   --verde-ok:#4CAF6A; --rojo:#C0392B; --rojo-bg:#FBEDEC;
   --sombra-sm:0 1px 2px rgba(58,71,60,.03);
   --sombra-md:0 2px 4px rgba(58,71,60,.05), 0 14px 32px -14px rgba(58,71,60,.18);
+  --btn-height:33px; --btn-radius:9px; --btn-pad-x:13px; --btn-icon-size:14px;
+  --btn-icon-gap:6px; --btn-font-size:12.5px; --btn-font-weight:600; --btn-transition:0.16s ease;
 }
 </style>

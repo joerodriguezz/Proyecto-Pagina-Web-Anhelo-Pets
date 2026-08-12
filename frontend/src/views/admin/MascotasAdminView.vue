@@ -6,6 +6,7 @@ import { useRescuesStore } from '../../stores/useRescuesStore'
 import { createAnimals, uploadAnimalPhoto, getAnimalPhotos, deleteAnimalPhoto } from '../../services/petServices.js'
 import { registrarAuditoria } from '../../composables/useAuditLog'
 import { getFosterHomes, createFosterHome } from '../../services/fosterHomeServices'
+import { getActivePlacementByAnimal, createFosterPlacement, endFosterPlacement, getAllFosterPlacements } from '../../services/fosterPlacementServices'
 import { getAdoptionRequests, mapAdoptionRequestDtoToRow } from '../../services/adoptionServices'
 import { getHealthRecords } from '../../services/healthServices'
 
@@ -17,6 +18,7 @@ onMounted(() => {
   cargarCasasCuna()
   cargarSolicitudesAdopcion()
   cargarDatosSalud()
+  cargarPlacementsActivos()
 })
 
 // ─────────────────────────────────────────────
@@ -33,6 +35,51 @@ async function cargarCasasCuna() {
   } catch {
     casasCuna.value = []
   }
+}
+
+// ─────────────────────────────────────────────
+// Asignación de casa cuna por mascota (tabla animal_foster_placements,
+// separada de animals). placementsPorMascota alimenta el listado/Ver;
+// placementActivo guarda la asignación vigente de la mascota que se
+// está editando, para poder cerrarla si se cambia o se quita.
+// ─────────────────────────────────────────────
+const placementsPorMascota = ref({})
+async function cargarPlacementsActivos() {
+  try {
+    const { data } = await getAllFosterPlacements()
+    const mapa = {}
+    ;(data || []).forEach(p => {
+      if (p.endDate) return
+      const actual = mapa[p.animalId]
+      if (!actual || String(p.startDate) > String(actual.startDate)) {
+        mapa[p.animalId] = p
+      }
+    })
+    placementsPorMascota.value = mapa
+  } catch {
+    placementsPorMascota.value = {}
+  }
+}
+const placementActivo = ref(null)
+
+/** Termina la asignación anterior (si cambió) y crea la nueva (si se eligió una). */
+async function reconciliarCasaCuna(animalId) {
+  const nuevoId = formData.value.casaCunaId || null
+  const actualId = placementActivo.value?.fosterHomeId || null
+  if (nuevoId === actualId) return
+
+  const hoy = new Date().toISOString().slice(0, 10)
+
+  if (placementActivo.value) {
+    await endFosterPlacement(placementActivo.value.animalFosterPlacementId, {
+      ...placementActivo.value,
+      endDate: hoy,
+    })
+  }
+  if (nuevoId) {
+    await createFosterPlacement({ animalId, fosterHomeId: nuevoId, startDate: hoy })
+  }
+  await cargarPlacementsActivos()
 }
 
 // ─────────────────────────────────────────────
@@ -390,6 +437,7 @@ async function savePet() {
     try {
       await store.updatePet(editingPetId.value, petData)
       await subirFotosNuevas(editingPetId.value, petData.name)
+      await reconciliarCasaCuna(editingPetId.value)
       await store.fetchPets({ status: 'Todos' })
       registrarAuditoria({
         modulo: 'Mascotas', accion: 'Editó una mascota', tipoAccion: 'editar',
@@ -408,6 +456,7 @@ async function savePet() {
       const { data: created } = await createAnimals(petData)
       if (created?.id) {
         await subirFotosNuevas(created.id, petData.name)
+        await reconciliarCasaCuna(created.id)
       }
       await store.fetchPets({ status: 'Todos' })
       registrarAuditoria({
@@ -441,6 +490,7 @@ function openForm() {
     description: '', internalNotes: '', images: [],
     casaCunaId: '', casaCunaNombre: '',
   }
+  placementActivo.value = null
   pasoActual.value = 1
   pasoMaximo.value  = 1
   showForm.value = true
@@ -463,8 +513,9 @@ async function openEdit(pet) {
     description:   pet.description,
     internalNotes: pet.internalNotes || '',
     images:        [...(pet.images || [])],
-    casaCunaId:    pet.casaCunaId    || '',
-    casaCunaNombre: pet.casaCunaNombre || '',
+    // Se completan abajo desde animal_foster_placements (no viven en el pet).
+    casaCunaId:    '',
+    casaCunaNombre: '',
   }
   formErrors.value = {}
   showForm.value   = true
@@ -480,6 +531,18 @@ async function openEdit(pet) {
   } catch (err) {
     console.error('Error al cargar la galería de fotos:', err)
   }
+
+  // Trae la asignación de casa cuna vigente (tabla animal_foster_placements,
+  // no es un campo de la mascota) para precargar el selector correctamente.
+  try {
+    const { data: activa } = await getActivePlacementByAnimal(pet.id)
+    placementActivo.value = activa || null
+    formData.value.casaCunaId = activa?.fosterHomeId || ''
+    formData.value.casaCunaNombre = activa?.fosterHomeName || ''
+  } catch (err) {
+    console.error('Error al cargar la casa cuna asignada:', err)
+    placementActivo.value = null
+  }
 }
 function closeForm() {
   showForm.value     = false
@@ -492,6 +555,7 @@ function closeForm() {
     description: '', internalNotes: '', images: [],
     casaCunaId: '', casaCunaNombre: '',
   }
+  placementActivo.value = null
   pasoActual.value = 1
   pasoMaximo.value  = 1
 }
@@ -598,11 +662,8 @@ function openRequests(pet) {
 // Helpers
 // ─────────────────────────────────────────────
 function getNombreCasaCuna(pet) {
-  if (pet.casaCunaNombre) return pet.casaCunaNombre
-  if (pet.casaCunaId) {
-    const cc = casasCuna.value.find(u => String(u.id) === String(pet.casaCunaId))
-    return cc ? (cc.nombre || cc.name || '—') : '—'
-  }
+  const activa = placementsPorMascota.value[pet?.id]
+  if (activa) return activa.fosterHomeName || 'Sin asignar'
   return 'Sin asignar'
 }
 

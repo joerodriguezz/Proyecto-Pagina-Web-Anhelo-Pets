@@ -23,6 +23,22 @@ export const getMyVolunteerApplication = (email) => {
     return get(`/api/volunteers/by-email/${encodeURIComponent(email)}`)
 }
 
+// Alta rápida desde el panel: crea la cuenta y el voluntariado ya aprobados
+// en una sola operación atómica (a diferencia de encadenar register+submit+approve).
+export const createApprovedVolunteer = (data) => {
+    return post('/api/volunteers/quick-add', {
+        firstName: data.firstName,
+        lastName: data.lastName || null,
+        email: data.email,
+        phonePrimary: data.phonePrimary,
+        nationalId: data.nationalId,
+        nationality: data.nationality || null,
+        password: data.password,
+        volunteerType: data.volunteerType,
+        createdBy: data.createdBy || 'admin',
+    })
+}
+
 // Listado para el panel admin
 export const getVolunteers = () => {
     return get('/api/volunteers')

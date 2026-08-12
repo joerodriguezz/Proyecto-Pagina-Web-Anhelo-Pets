@@ -15,6 +15,8 @@ function mapPetToDto(pet) {
     ageYears,
     ageMonths,
     sex:          pet.sex === 'Hembra' ? 'H' : 'M',
+    size:         pet.size || null,
+    personality:  pet.personality || null,
     animalStatus: pet.status || 'Disponible',
     healthStatus: pet.healthBasic || '',
     description:  pet.description || ''
@@ -33,6 +35,8 @@ function mapDtoToPet(dto) {
     breed:       dto.breed,
     age:         ageParts.join(' ') || 'Desconocida',
     sex:         dto.sex === 'H' ? 'Hembra' : dto.sex === 'M' ? 'Macho' : dto.sex || '',
+    size:        dto.size || 'Mediano',
+    personality: dto.personality || '',
     status:      dto.animalStatus,
     healthBasic: dto.healthStatus,
     description: dto.description,
